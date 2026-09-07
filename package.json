@@ -1,0 +1,47 @@
+{
+  "name": "shadow-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Time-travel debugging for AI agents.",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "demo": "node scripts/demo.mjs",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "pnpm --filter @shadow/web test:e2e",
+    "bench": "pnpm --filter @shadow/core bench",
+    "db:migrate": "pnpm --filter @shadow/api db:migrate",
+    "db:seed": "pnpm --filter @shadow/api db:seed",
+    "db:reset": "pnpm --filter @shadow/api db:reset",
+    "db:generate": "pnpm --filter @shadow/api db:generate",
+    "clean": "turbo run clean && rm -rf node_modules/.cache",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@shadow/config": "workspace:*",
+    "eslint": "9.39.5",
+    "prettier": "3.9.6",
+    "turbo": "2.10.12",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@tailwindcss/oxide",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

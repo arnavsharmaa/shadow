@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #f6f7f9;
+  --bg-panel: #ffffff;
+  --bg-muted: #eef0f3;
+  --bg-hover: #e8ebef;
+  --bg-selected: #dbe7ff;
+  --border: #d5d9e0;
+  --border-strong: #b8bec8;
+  --fg: #1a1d23;
+  --fg-muted: #5c6470;
+  --fg-faint: #8a919c;
+  --accent: #2457d6;
+  --accent-fg: #ffffff;
+  --ok: #1a7f4b;
+  --ok-bg: #e2f5ea;
+  --warn: #9a5b00;
+  --warn-bg: #fff1d6;
+  --err: #c0262d;
+  --err-bg: #fde4e4;
+  --info: #2457d6;
+  --info-bg: #e3ebff;
+  --purple: #6d3fc7;
+  --purple-bg: #ece4fb;
+  --teal: #0b7285;
+  --teal-bg: #d9f1f5;
+  --diff-add-bg: #dcf5e6;
+  --diff-del-bg: #fbe1e1;
+  --diff-mod-bg: #fff3d0;
+  --json-key: #7a3e9d;
+  --json-string: #1a7f4b;
+  --json-number: #b35c00;
+  --json-bool: #2457d6;
+  --json-null: #8a919c;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --bg-panel: #161920;
+  --bg-muted: #1d2129;
+  --bg-hover: #232833;
+  --bg-selected: #1f3160;
+  --border: #2a303b;
+  --border-strong: #3b4350;
+  --fg: #e6e8ec;
+  --fg-muted: #9aa3b0;
+  --fg-faint: #6b7380;
+  --accent: #6b9bff;
+  --accent-fg: #0f1115;
+  --ok: #4ecb86;
+  --ok-bg: #12301f;
+  --warn: #f2b35a;
+  --warn-bg: #3a2a0d;
+  --err: #ff6b6b;
+  --err-bg: #3d1a1c;
+  --info: #6b9bff;
+  --info-bg: #17243f;
+  --purple: #b48cff;
+  --purple-bg: #2a1f45;
+  --teal: #5fd3e6;
+  --teal-bg: #0f2c33;
+  --diff-add-bg: #12301f;
+  --diff-del-bg: #3d1a1c;
+  --diff-mod-bg: #3a2a0d;
+  --json-key: #c792ea;
+  --json-string: #7fd8a4;
+  --json-number: #f2b35a;
+  --json-bool: #6b9bff;
+  --json-null: #8a919c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--bg-panel);
+  --color-muted: var(--bg-muted);
+  --color-hover: var(--bg-hover);
+  --color-selected: var(--bg-selected);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-err: var(--err);
+  --color-err-bg: var(--err-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-purple: var(--purple);
+  --color-purple-bg: var(--purple-bg);
+  --color-teal: var(--teal);
+  --color-teal-bg: var(--teal-bg);
+  --color-diff-add: var(--diff-add-bg);
+  --color-diff-del: var(--diff-del-bg);
+  --color-diff-mod: var(--diff-mod-bg);
+  --font-mono: var(--font-mono);
+  --font-sans: var(--font-sans);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  height: 100%;
+}
+
+* {
+  border-color: var(--border);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 5px;
+  border: 2px solid var(--bg);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.json-key {
+  color: var(--json-key);
+}
+.json-string {
+  color: var(--json-string);
+}
+.json-number {
+  color: var(--json-number);
+}
+.json-bool {
+  color: var(--json-bool);
+}
+.json-null {
+  color: var(--json-null);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,83 @@
+name: Feature request
+description: Propose a new capability or an enhancement
+title: "[feature]: "
+labels: ["type/feature", "status/needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem before the solution: it helps find the design that fits the event
+        model. Check `ROADMAP.md` in the repository first; if the idea is already listed,
+        comment on the roadmap issue or reference it here.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard or impossible with Shadow today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed capability
+      description: What should Shadow do? Sketch the API, CLI command, event type, override kind or UI change if you have one in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: A concrete scenario (which agent, which trace, which question you want answered). The refund-agent demo is a fine reference point.
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component(s)
+      multiple: true
+      options:
+        - Event model / schemas
+        - State and context
+        - Forks and overrides
+        - Replay engine
+        - Comparison engine
+        - API
+        - Storage
+        - SDK
+        - CLI
+        - Web app
+        - Cost tracking
+        - Documentation
+        - Other
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, other tools, or other ways Shadow could solve the problem.
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Would this change the trace schema or a public API?
+      options:
+        - "No"
+        - "Additive change (schema minor)"
+        - "Breaking change (schema major or API break)"
+        - "Not sure"
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Willingness to contribute
+      options:
+        - I would like to implement this
+        - I can help with design or review
+        - I can test a pre-release
+        - I am only proposing the idea
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true

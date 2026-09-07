@@ -1,0 +1,11 @@
+import { defineConfig } from "tsup";
+export default defineConfig({
+  entry: ["src/index.ts", "src/cli.ts"],
+  format: ["esm"],
+  dts: { entry: "src/index.ts" },
+  sourcemap: true,
+  clean: true,
+  target: "node22",
+  platform: "node",
+  noExternal: ["@shadow/core", "@shadow/schemas"],
+});

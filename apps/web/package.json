@@ -1,0 +1,39 @@
+{
+  "name": "@shadow/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shadow web application: trace explorer, trace detail, fork editor and branch comparison.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "clean": "rm -rf .next coverage playwright-report test-results"
+  },
+  "dependencies": {
+    "@shadow/core": "workspace:*",
+    "@shadow/schemas": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "next": "15.5.25",
+    "react": "19.1.9",
+    "react-dom": "19.1.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.54.2",
+    "@shadow/config": "workspace:*",
+    "@tailwindcss/postcss": "4.1.18",
+    "@types/node": "24.13.3",
+    "@types/react": "19.1.17",
+    "@types/react-dom": "19.1.9",
+    "eslint": "9.39.5",
+    "postcss": "8.5.28",
+    "tailwindcss": "4.1.18",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

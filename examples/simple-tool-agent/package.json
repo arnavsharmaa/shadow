@@ -1,0 +1,24 @@
+{
+  "name": "@shadow/example-simple-tool-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Example: an inventory agent whose tool call times out, recorded with the Shadow SDK.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@shadow/sdk": "workspace:*",
+    "@shadow/testkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@shadow/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3"
+  }
+}

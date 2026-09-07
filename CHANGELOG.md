@@ -1,0 +1,97 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, minor releases
+may contain breaking changes to package and HTTP APIs; the stored trace schema only changes with a
+migration (see `docs/concepts/schema-versioning.md`).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-09-03
+
+Initial public release.
+
+### Added
+
+- **Event model** (`@shadow/schemas`): append-only, versioned events (`schemaVersion` `1.0`)
+  with 25 known `category.action` event types, typed payload schemas, span fields (`spanId`,
+  `parentSpanId`, `parentEventId`), token usage, estimated cost, severity, tags, correlation ids
+  and a reserved `metadata.shadow` namespace recording the event origin (`recorded`, `replay`,
+  `override`, `import`, `seed`). Unknown top-level fields are preserved.
+- **Entities**: project, agent, trace (root branch `main`), branch lineage with inherited event
+  prefixes, span, event, state snapshot, fork with typed overrides, replay, comparison, branch
+  metrics (cost record) and an artifact table reserved for future use.
+- **State model** (`@shadow/core`): JSON state document with RFC 6902 `add`/`replace`/`remove`
+  patches, key/value context, automatic snapshots every 25 mutations (configurable), state
+  reconstruction at any event boundary from the nearest snapshot, and structural diffs.
+- **Forks and overrides**: fork any operation boundary of a branch (responses normalise to their
+  request) with `context`, `state`, `tool_result`, `tool_error` and `policy` overrides.
+- **Replay engine**: historical replay, deterministic counterfactual replay with a history
+  cursor that serves the recorded prefix and aborts on the first mismatch, fork-point state
+  verification against reconstruction, override application as events, virtual clock and seeded
+  ids for byte-identical results, and the live re-execution architecture (callbacks).
+- **Comparison engine**: shared-prefix detection, LCS alignment on `eventType name` signatures
+  with a windowed greedy fallback above 4M DP cells, first divergence with reason, added/removed/
+  modified events with field diffs, tool-call diffs by occurrence, final context and state diffs,
+  metric deltas, outcome and policy decision changes.
+- **API** (`apps/api`): Fastify 5 with Zod validation and OpenAPI documentation at `/docs` and
+  `/openapi.json`; routes for projects, agents, traces, events (cursor pagination, branch and
+  type filters), execution tree, per-event state, branches, forks, replays, comparisons, export
+  and import of `shadow.trace` bundles; consistent error envelope; request ids; structured pino
+  logs with redaction; configurable body limit.
+- **Storage**: PostgreSQL schema managed by Drizzle with migrations in `apps/api/drizzle`,
+  running identically on embedded PGlite (default, data in `.shadow/data`) and PostgreSQL
+  (`DATABASE_URL`); `state_snapshots` table for fast reconstruction; indexes on branch/sequence,
+  trace/sequence, timestamp, event type, name, parent event and trace tags.
+- **SDK** (`@shadow/sdk`): `Shadow` client and `Trace` implementing the `AgentHost` contract
+  (`tool`, `model`, `policy`, `requestApproval`, `resolveApproval`, `context`, `state`,
+  `snapshot`, `note`, `run`, `end`, `fail`), batching and retrying `HttpTransport`,
+  `MemoryTransport`, client-side redaction; transport failures never throw into agent code.
+- **CLI** (`@shadow/cli`, binary `shadow`): `traces list`, `traces inspect`, `traces export`,
+  `traces import`, `fork`, `replay`, `compare`; `--endpoint` flag and `SHADOW_ENDPOINT`.
+- **Testkit** (`@shadow/testkit`): deterministic `ScriptedModelAdapter`, `MockToolAdapter`,
+  `RuleBasedPolicyAdapter`, approval adapters, five replayable demo agents, the synthetic load
+  agent and the seeded demo data set.
+- **Web app** (`apps/web`): trace explorer, trace detail with execution tree, event details with
+  JSON viewer, state/context inspector with before/after/diff, branch selector, timeline with
+  zoom and jump-to-error/policy-violation, fork editor, branch DAG and comparison view.
+- **Cost tracking**: `PricingProvider` interface, bundled fictional `shadow-sim` pricing, cost
+  estimates on model and tool events, aggregated branch metrics and comparison deltas.
+- **Redaction**: key-pattern redaction in the SDK and the API, value-pattern redaction on the
+  server, `SHADOW_REDACT_PATTERNS` for additional keys.
+- **Tooling**: pnpm 10 workspace with Turborepo, shared TypeScript/ESLint/Prettier config,
+  Vitest unit and integration suites, end-to-end tests, benchmarks, `docker compose` for
+  PostgreSQL, demo script.
+- **Documentation**: concepts, architecture, API reference, integration proposals, ADRs,
+  contribution guide, security policy, code of conduct, roadmap, issue and pull request
+  templates.
+
+### Changed
+
+- Nothing; first release.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- Nothing; first release.
+
+### Security
+
+- No authentication in this release: Shadow is intended for local, single-user use or trusted
+  networks. See `SECURITY.md` for the threat model and hardening guidance.
+- Request bodies are bounded (`SHADOW_MAX_BODY_BYTES`, default 10 MiB), ingestion batches are
+  limited to 5000 events and import bundles to 500 000 events.
+- Replay never executes code contained in traces or bundles; only programs registered in the API
+  process can be re-run.
+
+[Unreleased]: ../../compare/v0.1.0...HEAD
+[0.1.0]: ../../releases/tag/v0.1.0

@@ -1,0 +1,71 @@
+# Reproducible local environment: PostgreSQL + Shadow API + Shadow web.
+#
+#   docker compose up            # build and start everything
+#   open http://localhost:3000   # web UI (API on http://localhost:4000)
+#
+# The API applies migrations on start and seeds the demo data when the
+# database is empty.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shadow
+      POSTGRES_PASSWORD: shadow
+      POSTGRES_DB: shadow
+    ports:
+      - "5432:5432"
+    volumes:
+      - shadow-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shadow -d shadow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://shadow:shadow@postgres:5432/shadow
+      SHADOW_API_HOST: 0.0.0.0
+      SHADOW_API_PORT: "4000"
+      SHADOW_AUTO_MIGRATE: "true"
+      SHADOW_AUTO_SEED: "true"
+      SHADOW_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SHADOW_API_URL: http://localhost:4000
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  shadow-postgres:

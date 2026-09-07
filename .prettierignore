@@ -1,0 +1,12 @@
+node_modules
+dist
+.next
+.next-e2e
+.turbo
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+CHANGELOG.md
+apps/api/drizzle/meta
+.shadow

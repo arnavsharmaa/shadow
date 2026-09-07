@@ -1,0 +1,101 @@
+name: Bug report
+description: Something does not work as documented
+title: "[bug]: "
+labels: ["type/bug", "status/needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please do **not** report security vulnerabilities
+        here; use GitHub private vulnerability reporting (repository Security tab) as described in `SECURITY.md`.
+        Do not paste traces that contain real customer data, credentials or other sensitive content.
+  - type: input
+    id: shadow-version
+    attributes:
+      label: Shadow version
+      description: Output of `shadow --version`, or the git commit / package version you are running.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+      placeholder: "v24.x.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: How are you running Shadow?
+      multiple: true
+      options:
+        - Local development (`pnpm dev`, embedded PGlite)
+        - PostgreSQL via `docker compose up`
+        - PostgreSQL (other)
+        - Built packages from npm
+        - Other (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      multiple: true
+      options:
+        - "@shadow/sdk"
+        - "@shadow/core"
+        - "@shadow/schemas"
+        - "@shadow/cli"
+        - "@shadow/testkit"
+        - API (apps/api)
+        - Storage / migrations
+        - Web app (apps/web)
+        - Documentation
+        - Not sure
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, numbered steps. Commands, request bodies and CLI invocations are ideal. If the demo data reproduces the problem, say which trace.
+      placeholder: |
+        1. `pnpm dev`
+        2. `shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100`
+        3. `shadow replay <branchId>`
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include error messages, the `x-request-id` of failing API requests and relevant log lines.
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace or sample (only if safe to share)
+      description: An exported `shadow.trace` bundle, a minimal event list, or a snippet of agent code. Redact anything sensitive first; prefer synthetic data.
+      render: json
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that helps (OS, browser for web issues, whether the agent is registered for replay, related issues).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: The report contains no credentials or sensitive trace data.
+          required: true

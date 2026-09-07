@@ -1,0 +1,116 @@
+name: Release
+
+# Triggered by pushing a semver tag such as v0.1.0. Validates the tag against
+# the workspace version, runs the full verification, builds the publishable
+# packages, and creates a GitHub Release with the tarballs and release notes.
+#
+# npm publishing is intentionally NOT automated. To enable it later, add an
+# NPM_TOKEN secret (or npm trusted publishing) and a publish job that depends
+# on `release`; the packages are already built and packed by this workflow.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  validate:
+    name: Validate tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56ad8ba2b8b5b0cbe4d8a # v5.0.1
+      - name: Check tag matches package versions
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag version: $tag"
+          for pkg in package.json packages/schemas/package.json packages/core/package.json packages/sdk/package.json packages/cli/package.json packages/testkit/package.json apps/api/package.json apps/web/package.json; do
+            v=$(node -p "require('./$pkg').version")
+            if [ "$v" != "$tag" ]; then
+              echo "::error::$pkg is at version $v but the tag is v$tag"
+              exit 1
+            fi
+          done
+          if ! grep -q "^## \[$tag\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$tag]' section"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+  verify:
+    name: Verify
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56ad8ba2b8b5b0cbe4d8a # v5.0.1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint, typecheck, tests
+        run: pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:integration
+      - name: Build
+        run: pnpm build
+      - name: Pack packages
+        run: |
+          mkdir -p dist-packs
+          for pkg in packages/schemas packages/core packages/sdk packages/cli packages/testkit; do
+            (cd "$pkg" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/dist-packs")
+          done
+          ls -la dist-packs
+      - name: Upload package tarballs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: packages
+          path: dist-packs/*.tgz
+          retention-days: 30
+
+  release:
+    name: GitHub Release
+    needs: [validate, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56ad8ba2b8b5b0cbe4d8a # v5.0.1
+      - name: Download package tarballs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: packages
+          path: dist-packs
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${{ needs.validate.outputs.version }}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          echo "--- release notes ---"; cat release-notes.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
+        with:
+          name: v${{ needs.validate.outputs.version }}
+          body_path: release-notes.md
+          prerelease: ${{ needs.validate.outputs.prerelease == 'true' }}
+          files: dist-packs/*.tgz

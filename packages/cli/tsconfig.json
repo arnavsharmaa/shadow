@@ -1,0 +1,5 @@
+{
+  "extends": "@shadow/config/tsconfig.node.json",
+  "compilerOptions": { "noEmit": true, "lib": ["ES2023", "DOM"] },
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"]
+}

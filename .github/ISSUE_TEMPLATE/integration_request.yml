@@ -1,0 +1,88 @@
+name: Integration request
+description: Request or propose an integration with an agent framework, runtime or protocol
+title: "[integration]: "
+labels: ["type/integration", "status/needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read `docs/integrations/README.md` in the repository for the mapping
+        principles and the `AgentHost` contract. Existing proposals (OpenTelemetry, OpenAI Agents SDK,
+        LangGraph, MCP, Anthropic) live in the same directory; if yours is one of them, comment there.
+  - type: input
+    id: framework
+    attributes:
+      label: Agent framework / runtime / protocol
+      description: Name, language and version. Link to its documentation.
+      placeholder: "LangGraph.js 0.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: Integration path
+      description: How would the integration record traces?
+      options:
+        - Wrap the framework with the AgentHost (SDK instrumentation)
+        - Translate the framework's own telemetry (callbacks, spans, logs)
+        - Import an existing trace format as a shadow.trace bundle
+        - Accept a wire protocol on the API (like OTLP)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: example-trace
+    attributes:
+      label: Example trace format
+      description: A representative sample of what the framework emits today (callback payloads, span JSON, run logs). Use synthetic data; redact anything sensitive.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: mapping
+    attributes:
+      label: Expected mapping to Shadow events
+      description: |
+        Which framework concepts become `model.*`, `tool.*`, `policy.*`, `human.*`, `state.*`, `context.*`, spans, or custom `category.action` types? Where does the agent's state and context live? What would be lost?
+      placeholder: |
+        | Framework concept | Shadow event |
+        | ----------------- | ------------ |
+        | node execution    | custom span `myframework.node_entered` / `node_exited` |
+        | tool call         | tool.request / tool.response |
+    validations:
+      required: true
+  - type: dropdown
+    id: replay
+    attributes:
+      label: Replayability
+      description: Could executions be re-run deterministically given recorded model and tool results?
+      options:
+        - Yes, the run loop is deterministic given model/tool results
+        - Partially (some steps have hidden I/O)
+        - No, recording only
+        - Not sure
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation
+      description: Links to the framework's tracing / callback / telemetry documentation and to any existing exporters.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Willingness to contribute
+      options:
+        - I would like to build the adapter
+        - I can write the mapping document
+        - I can provide sample traces and test a pre-release
+        - I am only requesting it
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I checked docs/integrations and existing issues for this framework.
+          required: true
+        - label: The sample contains no credentials or sensitive data.
+          required: true
