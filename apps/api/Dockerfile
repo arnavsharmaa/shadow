@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @shadow/api build
 RUN pnpm --filter @shadow/api --prod deploy /out --legacy
 
-FROM node:24-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S shadow && adduser -S shadow -G shadow
