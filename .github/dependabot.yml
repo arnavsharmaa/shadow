@@ -27,13 +27,20 @@ updates:
     labels: ["type:chore", "area:ci"]
     commit-message:
       prefix: "ci"
+  # Base images track the Node.js LTS line in .nvmrc; major bumps are manual.
   - package-ecosystem: docker
     directory: /apps/api
     schedule:
       interval: monthly
     labels: ["type:chore", "area:ci"]
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /apps/web
     schedule:
       interval: monthly
     labels: ["type:chore", "area:ci"]
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
