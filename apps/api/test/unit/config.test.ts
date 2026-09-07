@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { corsOrigins, loadConfig, repoRoot } from "../../src/config.js";
@@ -62,7 +63,9 @@ describe("loadConfig", () => {
 describe("repoRoot", () => {
   it("finds the workspace root from a nested directory", () => {
     const root = repoRoot(import.meta.dirname);
-    expect(path.basename(root)).toBe("Shadow");
+    // The checkout directory name differs between machines (e.g. CI clones
+    // into lower-case `shadow`), so assert on the workspace marker instead.
+    expect(existsSync(path.join(root, "pnpm-workspace.yaml"))).toBe(true);
     expect(root).toBe(repoRoot(path.join(root, "apps", "api")));
   });
 });
