@@ -187,6 +187,7 @@ Events are buffered, redacted (passwords, API keys, tokens, cookies, …) and se
 ```bash
 shadow --version
 shadow --help
+shadow status
 shadow traces list --project support-agent --status failed
 shadow traces inspect trc_demo_refund_violation
 shadow traces export trc_demo_refund_violation --out refund.json

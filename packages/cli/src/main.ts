@@ -55,6 +55,49 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
   const json = (value: unknown) => out(JSON.stringify(value, null, 2));
 
+  program
+    .command("status")
+    .description("check the Shadow API and summarise what it holds")
+    .option("--json", "print JSON")
+    .action(async (opts: { json?: boolean }) => {
+      const api = client();
+      const health = await api.get<{
+        status: string;
+        version: string;
+        uptimeSeconds: number;
+        database: { kind: string; location: string; healthy: boolean };
+      }>("/health");
+      const traces = await api.get<Page<TraceSummary>>("/api/v1/traces", { limit: 1 });
+      const facets = await api.get<{
+        projects: { slug: string }[];
+        agents: { slug: string }[];
+        tools: string[];
+      }>("/api/v1/traces/facets");
+      const summary = {
+        endpoint: program.opts<{ endpoint: string }>().endpoint,
+        status: health.status,
+        version: health.version,
+        uptimeSeconds: health.uptimeSeconds,
+        database: health.database,
+        traces: traces.total ?? traces.items.length,
+        projects: facets.projects.length,
+        agents: facets.agents.length,
+        tools: facets.tools.length,
+      };
+      if (opts.json) return json(summary);
+      out(
+        `shadow api ${summary.version} at ${summary.endpoint}: ${summary.status} (up ${duration(summary.uptimeSeconds * 1000)})`,
+      );
+      out(
+        `  database  ${summary.database.kind} ${summary.database.location} (${summary.database.healthy ? "healthy" : "unhealthy"})`,
+      );
+      out(
+        `  traces    ${summary.traces} across ${summary.projects} project(s) and ${summary.agents} agent(s); ${summary.tools} distinct tool(s)`,
+      );
+      if (summary.status !== "ok")
+        throw new CliError("the API reports a degraded status", EXIT.error);
+    });
+
   const traces = program.command("traces").description("list, inspect, export and import traces");
 
   traces

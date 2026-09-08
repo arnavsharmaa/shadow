@@ -146,6 +146,49 @@ describe("shadow cli", () => {
     expect(text).toContain("compare");
   });
 
+  it("reports API status with counts", async () => {
+    const api = fakeApi({
+      "GET /health": () => ({
+        body: {
+          status: "ok",
+          version: "0.1.0",
+          uptimeSeconds: 125,
+          database: { kind: "pglite", location: "pglite:/tmp/data", healthy: true },
+        },
+      }),
+      "GET /api/v1/traces": () => ({ body: { items: [trace], nextCursor: null, total: 7 } }),
+      "GET /api/v1/traces/facets": () => ({
+        body: {
+          projects: [{ slug: "a" }, { slug: "b" }],
+          agents: [{ slug: "x" }],
+          tags: [],
+          tools: ["t1", "t2", "t3"],
+        },
+      }),
+    });
+    expect(await runWith(api, ["status"])).toBe(0);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("0.1.0");
+    expect(text).toContain("pglite");
+    expect(text).toContain("7 across 2 project(s) and 1 agent(s); 3 distinct tool(s)");
+    const json = fakeApi({
+      "GET /health": () => ({
+        body: {
+          status: "degraded",
+          version: "0.1.0",
+          uptimeSeconds: 1,
+          database: { kind: "postgres", location: "postgres://db:5432/shadow", healthy: false },
+        },
+      }),
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+      "GET /api/v1/traces/facets": () => ({
+        body: { projects: [], agents: [], tags: [], tools: [] },
+      }),
+    });
+    expect(await runWith(json, ["status", "--json"])).toBe(1);
+    expect(JSON.parse(json.captured.out.join("\n")).database.healthy).toBe(false);
+  });
+
   it("returns a usage exit code for unknown commands", async () => {
     const api = fakeApi({});
     expect(await runWith(api, ["frobnicate"])).toBe(2);
