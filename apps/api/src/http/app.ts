@@ -1,7 +1,7 @@
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
-import Fastify from "fastify";
+import Fastify, { LogController } from "fastify";
 import {
   hasZodFastifySchemaValidationErrors,
   isResponseSerializationError,
@@ -41,7 +41,9 @@ export async function buildApp(options: BuildAppOptions) {
     bodyLimit: options.config.SHADOW_MAX_BODY_BYTES,
     requestIdHeader: "x-request-id",
     genReqId: () => `req_${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
-    disableRequestLogging: true,
+    // Request logging is handled by the onResponse hook below (one structured
+    // line per request with the request id and duration).
+    logController: new LogController({ disableRequestLogging: true }),
     trustProxy: false,
   });
   app.decorate("services", options.services);
