@@ -2,8 +2,9 @@
 
 import { dateTime, duration, money } from "@/lib/format";
 import type { JsonValue, ShadowEvent } from "@shadow/schemas";
+import { useState } from "react";
 import { JsonView } from "../json/JsonView";
-import { Badge, KeyValue, eventTone } from "../ui/primitives";
+import { Badge, Button, KeyValue, eventTone } from "../ui/primitives";
 
 interface Props {
   event: ShadowEvent;
@@ -12,7 +13,20 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
-export function EventDetail({ event, events, eventsById, onSelect }: Props) {
+export function EventDetail({
+  const [copied, setCopied] = useState(false);
+  const copyPermalink = async () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("branch", event.branchId);
+      url.searchParams.set("event", event.id);
+      await navigator.clipboard.writeText(url.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }; event, events, eventsById, onSelect }: Props) {
   const parent = event.parentEventId ? eventsById.get(event.parentEventId) : undefined;
   const children = events.filter((e) => e.parentEventId === event.id);
   const spanOpener = event.spanId
@@ -47,6 +61,16 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
         ))}
         {shadow?.overrideApplied === true && <Badge tone="info">result from override</Badge>}
         {shadow?.origin === "override" && <Badge tone="info">override</Badge>}
+        <Button
+          size="xs"
+          variant="ghost"
+          className="ml-auto"
+          onClick={copyPermalink}
+          aria-label="Copy a permalink to this event"
+          data-testid="copy-permalink"
+        >
+          {copied ? "Link copied" : "Copy link"}
+        </Button>
       </div>
       <dl>
         <KeyValue label="Event id" mono>
