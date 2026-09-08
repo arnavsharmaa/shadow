@@ -13,7 +13,7 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
-export function EventDetail({
+export function EventDetail({ event, events, eventsById, onSelect }: Props) {
   const [copied, setCopied] = useState(false);
   const copyPermalink = async () => {
     try {
@@ -26,7 +26,7 @@ export function EventDetail({
     } catch {
       setCopied(false);
     }
-  }; event, events, eventsById, onSelect }: Props) {
+  };
   const parent = event.parentEventId ? eventsById.get(event.parentEventId) : undefined;
   const children = events.filter((e) => e.parentEventId === event.id);
   const spanOpener = event.spanId

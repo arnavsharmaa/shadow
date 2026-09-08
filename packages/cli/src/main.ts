@@ -84,7 +84,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         agents: facets.agents.length,
         tools: facets.tools.length,
       };
-      if (opts.json) return json(summary);
+      if (opts.json) json(summary);
+      else {
       out(
         `shadow api ${summary.version} at ${summary.endpoint}: ${summary.status} (up ${duration(summary.uptimeSeconds * 1000)})`,
       );
