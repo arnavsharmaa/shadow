@@ -9,6 +9,18 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ## [Unreleased]
 
+### Added
+
+- `shadow status` CLI command: API health, database backend and trace/project/agent counts.
+- "Copy link" button in the event inspector for permalinks to a selected event and branch.
+- Repository metadata (`repository`, `homepage`, `bugs`, `keywords`) in every package manifest and a
+  `CODEOWNERS` file.
+
+### Fixed
+
+- The API no longer uses Fastify's deprecated `disableRequestLogging` option (`FSTDEP023` warning at
+  startup); request logging is configured through `LogController`.
+
 ## [0.1.0] - 2026-09-03
 
 Initial public release.
