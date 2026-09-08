@@ -84,17 +84,19 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         agents: facets.agents.length,
         tools: facets.tools.length,
       };
-      if (opts.json) json(summary);
-      else {
-      out(
-        `shadow api ${summary.version} at ${summary.endpoint}: ${summary.status} (up ${duration(summary.uptimeSeconds * 1000)})`,
-      );
-      out(
-        `  database  ${summary.database.kind} ${summary.database.location} (${summary.database.healthy ? "healthy" : "unhealthy"})`,
-      );
-      out(
-        `  traces    ${summary.traces} across ${summary.projects} project(s) and ${summary.agents} agent(s); ${summary.tools} distinct tool(s)`,
-      );
+      if (opts.json) {
+        json(summary);
+      } else {
+        out(
+          `shadow api ${summary.version} at ${summary.endpoint}: ${summary.status} (up ${duration(summary.uptimeSeconds * 1000)})`,
+        );
+        out(
+          `  database  ${summary.database.kind} ${summary.database.location} (${summary.database.healthy ? "healthy" : "unhealthy"})`,
+        );
+        out(
+          `  traces    ${summary.traces} across ${summary.projects} project(s) and ${summary.agents} agent(s); ${summary.tools} distinct tool(s)`,
+        );
+      }
       if (summary.status !== "ok")
         throw new CliError("the API reports a degraded status", EXIT.error);
     });
