@@ -4,6 +4,15 @@
   "private": true,
   "description": "Shadow API service: ingestion, persistence, replay orchestration and comparisons.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arnavsharmaa/shadow.git",
+    "directory": "apps/api"
+  },
+  "homepage": "https://github.com/arnavsharmaa/shadow#readme",
+  "bugs": {
+    "url": "https://github.com/arnavsharmaa/shadow/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/main.ts",

@@ -4,6 +4,15 @@
   "private": true,
   "description": "Shadow web application: trace explorer, trace detail, fork editor and branch comparison.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arnavsharmaa/shadow.git",
+    "directory": "apps/web"
+  },
+  "homepage": "https://github.com/arnavsharmaa/shadow#readme",
+  "bugs": {
+    "url": "https://github.com/arnavsharmaa/shadow/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",

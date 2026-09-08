@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Command-line interface for Shadow: list, inspect, export, import and replay traces.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arnavsharmaa/shadow.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/arnavsharmaa/shadow#readme",
+  "bugs": {
+    "url": "https://github.com/arnavsharmaa/shadow/issues"
+  },
   "type": "module",
   "bin": {
     "shadow": "./bin/shadow.js"
@@ -47,5 +56,13 @@
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
-  }
+  },
+  "keywords": [
+    "ai-agents",
+    "debugging",
+    "tracing",
+    "replay",
+    "observability",
+    "llm"
+  ]
 }
