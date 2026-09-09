@@ -33,7 +33,7 @@
     "@electric-sql/pglite": "0.3.16",
     "@fastify/cors": "11.3.0",
     "@fastify/swagger": "9.8.1",
-    "@fastify/swagger-ui": "5.2.6",
+    "@fastify/swagger-ui": "6.1.1",
     "@shadow/core": "workspace:*",
     "@shadow/schemas": "workspace:*",
     "@shadow/testkit": "workspace:*",
