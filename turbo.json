@@ -18,8 +18,7 @@
       "dependsOn": []
     },
     "test": {
-      "dependsOn": [],
-      "outputs": ["coverage/**"]
+      "dependsOn": []
     },
     "test:coverage": {
       "dependsOn": [],
