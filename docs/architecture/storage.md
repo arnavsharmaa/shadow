@@ -205,9 +205,10 @@ Indexes: `comparisons_trace_idx (trace_id)`,
 
 ### `artifacts`
 
-Reserved for files and large payloads attached to a trace, branch or event (`kind`, `name`,
-`content_type`, `content` jsonb). The table and mapper exist in v0.1; there is no API surface
-for it yet. Index: `artifacts_trace_idx (trace_id)`.
+Documents attached to a trace, branch or event (`kind`, `name`, `content_type`, `content`
+jsonb): an email body, a retrieved page, a generated report. Written through
+`POST /api/v1/traces/:traceId/artifacts` (the SDK's `trace.artifact()`), redacted like event
+payloads, included in export bundles. Index: `artifacts_trace_idx (trace_id)`.
 
 ## Effective lineage
 
@@ -244,11 +245,15 @@ the branch's own rows.
 
 ## Derived data and consistency
 
-The following columns are derived from events and recomputed by the API after every ingestion
-batch, replay and import:
+The following columns are derived from events and kept in sync by the API:
 
-- `branches.metrics`, `branches.outcome`, `traces.metrics`, `traces.duration_ms`
-  (`recomputeBranchMetrics`);
+- `branches.metrics`, `traces.metrics`, `traces.duration_ms`: maintained incrementally.
+  Ingestion merges the batch's aggregate into the stored metrics (`mergeMetrics`), a fork starts
+  from the aggregate of the inherited prefix, and a replay stores the engine's in-memory
+  aggregate. Metrics carry `firstTimestamp`/`lastTimestamp` so wall-clock duration merges
+  exactly. `recomputeBranchMetrics` re-derives the same numbers from the full effective timeline
+  and is used by imports and as a repair path;
+- `branches.outcome` from the trace end events (`applyLifecycle`, `deriveOutcome`);
 - `traces.status`, `traces.outcome`, `traces.completed_at`, `branches.status` from
   `trace.completed` / `trace.failed` events (`applyLifecycle`);
 - `traces.branch_count`;

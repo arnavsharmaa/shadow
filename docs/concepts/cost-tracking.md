@@ -35,8 +35,9 @@ cachedInputTokens? }`, as reported by the model implementation (SDK `execute` ca
   }
   ```
 
-  computed by `aggregateMetrics` over the branch's effective lineage and stored whenever events
-  are ingested, replayed or imported.
+  computed by `aggregateMetrics` over the branch's effective lineage. The API keeps it up to
+  date incrementally (`mergeMetrics` on ingestion, inherited prefix on fork, engine aggregate on
+  replay) and recomputes it in full on import.
 
 - **`comparison.result.metrics`**: per-metric `{ base, target, delta, percent }`.
 
