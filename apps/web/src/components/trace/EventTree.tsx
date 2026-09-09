@@ -14,12 +14,18 @@ interface Props {
   forkSequence: number | null;
 }
 
-/** Depth-first execution hierarchy with collapsible spans. */
+const ROW_HEIGHT = 24;
+const OVERSCAN = 20;
+/** Above this many visible rows only the rows near the viewport are rendered. */
+const VIRTUALIZE_FROM = 500;
+
+/** Depth-first execution hierarchy with collapsible spans; windowed for large traces. */
 export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showState, setShowState] = useState(true);
   const byId = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
   const listRef = useRef<HTMLUListElement>(null);
+  const [viewport, setViewport] = useState({ top: 0, height: 800 });
 
   const rows = useMemo(() => {
     const out: { node: TreeNode; event: ShadowEvent; hidden: boolean }[] = [];
@@ -45,12 +51,33 @@ export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }:
   }, [nodes, byId, collapsed, showState]);
 
   useEffect(() => {
-    if (!selectedId || !listRef.current) return;
-    const el = listRef.current.querySelector<HTMLElement>(
-      `[data-event-id="${CSS.escape(selectedId)}"]`,
-    );
-    el?.scrollIntoView({ block: "nearest" });
-  }, [selectedId]);
+    const el = listRef.current;
+    if (!el) return;
+    const measure = () =>
+      setViewport((v) => (v.height === el.clientHeight ? v : { ...v, height: el.clientHeight }));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const virtual = rows.length > VIRTUALIZE_FROM;
+  const start = virtual ? Math.max(0, Math.floor(viewport.top / ROW_HEIGHT) - OVERSCAN) : 0;
+  const end = virtual
+    ? Math.min(rows.length, Math.ceil((viewport.top + viewport.height) / ROW_HEIGHT) + OVERSCAN)
+    : rows.length;
+  const visibleRows = rows.slice(start, end);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!selectedId || !el) return;
+    const index = rows.findIndex((r) => r.event.id === selectedId);
+    if (index === -1) return;
+    const top = index * ROW_HEIGHT;
+    if (top < el.scrollTop || top + ROW_HEIGHT > el.scrollTop + el.clientHeight) {
+      el.scrollTop = Math.max(0, top - el.clientHeight / 2);
+    }
+  }, [selectedId, rows]);
 
   const toggle = (id: string) => {
     setCollapsed((prev) => {
@@ -97,8 +124,15 @@ export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }:
         role="tree"
         aria-label="Execution tree"
         data-testid="event-tree"
+        data-virtualized={virtual ? "true" : "false"}
+        onScroll={(e) => {
+          if (!virtual) return;
+          const top = e.currentTarget.scrollTop;
+          setViewport((v) => (Math.abs(v.top - top) < ROW_HEIGHT ? v : { ...v, top }));
+        }}
       >
-        {rows.map(({ node, event }) => {
+        {virtual && start > 0 && <li aria-hidden="true" style={{ height: start * ROW_HEIGHT }} />}
+        {visibleRows.map(({ node, event }) => {
           const selected = event.id === selectedId;
           const inherited = forkSequence !== null && event.sequence <= forkSequence;
           const isSetup =
@@ -180,6 +214,9 @@ export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }:
             </li>
           );
         })}
+        {virtual && end < rows.length && (
+          <li aria-hidden="true" style={{ height: (rows.length - end) * ROW_HEIGHT }} />
+        )}
       </ul>
     </div>
   );

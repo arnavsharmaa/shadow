@@ -21,6 +21,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Changed
 
+- The execution tree renders only the rows near the viewport when a trace has more than 500
+  visible events, keeping large traces responsive.
+
 - Branch and trace metrics are maintained incrementally on ingestion, fork creation and replay
   (`mergeMetrics`) instead of re-aggregating the full event timeline on every batch. Metrics now
   carry `firstTimestamp`/`lastTimestamp`; a full recomputation remains available for imports.
