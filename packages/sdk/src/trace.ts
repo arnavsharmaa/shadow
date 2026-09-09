@@ -4,6 +4,7 @@ import type {
   ApprovalRequest,
   ApprovalResolution,
   ContextAccessor,
+  CreateArtifactBodyInput,
   EstimatedCost,
   IngestEventInput,
   JsonObject,
@@ -104,6 +105,8 @@ export class Trace implements AgentHost {
   private handle: TraceHandle | null = null;
   private handlePromise: Promise<TraceHandle | null> | null = null;
   private readonly queue: PendingEvent[] = [];
+  private readonly artifactQueue: CreateArtifactBodyInput[] = [];
+  private lastEmittedId: string | null = null;
   private flushing: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sequence = 0;
@@ -195,6 +198,7 @@ export class Trace implements AgentHost {
       estimatedCost: partial.estimatedCost ?? undefined,
     };
     this.queue.push(event);
+    this.lastEmittedId = event.id;
     if (this.queue.length >= this.options.maxBatchSize) void this.flush();
     return event;
   }
@@ -206,15 +210,46 @@ export class Trace implements AgentHost {
   }
 
   private async flushNow(): Promise<void> {
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0 && this.artifactQueue.length === 0) return;
     const handle = await this.ensureHandle();
     if (!handle) return;
     const batch = this.queue.splice(0, this.queue.length);
     try {
-      await this.transport.sendEvents(handle.id, batch as IngestEventInput[]);
+      if (batch.length > 0) await this.transport.sendEvents(handle.id, batch as IngestEventInput[]);
+      // Artifacts go after their events so `eventId` links resolve on the server.
+      const artifacts = this.artifactQueue.splice(0, this.artifactQueue.length);
+      for (const artifact of artifacts) {
+        if (this.transport.sendArtifact) await this.transport.sendArtifact(handle.id, artifact);
+      }
     } catch (error) {
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /** Id of the most recently recorded event (handy for `artifact({ eventId })`). */
+  get lastEventId(): string | null {
+    return this.lastEmittedId;
+  }
+
+  /**
+   * Attach a document (an email body, a retrieved page, a generated report)
+   * to this trace. Pass `eventId` (for example `trace.lastEventId`) to link it
+   * to the event that produced it. Sent on the next flush.
+   */
+  artifact(input: {
+    kind: string;
+    name: string;
+    content: JsonValue;
+    contentType?: string;
+    eventId?: string;
+  }): void {
+    this.artifactQueue.push({
+      kind: input.kind,
+      name: input.name,
+      contentType: input.contentType ?? "application/json",
+      content: this.options.redact(toJson(input.content)),
+      ...(input.eventId ? { eventId: input.eventId } : {}),
+    });
   }
 
   private ensureHandle(): Promise<TraceHandle | null> {

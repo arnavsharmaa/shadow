@@ -3,6 +3,7 @@ import { SCHEMA_VERSION, type Trace, type TraceExport } from "@shadow/schemas";
 import { asc, eq } from "drizzle-orm";
 import {
   agents,
+  artifacts,
   branches,
   comparisons,
   events,
@@ -16,6 +17,7 @@ import { chunk, type ServiceContext } from "./context.js";
 import { insertSnapshots, recomputeBranchMetrics } from "./events.js";
 import {
   iso,
+  toArtifact,
   toBranch,
   toComparison,
   toEvent,
@@ -43,25 +45,31 @@ export async function exportTrace(ctx: ServiceContext, traceId: string): Promise
     .limit(1);
   if (!project || !agent) throw ApiError.notFound("trace", traceId);
   const db = ctx.handle.db;
-  const [branchRows, forkRows, replayRows, eventRows, comparisonRows] = await Promise.all([
-    db
-      .select()
-      .from(branches)
-      .where(eq(branches.traceId, traceId))
-      .orderBy(asc(branches.createdAt)),
-    db.select().from(forks).where(eq(forks.traceId, traceId)).orderBy(asc(forks.createdAt)),
-    db.select().from(replays).where(eq(replays.traceId, traceId)).orderBy(asc(replays.startedAt)),
-    db
-      .select()
-      .from(events)
-      .where(eq(events.traceId, traceId))
-      .orderBy(asc(events.branchId), asc(events.sequence)),
-    db
-      .select()
-      .from(comparisons)
-      .where(eq(comparisons.traceId, traceId))
-      .orderBy(asc(comparisons.createdAt)),
-  ]);
+  const [branchRows, forkRows, replayRows, eventRows, comparisonRows, artifactRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(branches)
+        .where(eq(branches.traceId, traceId))
+        .orderBy(asc(branches.createdAt)),
+      db.select().from(forks).where(eq(forks.traceId, traceId)).orderBy(asc(forks.createdAt)),
+      db.select().from(replays).where(eq(replays.traceId, traceId)).orderBy(asc(replays.startedAt)),
+      db
+        .select()
+        .from(events)
+        .where(eq(events.traceId, traceId))
+        .orderBy(asc(events.branchId), asc(events.sequence)),
+      db
+        .select()
+        .from(comparisons)
+        .where(eq(comparisons.traceId, traceId))
+        .orderBy(asc(comparisons.createdAt)),
+      db
+        .select()
+        .from(artifacts)
+        .where(eq(artifacts.traceId, traceId))
+        .orderBy(asc(artifacts.createdAt), asc(artifacts.id)),
+    ]);
   return {
     format: "shadow.trace",
     schemaVersion: SCHEMA_VERSION,
@@ -84,6 +92,7 @@ export async function exportTrace(ctx: ServiceContext, traceId: string): Promise
     replays: replayRows.map(toReplay),
     events: eventRows.map(toEvent),
     comparisons: comparisonRows.map(toComparison),
+    artifacts: artifactRows.map(toArtifact),
   };
 }
 
@@ -190,6 +199,9 @@ export async function importTrace(
     }
     for (const comparison of bundle.comparisons) {
       await tx.insert(comparisons).values({ ...comparison, traceId: bundle.trace.id });
+    }
+    for (const artifact of bundle.artifacts) {
+      await tx.insert(artifacts).values({ ...artifact, traceId: bundle.trace.id });
     }
   });
   for (const branch of bundle.branches) await recomputeBranchMetrics(ctx, branch.id);

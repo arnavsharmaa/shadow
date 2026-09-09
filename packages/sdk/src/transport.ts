@@ -1,4 +1,10 @@
-import type { CreateTraceBody, IngestEventInput, Trace } from "@shadow/schemas";
+import type {
+  Artifact,
+  CreateArtifactBodyInput,
+  CreateTraceBody,
+  IngestEventInput,
+  Trace,
+} from "@shadow/schemas";
 
 export interface TraceHandle {
   id: string;
@@ -9,6 +15,8 @@ export interface TraceHandle {
 export interface Transport {
   createTrace(body: CreateTraceBody): Promise<TraceHandle>;
   sendEvents(traceId: string, events: IngestEventInput[]): Promise<void>;
+  /** Attach a document to a trace; optional so custom transports stay minimal. */
+  sendArtifact?(traceId: string, artifact: CreateArtifactBodyInput): Promise<Artifact | void>;
 }
 
 export class TransportError extends Error {
@@ -63,6 +71,14 @@ export class HttpTransport implements Transport {
     await this.request("POST", `/api/v1/traces/${encodeURIComponent(traceId)}/events`, { events });
   }
 
+  async sendArtifact(traceId: string, artifact: CreateArtifactBodyInput): Promise<Artifact> {
+    return (await this.request(
+      "POST",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`,
+      artifact,
+    )) as Artifact;
+  }
+
   private async request(method: string, path: string, body: unknown): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
@@ -103,6 +119,7 @@ export class HttpTransport implements Transport {
 export class MemoryTransport implements Transport {
   readonly traces: CreateTraceBody[] = [];
   readonly events = new Map<string, IngestEventInput[]>();
+  readonly artifacts = new Map<string, CreateArtifactBodyInput[]>();
   private counter = 0;
 
   async createTrace(body: CreateTraceBody): Promise<TraceHandle> {
@@ -116,8 +133,16 @@ export class MemoryTransport implements Transport {
     this.events.set(traceId, [...(this.events.get(traceId) ?? []), ...events]);
   }
 
+  async sendArtifact(traceId: string, artifact: CreateArtifactBodyInput): Promise<void> {
+    this.artifacts.set(traceId, [...(this.artifacts.get(traceId) ?? []), artifact]);
+  }
+
   eventsFor(traceId: string): IngestEventInput[] {
     return this.events.get(traceId) ?? [];
+  }
+
+  artifactsFor(traceId: string): CreateArtifactBodyInput[] {
+    return this.artifacts.get(traceId) ?? [];
   }
 }
 

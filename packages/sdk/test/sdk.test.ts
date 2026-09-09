@@ -194,6 +194,34 @@ describe("Shadow SDK", () => {
     expect(errors[0]?.message).toContain("connection refused");
   });
 
+  it("queues artifacts and sends them after their events", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({ name: "t" });
+    await trace.tool({
+      name: "send_email",
+      arguments: { to: "a@example.com" },
+      execute: async () => ({ status: "sent" }),
+    });
+    const eventId = trace.lastEventId;
+    expect(eventId).toBeTruthy();
+    trace.artifact({
+      kind: "email",
+      name: "customer-email",
+      content: { subject: "Hi", apiKey: "sk-secret" },
+      eventId: eventId ?? undefined,
+    });
+    await trace.end();
+    const artifacts = transport.artifactsFor(trace.id);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      kind: "email",
+      name: "customer-email",
+      contentType: "application/json",
+      eventId,
+    });
+    expect(artifacts[0]?.content).toEqual({ subject: "Hi", apiKey: "[REDACTED]" });
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({

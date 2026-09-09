@@ -2,6 +2,7 @@ import { z } from "zod";
 import { comparisonSchema } from "./comparison.js";
 import {
   agentSchema,
+  artifactSchema,
   branchSchema,
   forkSchema,
   projectSchema,
@@ -12,7 +13,7 @@ import {
 } from "./entities.js";
 import { eventSchema, ingestEventSchema } from "./events.js";
 import { idSchema } from "./ids.js";
-import { jsonObjectSchema } from "./json.js";
+import { jsonObjectSchema, jsonValueSchema } from "./json.js";
 import { overrideSchema } from "./overrides.js";
 import { SCHEMA_VERSION, schemaVersionSchema } from "./version.js";
 
@@ -114,6 +115,23 @@ export const branchStateQuerySchema = z.object({
   sequence: z.coerce.number().int().min(-1).optional(),
 });
 
+export const createArtifactBodySchema = z.object({
+  branchId: idSchema.optional(),
+  eventId: idSchema.optional(),
+  kind: z.string().min(1).max(64),
+  name: z.string().min(1).max(256),
+  contentType: z.string().min(1).max(128).default("application/json"),
+  content: jsonValueSchema,
+});
+export type CreateArtifactBody = z.infer<typeof createArtifactBodySchema>;
+export type CreateArtifactBodyInput = z.input<typeof createArtifactBodySchema>;
+
+export const artifactListQuerySchema = z.object({
+  branchId: idSchema.optional(),
+  eventId: idSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+
 export const createComparisonBodySchema = z.object({
   baseBranchId: idSchema,
   targetBranchId: idSchema,
@@ -137,6 +155,7 @@ export const traceExportSchema = z.object({
   replays: z.array(replaySchema),
   events: z.array(eventSchema).max(500_000),
   comparisons: z.array(comparisonSchema).default([]),
+  artifacts: z.array(artifactSchema).default([]),
 });
 export type TraceExport = z.infer<typeof traceExportSchema>;
 export type TraceExportInput = z.input<typeof traceExportSchema>;

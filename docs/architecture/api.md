@@ -332,6 +332,25 @@ deterministic counterfactual replay of a forked branch synchronously and returns
   instead); `501 live_replay_disabled` for `live`; `422 agent_not_replayable` when no program is
   registered for the agent.
 
+## Artifacts
+
+Documents attached to a trace: an email that was sent, a retrieved page, a generated report.
+Content is JSON (strings are fine for text) and is redacted like event payloads.
+
+### `GET /api/v1/traces/:traceId/artifacts?branchId=&eventId=&limit=`
+
+`{ items: Artifact[] }`, oldest first.
+
+### `POST /api/v1/traces/:traceId/artifacts`
+
+Body: `{ branchId?, eventId?, kind, name, contentType? = "application/json", content }`.
+`branchId` defaults to the root branch; `eventId` must belong to the trace. Returns `201` with the
+stored `Artifact`.
+
+### `GET /api/v1/traces/:traceId/artifacts/:artifactId`
+
+Returns one `Artifact` or `404`.
+
 ## Comparisons
 
 ### `GET /api/v1/comparisons?traceId=&branchId=&limit=`

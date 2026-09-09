@@ -90,6 +90,7 @@ export async function buildApp(options: BuildAppOptions) {
         { name: "forks" },
         { name: "replays" },
         { name: "comparisons" },
+        { name: "artifacts" },
         { name: "transfer" },
       ],
     },

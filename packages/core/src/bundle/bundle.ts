@@ -57,6 +57,14 @@ export function parseBundle(raw: unknown): TraceExport {
       issues.push(`branch ${branchId}: ${(error as Error).message}`);
     }
   }
+  for (const artifact of bundle.artifacts) {
+    if (!branchIds.has(artifact.branchId)) {
+      issues.push(`artifact ${artifact.id} references missing branch ${artifact.branchId}`);
+    }
+    if (artifact.eventId && !eventIds.has(artifact.eventId)) {
+      issues.push(`artifact ${artifact.id} references missing event ${artifact.eventId}`);
+    }
+  }
   for (const fork of bundle.forks) {
     if (!branchIds.has(fork.childBranchId) || !branchIds.has(fork.parentBranchId)) {
       issues.push(`fork ${fork.id} references unknown branches`);
@@ -136,6 +144,13 @@ export function regenerateBundleIds(
       traceId,
       baseBranchId: remap(c.baseBranchId, "br"),
       targetBranchId: remap(c.targetBranchId, "br"),
+    })),
+    artifacts: bundle.artifacts.map((a) => ({
+      ...a,
+      id: ids.next("art"),
+      traceId,
+      branchId: remap(a.branchId, "br"),
+      eventId: opt(a.eventId, "evt"),
     })),
   };
 }

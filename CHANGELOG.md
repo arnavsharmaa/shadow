@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Artifacts: `POST/GET /api/v1/traces/:traceId/artifacts` and `trace.artifact()` in the SDK
+  attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
+  are redacted, exported and imported with the trace.
 - `shadow status` CLI command: API health, database backend and trace/project/agent counts.
 - "Copy link" button in the event inspector for permalinks to a selected event and branch.
 - Repository metadata (`repository`, `homepage`, `bugs`, `keywords`) in every package manifest and a

@@ -1,5 +1,7 @@
 import { buildEventTree, diffJson, flattenTree } from "@shadow/core";
 import {
+  artifactListQuerySchema,
+  createArtifactBodySchema,
   createForkBodySchema,
   createTraceBodySchema,
   eventListQuerySchema,
@@ -10,6 +12,7 @@ import {
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { createArtifact, getArtifact, listArtifacts } from "../../services/artifacts.js";
 import { createForkForTrace, listForks, listReplays } from "../../services/branches.js";
 import {
   getBranchState,
@@ -189,6 +192,34 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       await getTraceSummary(app.services, request.params.traceId);
       return { items: await listReplays(app.services, request.params.traceId) };
     },
+  );
+
+  app.get(
+    "/traces/:traceId/artifacts",
+    { schema: { tags: ["artifacts"], params: traceParams, querystring: artifactListQuerySchema } },
+    async (request) => ({
+      items: await listArtifacts(app.services, request.params.traceId, request.query),
+    }),
+  );
+
+  app.post(
+    "/traces/:traceId/artifacts",
+    { schema: { tags: ["artifacts"], params: traceParams, body: createArtifactBodySchema } },
+    async (request, reply) => {
+      const artifact = await createArtifact(app.services, request.params.traceId, request.body);
+      return reply.status(201).send(artifact);
+    },
+  );
+
+  app.get(
+    "/traces/:traceId/artifacts/:artifactId",
+    {
+      schema: {
+        tags: ["artifacts"],
+        params: z.object({ traceId: idSchema, artifactId: idSchema }),
+      },
+    },
+    async (request) => getArtifact(app.services, request.params.traceId, request.params.artifactId),
   );
 
   app.get(

@@ -17,7 +17,7 @@ is welcome through GitHub issues; integration proposals have their own
 - Append-only, versioned event model (`schemaVersion` 1.0) with 25 known event types, open
   `category.action` type strings and preservation of unknown fields.
 - Entities: project, agent, trace, branch, span, event, state snapshot, fork, replay, comparison,
-  cost record (branch metrics); artifact table reserved for later use.
+  cost record (branch metrics); artifacts attached to traces, branches or events.
 - State model: JSON state document with RFC 6902 `add`/`replace`/`remove` patches, key/value
   context, snapshots every N mutations, reconstruction at any event boundary, before/after diffs.
 - Forks with typed overrides: context set/remove, state set/remove by JSON pointer, tool result

@@ -79,6 +79,10 @@ await trace.end({ outcome: { kind: "refunded", label: "Refund issued" } });
 await shadow.shutdown();
 ```
 
+`trace.artifact({ kind, name, content, contentType?, eventId? })` attaches a document (an email
+body, a retrieved page, a report) to the trace; use `trace.lastEventId` to link it to the event
+that produced it. Artifacts are sent after their events on the next flush.
+
 `trace.run(program, input)` runs an `AgentProgram` (the same contract used by Shadow's deterministic replay engine) and ends or fails the trace automatically.
 
 ## Behaviour
