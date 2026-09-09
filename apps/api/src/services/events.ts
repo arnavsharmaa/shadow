@@ -1,6 +1,7 @@
 import {
   STATE_MUTATING_EVENT_TYPES,
   aggregateMetrics,
+  mergeMetrics,
   deriveOutcome,
   effectiveEvents,
   reconstructState,
@@ -11,6 +12,7 @@ import {
   eventSchema,
   stateSnapshotPayloadSchema,
   type Branch,
+  type BranchMetrics,
   type IngestEventsBody,
   type ReconstructedState,
   type ShadowEvent,
@@ -24,6 +26,7 @@ import {
   toBranch,
   toEvent,
   toEventRow,
+  toMetrics,
   type BranchRow,
   type EventRow,
   type TraceRow,
@@ -249,7 +252,11 @@ export async function ingestEvents(
     await applyLifecycle(tx, trace, branchRow, prepared);
     return prepared;
   });
-  const branch = await recomputeBranchMetrics(ctx, branchId);
+  const branch = await writeBranchMetrics(
+    ctx,
+    branchId,
+    mergeMetrics(toMetrics(branchRow.metrics), aggregateMetrics(inserted)),
+  );
   await updateSearchText(ctx, trace, inserted);
   return { events: inserted, branch };
 }
@@ -327,7 +334,41 @@ async function applyLifecycle(
   }
 }
 
-/** Recompute usage/cost aggregates for a branch from its effective events. */
+/**
+ * Persist a branch's metrics and keep the trace-level aggregates in sync.
+ * Ingestion and replay merge incrementally (see `mergeMetrics`); import and
+ * repairs use `recomputeBranchMetrics`, which derives the same numbers from
+ * the full effective timeline.
+ */
+export async function writeBranchMetrics(
+  ctx: ServiceContext,
+  branchId: string,
+  metrics: BranchMetrics,
+): Promise<Branch> {
+  const row = await getBranchRow(ctx, branchId);
+  const now = iso(new Date(ctx.clock.now()));
+  await ctx.handle.db
+    .update(branches)
+    .set({ metrics, updatedAt: now })
+    .where(eq(branches.id, branchId));
+  const trace = await getTraceRow(ctx, row.traceId);
+  const [count] = await ctx.handle.db
+    .select({ count: sql<number>`count(*)` })
+    .from(branches)
+    .where(eq(branches.traceId, row.traceId));
+  const patch: Partial<typeof traces.$inferInsert> = {
+    branchCount: Number(count?.count ?? 1),
+    updatedAt: now,
+  };
+  if (trace.rootBranchId === branchId) {
+    patch.metrics = metrics;
+    patch.durationMs = trace.durationMs ?? metrics.durationMs;
+  }
+  await ctx.handle.db.update(traces).set(patch).where(eq(traces.id, trace.id));
+  return toBranch(await getBranchRow(ctx, branchId));
+}
+
+/** Recompute usage/cost aggregates for a branch from its full effective timeline. */
 export async function recomputeBranchMetrics(
   ctx: ServiceContext,
   branchId: string,
@@ -337,29 +378,9 @@ export async function recomputeBranchMetrics(
   const own = new Map<string, ShadowEvent[]>();
   for (const b of chain) own.set(b.id, await loadOwnEvents(ctx, b.id));
   const timeline = effectiveEvents(all, branchId, (id) => own.get(id) ?? []);
-  const metrics = aggregateMetrics(timeline);
   const outcome = branch.outcome ?? deriveOutcome(timeline);
-  const now = iso(new Date(ctx.clock.now()));
-  await ctx.handle.db
-    .update(branches)
-    .set({ metrics, outcome, updatedAt: now })
-    .where(eq(branches.id, branchId));
-  const trace = await getTraceRow(ctx, branch.traceId);
-  if (trace.rootBranchId === branchId) {
-    await ctx.handle.db
-      .update(traces)
-      .set({ metrics, durationMs: trace.durationMs ?? metrics.durationMs, updatedAt: now })
-      .where(eq(traces.id, trace.id));
-  }
-  const [count] = await ctx.handle.db
-    .select({ count: sql<number>`count(*)` })
-    .from(branches)
-    .where(eq(branches.traceId, branch.traceId));
-  await ctx.handle.db
-    .update(traces)
-    .set({ branchCount: Number(count?.count ?? 1) })
-    .where(eq(traces.id, branch.traceId));
-  return toBranch(await getBranchRow(ctx, branchId));
+  await ctx.handle.db.update(branches).set({ outcome }).where(eq(branches.id, branchId));
+  return writeBranchMetrics(ctx, branchId, aggregateMetrics(timeline));
 }
 
 export async function updateSearchText(

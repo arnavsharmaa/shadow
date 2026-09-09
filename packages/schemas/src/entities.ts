@@ -54,6 +54,9 @@ export const branchMetricsSchema = z.object({
   totalEstimatedCost: z.number().nonnegative().default(0),
   durationMs: z.number().nonnegative().default(0),
   currency: z.string().length(3).default("USD"),
+  /** Earliest/latest event timestamps; let metrics be merged incrementally. */
+  firstTimestamp: z.string().nullable().default(null),
+  lastTimestamp: z.string().nullable().default(null),
 });
 export type BranchMetrics = z.infer<typeof branchMetricsSchema>;
 
@@ -72,6 +75,8 @@ export function emptyBranchMetrics(): BranchMetrics {
     totalEstimatedCost: 0,
     durationMs: 0,
     currency: "USD",
+    firstTimestamp: null,
+    lastTimestamp: null,
   };
 }
 

@@ -188,6 +188,8 @@ describe("aggregateMetrics", () => {
       totalEstimatedCost: 0.051,
       durationMs: 10_500,
       currency: "USD",
+      firstTimestamp: "2026-01-01T00:00:00.000Z",
+      lastTimestamp: "2026-01-01T00:00:10.500Z",
     });
   });
 

@@ -1,5 +1,7 @@
 import {
   ForkError,
+  aggregateMetrics,
+  mergeMetrics,
   ReplayError,
   createFork,
   createReplay,
@@ -25,8 +27,8 @@ import {
   lineageChain,
   listBranches,
   loadOwnEvents,
-  recomputeBranchMetrics,
   updateSearchText,
+  writeBranchMetrics,
 } from "./events.js";
 import { iso, toBranch, toEventRow, toFork, toReplay, type ForkRow } from "./mappers.js";
 import { getTraceRow, getTraceSummary } from "./traces.js";
@@ -129,6 +131,8 @@ export async function createForkForTrace(
   const own = new Map<string, ShadowEvent[]>();
   for (const b of chain) own.set(b.id, await loadOwnEvents(ctx, b.id));
   const lineage = effectiveEvents(all, parent.id, (id) => own.get(id) ?? []);
+  const inheritedMetrics = (forkSequence: number) =>
+    aggregateMetrics(lineage.filter((e) => e.sequence <= forkSequence));
   let created;
   try {
     created = createFork({
@@ -167,7 +171,10 @@ export async function createForkForTrace(
       depth: created.branch.depth,
       status: created.branch.status,
       outcome: null,
-      metrics: created.branch.metrics,
+      metrics: mergeMetrics(
+        inheritedMetrics(created.branch.forkSequence ?? -1),
+        aggregateMetrics(created.events),
+      ),
       metadata: created.branch.metadata,
       createdAt: created.branch.createdAt,
       updatedAt: created.branch.updatedAt,
@@ -309,7 +316,9 @@ export async function runReplay(
   if (outcome.status === "failed") log.error({ error: outcome.error }, "replay failed");
   else
     log.info({ events: outcome.events.length, outcome: outcome.outcome?.kind }, "replay completed");
-  const updated = await recomputeBranchMetrics(ctx, branchId);
+  // `outcome.metrics` already covers the inherited prefix, the fork event and
+  // the replayed events, so no timeline reload is needed.
+  const updated = await writeBranchMetrics(ctx, branchId, outcome.metrics);
   await updateSearchText(ctx, await getTraceRow(ctx, branch.traceId), outcome.events);
   const [replayRow] = await ctx.handle.db
     .select()
