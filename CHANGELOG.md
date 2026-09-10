@@ -16,7 +16,8 @@ migration (see `docs/concepts/schema-versioning.md`).
   (`--token` / `SHADOW_TOKEN`) and the web app (`NEXT_PUBLIC_SHADOW_API_TOKEN`) forward it.
 - Artifacts: `POST/GET /api/v1/traces/:traceId/artifacts` and `trace.artifact()` in the SDK
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
-  are redacted, exported and imported with the trace.
+  are redacted, exported and imported with the trace. The event inspector lists artifacts
+  linked to the selected event, and the demo seeds each sent email as one.
 - `shadow status` CLI command: API health, database backend and trace/project/agent counts.
 - "Copy link" button in the event inspector for permalinks to a selected event and branch.
 - Repository metadata (`repository`, `homepage`, `bugs`, `keywords`) in every package manifest and a

@@ -2,7 +2,9 @@
 
 import { dateTime, duration, money } from "@/lib/format";
 import type { JsonValue, ShadowEvent } from "@shadow/schemas";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { api } from "@/lib/api";
 import { JsonView } from "../json/JsonView";
 import { Badge, Button, KeyValue, eventTone } from "../ui/primitives";
 
@@ -14,6 +16,10 @@ interface Props {
 }
 
 export function EventDetail({ event, events, eventsById, onSelect }: Props) {
+  const artifacts = useQuery({
+    queryKey: ["artifacts", event.traceId, event.id],
+    queryFn: () => api.artifacts(event.traceId, { eventId: event.id }),
+  });
   const [copied, setCopied] = useState(false);
   const copyPermalink = async () => {
     try {
@@ -163,6 +169,23 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
         <JsonView label="Metadata" value={userMetadata} defaultExpandDepth={1} />
       )}
       {shadow && <JsonView label="Shadow metadata" value={shadow} defaultExpandDepth={1} />}
+      {artifacts.data && artifacts.data.items.length > 0 && (
+        <section data-testid="event-artifacts">
+          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+            Artifacts ({artifacts.data.items.length})
+          </h3>
+          <div className="space-y-2">
+            {artifacts.data.items.map((artifact) => (
+              <JsonView
+                key={artifact.id}
+                label={`${artifact.kind} · ${artifact.name} · ${artifact.contentType}`}
+                value={artifact.content}
+                defaultExpandDepth={2}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type {
+  Artifact,
   Branch,
   Comparison,
   Fork,
@@ -190,6 +191,11 @@ export const api = {
     request<Comparison>("GET", `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`),
   comparisons: (traceId: string) =>
     request<{ items: Comparison[] }>("GET", `/api/v1/comparisons${query({ traceId, limit: 100 })}`),
+  artifacts: (traceId: string, filter: { branchId?: string; eventId?: string } = {}) =>
+    request<{ items: Artifact[] }>(
+      "GET",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts${query({ ...filter, limit: 100 })}`,
+    ),
   exportUrl: (traceId: string) =>
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/export`,
   docsUrl: () => `${apiBaseUrl()}/docs`,

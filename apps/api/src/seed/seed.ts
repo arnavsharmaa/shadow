@@ -1,8 +1,10 @@
 import { VirtualClock, recordExecution, seededIdGenerator } from "@shadow/core";
+import type { JsonValue, ShadowEvent } from "@shadow/schemas";
 import { DEMO_PROJECT, demoTraces, type DemoTraceSpec } from "@shadow/testkit";
 import { inArray } from "drizzle-orm";
 import { traces } from "../db/schema.js";
 import { createForkForTrace, runReplay } from "../services/branches.js";
+import { createArtifact } from "../services/artifacts.js";
 import { createComparison } from "../services/comparisons.js";
 import type { ServiceContext } from "../services/context.js";
 import { ingestEvents } from "../services/events.js";
@@ -72,6 +74,29 @@ export async function seedDemoData(
   return report;
 }
 
+/** Store the body of every email the agent sent as an artifact linked to the send event. */
+async function seedEmailArtifacts(
+  ctx: ServiceContext,
+  spec: DemoTraceSpec,
+  events: readonly ShadowEvent[],
+): Promise<void> {
+  for (const event of events) {
+    if (event.eventType !== "tool.response" || event.name !== "send_email") continue;
+    const input = event.input as {
+      arguments?: { to?: JsonValue; subject?: JsonValue; body?: JsonValue };
+    };
+    const args = input.arguments ?? {};
+    await createArtifact(ctx, spec.traceId, {
+      branchId: spec.rootBranchId,
+      eventId: event.id,
+      kind: "email",
+      name: `email to ${String(args.to ?? "customer")}`,
+      contentType: "text/plain",
+      content: { to: args.to ?? null, subject: args.subject ?? null, body: args.body ?? null },
+    });
+  }
+}
+
 async function seedTrace(ctx: ServiceContext, spec: DemoTraceSpec): Promise<void> {
   const projectSlug = spec.project?.slug ?? DEMO_PROJECT.slug;
   const project = await ensureProject(ctx, {
@@ -111,6 +136,7 @@ async function seedTrace(ctx: ServiceContext, spec: DemoTraceSpec): Promise<void
     { rootBranchId: spec.rootBranchId },
   );
   await ingestEvents(ctx, spec.traceId, { branchId: spec.rootBranchId, events: recorded.events });
+  await seedEmailArtifacts(ctx, spec, recorded.events);
   if (!spec.fork) return;
   const wanted = spec.fork.selectEvent;
   let seen = 0;

@@ -40,6 +40,18 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("event-name")).toHaveText("refund_order");
     await expect(page.getByTestId("event-input")).toContainText("480");
 
+    // The email the agent sent is stored as an artifact linked to the send_email response.
+    await page
+      .locator(
+        '[data-testid="event-node"][data-event-type="tool.response"][data-event-name="send_email"]',
+      )
+      .click();
+    await expect(page.getByTestId("event-artifacts")).toContainText(
+      "email to jordan.blake@example.com",
+    );
+    await expect(page.getByTestId("event-artifacts")).toContainText("Your refund has been issued");
+    await refundNode.click();
+
     // 4. Inspect the state: the agent believed the autonomous limit was 500.
     const inspector = page.getByTestId("state-inspector");
     await expect(inspector).toBeVisible();
