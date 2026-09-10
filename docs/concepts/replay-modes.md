@@ -124,8 +124,19 @@ export const myAgent: AgentDefinition<{ orderId: string }> = {
 };
 ```
 
-Register it in `apps/api/src/replay/registry.ts` (`createDefaultRegistry` adds the testkit
-scenarios; add `registry.register(myAgent)`). The program signature is the `AgentHost` contract,
+Point the API at the module that exports it (default export, `definition` or `definitions`;
+one definition or an array), for example:
+
+```bash
+SHADOW_REPLAY_MODULES=./agents/my-agent.js,./agents/other.js pnpm dev
+```
+
+Paths are resolved from the repository root (or absolute). The API imports them once at startup
+and logs the registered slugs; a module that cannot be loaded or does not export a valid
+definition aborts startup with a clear error. These modules are operator configuration, never
+request data. The bundled testkit scenarios are always registered (`createDefaultRegistry`), and
+`registry.register(myAgent)` still works for programmatic setups. The program signature is the
+`AgentHost` contract,
 so the same function can be run live through the SDK (`trace.run(program, input)` with
 `withAdapters` from the testkit if the calls lack `execute` callbacks) and recorded from scratch
 with `recordExecution` for tests and seeds.

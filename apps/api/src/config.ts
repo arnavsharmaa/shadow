@@ -25,6 +25,8 @@ const configSchema = z.object({
     .default(10 * 1024 * 1024),
   SHADOW_REDACT_PATTERNS: z.string().default(""),
   SHADOW_CORS_ORIGINS: z.string().default("http://localhost:3000,http://127.0.0.1:3000"),
+  /** Comma-separated ES modules exporting AgentDefinitions to make replayable. */
+  SHADOW_REPLAY_MODULES: z.string().default(""),
   /** When set, every /api/* request must carry `Authorization: Bearer <token>`. */
   SHADOW_API_TOKEN: z
     .string()

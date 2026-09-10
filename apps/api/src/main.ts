@@ -1,9 +1,9 @@
 import { createRedactor, parsePatternList } from "@shadow/core";
-import { loadConfig, loadDotEnv } from "./config.js";
+import { loadConfig, loadDotEnv, repoRoot } from "./config.js";
 import { createDatabase } from "./db/client.js";
 import { buildApp } from "./http/app.js";
 import { createLogger } from "./logger.js";
-import { createDefaultRegistry } from "./replay/registry.js";
+import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
 
@@ -26,10 +26,18 @@ async function main(): Promise<void> {
     logger.info("migrations applied");
   }
 
+  const registry = createDefaultRegistry();
+  for (const loaded of await loadReplayModules(
+    registry,
+    parseModuleList(config.SHADOW_REPLAY_MODULES, repoRoot()),
+  )) {
+    logger.info({ module: loaded.modulePath, agents: loaded.slugs }, "replay module loaded");
+  }
+
   const services = createServiceContext({
     handle,
     logger,
-    registry: createDefaultRegistry(),
+    registry,
     redactor: createRedactor({
       additionalKeyPatterns: parsePatternList(config.SHADOW_REDACT_PATTERNS),
     }),

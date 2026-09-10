@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_REPLAY_MODULES`: load replayable `AgentDefinition`s from operator-provided modules at
+  API startup, so agents recorded through the SDK can be forked and replayed without editing
+  the API source.
 - Optional bearer-token authentication: set `SHADOW_API_TOKEN` and every `/api/*` request must
   carry `Authorization: Bearer <token>`. The SDK (`token` option / `SHADOW_TOKEN`), the CLI
   (`--token` / `SHADOW_TOKEN`) and the web app (`NEXT_PUBLIC_SHADOW_API_TOKEN`) forward it.
