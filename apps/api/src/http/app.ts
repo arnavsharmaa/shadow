@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
+import { createHash, timingSafeEqual } from "node:crypto";
 import Fastify, { LogController } from "fastify";
 import {
   hasZodFastifySchemaValidationErrors,
@@ -54,6 +55,27 @@ export async function buildApp(options: BuildAppOptions) {
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
   });
+
+  const expectedToken = options.config.SHADOW_API_TOKEN;
+  if (expectedToken) {
+    const expectedDigest = createHash("sha256").update(expectedToken).digest();
+    app.addHook("onRequest", async (request, reply) => {
+      if (!request.url.startsWith("/api/")) return;
+      const header = request.headers.authorization ?? "";
+      const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+      const digest = createHash("sha256").update(presented).digest();
+      if (presented.length === 0 || !timingSafeEqual(digest, expectedDigest)) {
+        reply.header("www-authenticate", 'Bearer realm="shadow"');
+        return reply.status(401).send({
+          error: {
+            code: "unauthorized",
+            message: "a valid bearer token is required (SHADOW_API_TOKEN)",
+            requestId: request.id,
+          },
+        });
+      }
+    });
+  }
   app.addHook("onResponse", async (request, reply) => {
     request.log.info(
       {

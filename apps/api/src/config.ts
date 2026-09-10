@@ -25,6 +25,11 @@ const configSchema = z.object({
     .default(10 * 1024 * 1024),
   SHADOW_REDACT_PATTERNS: z.string().default(""),
   SHADOW_CORS_ORIGINS: z.string().default("http://localhost:3000,http://127.0.0.1:3000"),
+  /** When set, every /api/* request must carry `Authorization: Bearer <token>`. */
+  SHADOW_API_TOKEN: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   NODE_ENV: z.string().default("development"),
 });
 

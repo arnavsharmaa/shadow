@@ -19,6 +19,8 @@ export const EXIT = {
 export interface ApiClientOptions {
   endpoint: string;
   fetch?: typeof fetch;
+  /** Bearer token for APIs started with SHADOW_API_TOKEN. */
+  token?: string;
 }
 
 interface ErrorEnvelope {
@@ -29,10 +31,12 @@ interface ErrorEnvelope {
 export class ApiClient {
   private readonly endpoint: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly token: string | undefined;
 
   constructor(options: ApiClientOptions) {
     this.endpoint = options.endpoint.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? globalThis.fetch;
+    this.token = options.token;
   }
 
   get<T>(path: string, query?: Record<string, string | number | undefined>): Promise<T> {
@@ -54,6 +58,7 @@ export class ApiClient {
         method,
         headers: {
           accept: "application/json",
+          ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -75,7 +80,10 @@ export class ApiClient {
     }
     if (!response.ok) {
       const envelope = (parsed ?? {}) as ErrorEnvelope;
-      const message = envelope.error?.message ?? `request failed with status ${response.status}`;
+      const message =
+        response.status === 401
+          ? "the API requires a bearer token: pass --token or set SHADOW_TOKEN"
+          : (envelope.error?.message ?? `request failed with status ${response.status}`);
       const details = envelope.error?.details
         ? `\n${JSON.stringify(envelope.error.details, null, 2)}`
         : "";

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Optional bearer-token authentication: set `SHADOW_API_TOKEN` and every `/api/*` request must
+  carry `Authorization: Bearer <token>`. The SDK (`token` option / `SHADOW_TOKEN`), the CLI
+  (`--token` / `SHADOW_TOKEN`) and the web app (`NEXT_PUBLIC_SHADOW_API_TOKEN`) forward it.
 - Artifacts: `POST/GET /api/v1/traces/:traceId/artifacts` and `trace.artifact()` in the SDK
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace.

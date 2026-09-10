@@ -19,6 +19,7 @@ const shadow = new Shadow({
   project: "support-agent", // created on first use
   agent: "refund-agent",
   endpoint: "http://localhost:4000", // or SHADOW_ENDPOINT
+  token: process.env.SHADOW_TOKEN, // only if the API sets SHADOW_API_TOKEN
 });
 
 const trace = shadow.startTrace({

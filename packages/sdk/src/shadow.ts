@@ -13,6 +13,8 @@ export interface ShadowOptions {
   /** Custom transport (tests, file export, future async transports). */
   transport?: Transport;
   headers?: Record<string, string>;
+  /** Bearer token for APIs started with SHADOW_API_TOKEN (default: SHADOW_TOKEN env). */
+  token?: string;
   /** Milliseconds between automatic flushes. Default 1000; 0 disables the timer. */
   flushIntervalMs?: number;
   /** Flush as soon as this many events are buffered. Default 100. */
@@ -58,7 +60,12 @@ export class Shadow {
         : (options.transport ??
           new HttpTransport({
             endpoint: options.endpoint ?? readEnv("SHADOW_ENDPOINT") ?? "http://localhost:4000",
-            headers: options.headers,
+            headers: {
+              ...((options.token ?? readEnv("SHADOW_TOKEN"))
+                ? { authorization: `Bearer ${options.token ?? readEnv("SHADOW_TOKEN")}` }
+                : {}),
+              ...(options.headers ?? {}),
+            },
           }));
   }
 

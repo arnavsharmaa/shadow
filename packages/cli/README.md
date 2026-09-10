@@ -17,7 +17,7 @@ shadow replay <branchId> [--json]
 shadow compare <baseBranchId> <targetBranchId> [--json]
 ```
 
-Global option `--endpoint <url>` (default `SHADOW_ENDPOINT` or `http://localhost:4000`).
+Global options: `--endpoint <url>` (default `SHADOW_ENDPOINT` or `http://localhost:4000`) and `--token <token>` (default `SHADOW_TOKEN`) for APIs started with `SHADOW_API_TOKEN`.
 
 Exit codes: `0` success, `1` error, `2` usage error, `3` API unreachable, `4` resource not found.
 

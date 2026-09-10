@@ -34,9 +34,12 @@ you prefer to remain anonymous.
 Shadow v0.1 is a **local, single-user developer tool**. It is designed to run on a developer
 machine or inside a trusted network:
 
-- **No authentication or authorisation.** The API (`apps/api`) and the web app accept every
-  request. Anyone who can reach the API port can read, create, fork, replay, export and delete
-  traces.
+- **A single shared token, no per-user authorisation.** By default the API (`apps/api`) and the
+  web app accept every request. Setting `SHADOW_API_TOKEN` requires `Authorization: Bearer
+<token>` on every `/api/*` request (the SDK, CLI and web app forward it), which keeps
+  unauthenticated clients out but does not distinguish users or projects. The web app embeds
+  its copy of the token in the browser bundle, so anyone who can load the web app can use the
+  API.
 - **No encryption at rest.** Events are stored as plain JSON in PGlite (`.shadow/data`) or in the
   PostgreSQL database you point `DATABASE_URL` at.
 - **Bind to localhost.** The default `SHADOW_API_HOST` is `127.0.0.1`. Do not expose the API to
@@ -96,11 +99,13 @@ short-lived credentials, and scope tool access narrowly.
 
 ## Hardening checklist for shared deployments
 
-Until authentication ships, if you run Shadow anywhere other than your own machine:
+If you run Shadow anywhere other than your own machine:
 
 1. Keep `SHADOW_API_HOST=127.0.0.1` or bind to a private interface.
-2. Put an authenticating reverse proxy in front of the API and web app.
-3. Set `SHADOW_CORS_ORIGINS` to the exact origins you serve the web app from.
-4. Use a dedicated PostgreSQL database with least-privilege credentials and encrypted storage.
-5. Configure `SHADOW_REDACT_PATTERNS` for your domain-specific secret keys.
-6. Back up and rotate trace data according to your retention policy.
+1. Set a long random `SHADOW_API_TOKEN` and serve the API over TLS (the token travels in a
+   header).
+1. Put an authenticating reverse proxy in front of the API and web app.
+1. Set `SHADOW_CORS_ORIGINS` to the exact origins you serve the web app from.
+1. Use a dedicated PostgreSQL database with least-privilege credentials and encrypted storage.
+1. Configure `SHADOW_REDACT_PATTERNS` for your domain-specific secret keys.
+1. Back up and rotate trace data according to your retention policy.

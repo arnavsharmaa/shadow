@@ -44,15 +44,19 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "Shadow API base URL",
       env.SHADOW_ENDPOINT ?? "http://localhost:4000",
     )
+    .option(
+      "--token <token>",
+      "bearer token for APIs started with SHADOW_API_TOKEN",
+      env.SHADOW_TOKEN,
+    )
     .exitOverride()
     .configureOutput({ writeOut: (s) => out(s.trimEnd()), writeErr: (s) => err(s.trimEnd()) })
     .showHelpAfterError("(use --help for usage)");
 
-  const client = () =>
-    new ApiClient({
-      endpoint: program.opts<{ endpoint: string }>().endpoint,
-      fetch: options.fetch,
-    });
+  const client = () => {
+    const opts = program.opts<{ endpoint: string; token?: string }>();
+    return new ApiClient({ endpoint: opts.endpoint, fetch: options.fetch, token: opts.token });
+  };
   const json = (value: unknown) => out(JSON.stringify(value, null, 2));
 
   program

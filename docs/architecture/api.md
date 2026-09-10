@@ -21,7 +21,9 @@ detail. Types referenced below (`Trace`, `Branch`, `ShadowEvent`, `Fork`, `Repla
 - Timestamps are ISO 8601 with offset.
 - Every response carries an `x-request-id` header. Clients may send their own `x-request-id`;
   otherwise one is generated (`req_…`). Request ids appear in structured logs and error bodies.
-- There is no authentication in v0.1 (see [SECURITY.md](../../SECURITY.md)).
+- Authentication is off by default. With `SHADOW_API_TOKEN` set, every `/api/*` request must
+  send `Authorization: Bearer <token>` or receives `401 unauthorized`; `/health`, `/docs` and
+  `/openapi.json` stay open (see [SECURITY.md](../../SECURITY.md)).
 - CORS is enabled for the origins in `SHADOW_CORS_ORIGINS` (default the local web app).
 - Request bodies are limited to `SHADOW_MAX_BODY_BYTES` (default 10 MiB).
 
@@ -381,19 +383,21 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 
 ## Configuration
 
-| Variable                     | Default                                       | Purpose                                         |
-| ---------------------------- | --------------------------------------------- | ----------------------------------------------- |
-| `DATABASE_URL`               | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://` |
-| `SHADOW_DATA_DIR`            | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset   |
-| `SHADOW_API_HOST`            | `127.0.0.1`                                   |                                                 |
-| `SHADOW_API_PORT`            | `4000`                                        |                                                 |
-| `SHADOW_LOG_LEVEL`           | `info`                                        | pino level                                      |
-| `SHADOW_AUTO_MIGRATE`        | `true`                                        | apply migrations at startup                     |
-| `SHADOW_AUTO_SEED`           | `true`                                        | seed demo data when the database is empty       |
-| `SHADOW_MAX_BODY_BYTES`      | `10485760`                                    | request body limit                              |
-| `SHADOW_REDACT_PATTERNS`     | empty                                         | comma-separated extra key regexes for redaction |
-| `SHADOW_CORS_ORIGINS`        | `http://localhost:3000,http://127.0.0.1:3000` |                                                 |
-| `NEXT_PUBLIC_SHADOW_API_URL` | `http://localhost:4000`                       | used by the web app                             |
+| Variable                       | Default                                       | Purpose                                         |
+| ------------------------------ | --------------------------------------------- | ----------------------------------------------- |
+| `DATABASE_URL`                 | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://` |
+| `SHADOW_DATA_DIR`              | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset   |
+| `SHADOW_API_HOST`              | `127.0.0.1`                                   |                                                 |
+| `SHADOW_API_PORT`              | `4000`                                        |                                                 |
+| `SHADOW_LOG_LEVEL`             | `info`                                        | pino level                                      |
+| `SHADOW_AUTO_MIGRATE`          | `true`                                        | apply migrations at startup                     |
+| `SHADOW_AUTO_SEED`             | `true`                                        | seed demo data when the database is empty       |
+| `SHADOW_MAX_BODY_BYTES`        | `10485760`                                    | request body limit                              |
+| `SHADOW_REDACT_PATTERNS`       | empty                                         | comma-separated extra key regexes for redaction |
+| `SHADOW_CORS_ORIGINS`          | `http://localhost:3000,http://127.0.0.1:3000` |                                                 |
+| `SHADOW_API_TOKEN`             | unset                                         | bearer token required on `/api/*` when set      |
+| `NEXT_PUBLIC_SHADOW_API_TOKEN` | unset                                         | token the web app sends (must match)            |
+| `NEXT_PUBLIC_SHADOW_API_URL`   | `http://localhost:4000`                       | used by the web app                             |
 
 Logs are structured JSON (pretty-printed on a TTY outside production) and redact
 `authorization`, `cookie`, `password`, `apiKey`, `token`, `secret` and any key matching

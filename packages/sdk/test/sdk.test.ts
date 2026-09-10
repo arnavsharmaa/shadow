@@ -238,6 +238,21 @@ describe("Shadow SDK", () => {
     expect(transport.traces).toHaveLength(0);
   });
 
+  it("forwards a bearer token through the HTTP transport", async () => {
+    const seen: Record<string, string>[] = [];
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      seen.push((init?.headers ?? {}) as Record<string, string>);
+      return new Response(JSON.stringify({ id: "trc_1", rootBranchId: "br_1" }), { status: 201 });
+    }) as unknown as typeof fetch;
+    const transport = new HttpTransport({
+      endpoint: "http://shadow.test",
+      fetch: fetchImpl,
+      headers: { authorization: "Bearer tok" },
+    });
+    await transport.createTrace({ project: "p", agent: "a", name: "n" });
+    expect(seen[0]?.authorization).toBe("Bearer tok");
+  });
+
   it("HttpTransport retries 5xx responses and surfaces 4xx errors", async () => {
     let calls = 0;
     const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => {

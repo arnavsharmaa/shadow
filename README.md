@@ -277,7 +277,7 @@ v0.1 (this release) delivers local time travel: schema, ingestion, explorer, sta
 
 ## Security
 
-Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. v0.1 has **no authentication**: run it locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. Authentication is a single optional bearer token (`SHADOW_API_TOKEN`, forwarded by the SDK, CLI and web app); there is no per-user authorisation, so run Shadow locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Contributing
 

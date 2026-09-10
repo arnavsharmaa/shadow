@@ -7,7 +7,7 @@ import { CLI_VERSION, run } from "../src/index.js";
 interface Captured {
   out: string[];
   err: string[];
-  calls: { method: string; url: string; body?: unknown }[];
+  calls: { method: string; url: string; body?: unknown; headers?: Record<string, string> }[];
 }
 
 function fakeApi(routes: Record<string, (body: unknown) => { status?: number; body: unknown }>): {
@@ -20,7 +20,12 @@ function fakeApi(routes: Record<string, (body: unknown) => { status?: number; bo
       typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    captured.calls.push({ method, url, body });
+    captured.calls.push({
+      method,
+      url,
+      body,
+      headers: (init?.headers ?? {}) as Record<string, string>,
+    });
     const parsed = new URL(url);
     const key = `${method} ${parsed.pathname}`;
     const handler = routes[key];
@@ -144,6 +149,22 @@ describe("shadow cli", () => {
     expect(text).toContain("traces");
     expect(text).toContain("replay");
     expect(text).toContain("compare");
+  });
+
+  it("sends a bearer token when configured and explains 401s", async () => {
+    const api = fakeApi({
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+    });
+    expect(await runWith(api, ["traces", "list", "--token", "s3cret"])).toBe(0);
+    expect(api.captured.calls[0]?.headers?.authorization).toBe("Bearer s3cret");
+    const denied = fakeApi({
+      "GET /api/v1/traces": () => ({
+        status: 401,
+        body: { error: { code: "unauthorized", message: "nope" } },
+      }),
+    });
+    expect(await runWith(denied, ["traces", "list"])).toBe(1);
+    expect(denied.captured.err.join("\n")).toContain("--token");
   });
 
   it("reports API status with counts", async () => {

@@ -15,6 +15,16 @@ export function apiBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_SHADOW_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 }
 
+/**
+ * Token for APIs started with SHADOW_API_TOKEN. It is embedded in the browser
+ * bundle, which is acceptable for the single-user local mode Shadow ships
+ * with; see SECURITY.md before sharing a deployment.
+ */
+export function apiToken(): string | undefined {
+  const value = process.env.NEXT_PUBLIC_SHADOW_API_TOKEN;
+  return value && value.length > 0 ? value : undefined;
+}
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
@@ -35,6 +45,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       method,
       headers: {
         accept: "application/json",
+        ...(apiToken() ? { authorization: `Bearer ${apiToken()}` } : {}),
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
