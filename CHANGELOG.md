@@ -24,6 +24,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 - `POST /api/v1/traces/prune` and `shadow traces prune --before <cutoff>`: delete traces that
   started before a cutoff (optionally by project, agent, status or tag) in bounded batches,
   with a dry-run preview. The CLI refuses to delete without `--yes`.
+- `shadow traces delete <traceId...> --yes` deletes traces from the CLI, reporting per-trace
+  failures.
 - `shadow artifacts list <traceId>` and `shadow artifacts get <traceId> <artifactId>` CLI
   commands to browse attached documents and save their content to a file.
 - `SHADOW_REPLAY_MODULES`: load replayable `AgentDefinition`s from operator-provided modules at

@@ -36,6 +36,7 @@ function fakeApi(routes: Record<string, (body: unknown) => { status?: number; bo
         { status: 404 },
       );
     const result = handler(body);
+    if (result.status === 204) return new Response(null, { status: 204 });
     return new Response(JSON.stringify(result.body), {
       status: result.status ?? 200,
       headers: { "content-type": "application/json" },
@@ -436,6 +437,34 @@ describe("shadow cli", () => {
     });
     expect(await runWith(empty, ["artifacts", "list", "trc_1", "--json"])).toBe(0);
     expect(JSON.parse(empty.captured.out.join("\n"))).toEqual({ items: [] });
+  });
+
+  it("deletes traces only with --yes and reports partial failures", async () => {
+    const api = fakeApi({
+      "DELETE /api/v1/traces/trc_1": () => ({ status: 204, body: null }),
+      "DELETE /api/v1/traces/trc_2": () => ({ status: 204, body: null }),
+    });
+    expect(await runWith(api, ["traces", "delete", "trc_1"])).toBe(2);
+    expect(api.captured.calls).toHaveLength(0);
+    expect(api.captured.err.join("\n")).toContain("--yes");
+
+    expect(await runWith(api, ["traces", "delete", "trc_1", "trc_2", "--yes"])).toBe(0);
+    expect(api.captured.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+      "DELETE /api/v1/traces/trc_1",
+      "DELETE /api/v1/traces/trc_2",
+    ]);
+    expect(api.captured.out).toEqual(["deleted trc_1", "deleted trc_2"]);
+
+    const partial = fakeApi({
+      "DELETE /api/v1/traces/trc_1": () => ({ status: 204, body: null }),
+    });
+    expect(await runWith(partial, ["traces", "delete", "trc_1", "trc_missing", "--yes"])).toBe(1);
+    expect(partial.captured.out).toEqual(["deleted trc_1"]);
+    expect(partial.captured.err.join("\n")).toContain("trc_missing");
+    expect(partial.captured.err.join("\n")).toContain("1 of 2");
+
+    const missing = fakeApi({});
+    expect(await runWith(missing, ["traces", "delete", "trc_missing", "--yes"])).toBe(4);
   });
 
   it("parses absolute and relative prune cutoffs", () => {

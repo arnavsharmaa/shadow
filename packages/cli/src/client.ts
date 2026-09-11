@@ -55,6 +55,10 @@ export class ApiClient {
     return this.request<T>("PATCH", `${this.endpoint}${path}`, body);
   }
 
+  delete<T = void>(path: string): Promise<T> {
+    return this.request<T>("DELETE", `${this.endpoint}${path}`);
+  }
+
   private async request<T>(method: string, url: string, body?: unknown): Promise<T> {
     let response: Response;
     try {

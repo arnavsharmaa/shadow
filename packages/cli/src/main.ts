@@ -342,6 +342,38 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
 
   traces
+    .command("delete")
+    .description("delete one or more traces with all their branches")
+    .argument("<traceId...>", "trace ids")
+    .option("--yes", "confirm the deletion")
+    .action(async (traceIds: string[], opts: { yes?: boolean }) => {
+      if (!opts.yes) {
+        throw new CliError(
+          `refusing to delete ${traceIds.length} trace(s) without --yes`,
+          EXIT.usage,
+        );
+      }
+      const api = client();
+      const failures: string[] = [];
+      for (const traceId of traceIds) {
+        try {
+          await api.delete(`/api/v1/traces/${encodeURIComponent(traceId)}`);
+          out(`deleted ${traceId}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          err(`${traceId}: ${message}`);
+          failures.push(traceId);
+        }
+      }
+      if (failures.length > 0) {
+        throw new CliError(
+          `${failures.length} of ${traceIds.length} trace(s) could not be deleted`,
+          failures.length === traceIds.length && traceIds.length === 1 ? EXIT.notFound : EXIT.error,
+        );
+      }
+    });
+
+  traces
     .command("prune")
     .description("delete traces that started before a cutoff (retention)")
     .requiredOption(
