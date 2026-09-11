@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
+  Artifact,
   Branch,
   Comparison,
   Fork,
@@ -332,6 +333,68 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
     });
 
+  const artifacts = program
+    .command("artifacts")
+    .description("list and download documents attached to a trace");
+
+  artifacts
+    .command("list")
+    .description("list artifacts (email bodies, retrieved pages, reports) of a trace")
+    .argument("<traceId>", "trace id")
+    .option("--branch <branchId>", "only artifacts of this branch")
+    .option("--event <eventId>", "only artifacts linked to this event")
+    .option("--limit <n>", "maximum rows", positiveInt, 100)
+    .option("--json", "print JSON instead of a table")
+    .action(
+      async (
+        traceId: string,
+        opts: { branch?: string; event?: string; limit: number; json?: boolean },
+      ) => {
+        const page = await client().get<{ items: Artifact[] }>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`,
+          { branchId: opts.branch, eventId: opts.event, limit: opts.limit },
+        );
+        if (opts.json) return json(page);
+        if (page.items.length === 0) return out("no artifacts found");
+        out(
+          table(
+            ["ARTIFACT", "KIND", "NAME", "CONTENT TYPE", "EVENT", "BRANCH", "CREATED"],
+            page.items.map((a) => [
+              a.id,
+              a.kind,
+              truncate(a.name, 40),
+              a.contentType,
+              a.eventId ?? "-",
+              a.branchId,
+              a.createdAt,
+            ]),
+          ),
+        );
+        out(`${page.items.length} artifact(s)`);
+      },
+    );
+
+  artifacts
+    .command("get")
+    .description("print an artifact's content, or save it to a file")
+    .argument("<traceId>", "trace id")
+    .argument("<artifactId>", "artifact id")
+    .option("-o, --out <file>", "write the content to a file instead of stdout")
+    .option("--json", "print the full artifact record as JSON")
+    .action(async (traceId: string, artifactId: string, opts: { out?: string; json?: boolean }) => {
+      const artifact = await client().get<Artifact>(
+        `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts/${encodeURIComponent(artifactId)}`,
+      );
+      if (opts.json) return json(artifact);
+      const text = artifactText(artifact);
+      if (opts.out) {
+        await writeFile(opts.out, text, "utf8");
+        out(`wrote ${artifact.name} (${artifact.contentType}) to ${opts.out}`);
+      } else {
+        out(text);
+      }
+    });
+
   program
     .command("fork")
     .description("create a branch that diverges before an event, with overrides")
@@ -566,6 +629,13 @@ async function allEvents(
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   return events;
+}
+
+/** Text form of an artifact: strings verbatim, everything else pretty-printed JSON. */
+function artifactText(artifact: Artifact): string {
+  return typeof artifact.content === "string"
+    ? artifact.content
+    : JSON.stringify(artifact.content, null, 2);
 }
 
 function positiveInt(value: string): number {

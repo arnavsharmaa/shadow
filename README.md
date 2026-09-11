@@ -191,6 +191,7 @@ shadow status
 shadow traces list --project support-agent --status failed
 shadow traces inspect trc_demo_refund_violation
 shadow traces update trc_demo_refund_violation --tag triaged --meta owner=jordan
+shadow artifacts list trc_demo_refund_violation
 shadow traces export trc_demo_refund_violation --out refund.json
 shadow traces import refund.json --regenerate-ids
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay

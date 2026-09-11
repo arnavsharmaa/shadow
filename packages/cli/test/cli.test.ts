@@ -383,6 +383,60 @@ describe("shadow cli", () => {
     expect(nothing.captured.calls).toHaveLength(0);
   });
 
+  it("lists artifacts and downloads their content", async () => {
+    const email = {
+      id: "art_1",
+      traceId: "trc_1",
+      branchId: "br_main",
+      eventId: "evt_9",
+      kind: "email",
+      name: "customer-email",
+      contentType: "text/markdown",
+      content: "Subject: Your refund\n\nHi Jordan",
+      createdAt: "2026-09-02T12:00:00.000Z",
+    };
+    const report = {
+      ...email,
+      id: "art_2",
+      eventId: null,
+      kind: "report",
+      name: "summary",
+      contentType: "application/json",
+      content: { total: 480 },
+    };
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1/artifacts": () => ({ body: { items: [email, report] } }),
+      "GET /api/v1/traces/trc_1/artifacts/art_1": () => ({ body: email }),
+      "GET /api/v1/traces/trc_1/artifacts/art_2": () => ({ body: report }),
+    });
+    expect(await runWith(api, ["artifacts", "list", "trc_1", "--event", "evt_9"])).toBe(0);
+    expect(new URL(api.captured.calls[0]?.url ?? "").searchParams.get("eventId")).toBe("evt_9");
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("art_1");
+    expect(text).toContain("customer-email");
+    expect(text).toContain("2 artifact(s)");
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["artifacts", "get", "trc_1", "art_1"])).toBe(0);
+    expect(api.captured.out.join("\n")).toBe(email.content);
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["artifacts", "get", "trc_1", "art_2"])).toBe(0);
+    expect(JSON.parse(api.captured.out.join("\n"))).toEqual({ total: 480 });
+
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-"));
+    const file = path.join(dir, "email.md");
+    expect(await runWith(api, ["artifacts", "get", "trc_1", "art_1", "--out", file])).toBe(0);
+    expect(await readFile(file, "utf8")).toBe(email.content);
+    expect(api.captured.out.at(-1)).toContain(`wrote customer-email (text/markdown) to ${file}`);
+
+    const empty = fakeApi({
+      "GET /api/v1/traces/trc_1/artifacts": () => ({ body: { items: [] } }),
+    });
+    expect(await runWith(empty, ["artifacts", "list", "trc_1", "--json"])).toBe(0);
+    expect(JSON.parse(empty.captured.out.join("\n"))).toEqual({ items: [] });
+  });
+
   it("creates forks with typed overrides, replays and compares", async () => {
     const fork = {
       id: "frk_1",
