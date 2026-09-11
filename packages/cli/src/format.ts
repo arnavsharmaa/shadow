@@ -47,3 +47,29 @@ export function parseAssignment(input: string): { key: string; value: unknown } 
     return { key, value: raw };
   }
 }
+
+const RELATIVE = /^(\d+)\s*(m|h|d|w)$/i;
+const UNIT_MS: Record<string, number> = {
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+  w: 7 * 86_400_000,
+};
+
+/**
+ * Turn a cutoff argument into an ISO timestamp. Accepts an ISO date/time or a
+ * relative age such as `30d`, `12h`, `45m` or `2w` (measured from `now`).
+ */
+export function parseCutoff(input: string, now: Date = new Date()): string {
+  const relative = RELATIVE.exec(input.trim());
+  if (relative) {
+    const amount = Number.parseInt(relative[1] ?? "0", 10);
+    const unit = (relative[2] ?? "d").toLowerCase();
+    return new Date(now.getTime() - amount * (UNIT_MS[unit] ?? 86_400_000)).toISOString();
+  }
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`expected an ISO timestamp or a relative age like 30d, got '${input}'`);
+  }
+  return date.toISOString();
+}

@@ -118,6 +118,21 @@ export const updateTraceBodySchema = z
   });
 export type UpdateTraceBody = z.infer<typeof updateTraceBodySchema>;
 
+/**
+ * Bulk deletion for retention: every trace that started before `before` and
+ * matches the optional filters. `dryRun` reports what would be deleted.
+ */
+export const pruneTracesBodySchema = z.object({
+  before: z.iso.datetime({ offset: true }),
+  project: z.string().max(64).optional(),
+  agent: z.string().max(64).optional(),
+  status: traceStatusSchema.optional(),
+  tag: z.string().max(64).optional(),
+  dryRun: z.boolean().default(false),
+  limit: z.number().int().min(1).max(10_000).default(1000),
+});
+export type PruneTracesBody = z.infer<typeof pruneTracesBodySchema>;
+
 export const updateBranchBodySchema = z.object({
   name: z.string().min(1).max(128).optional(),
   metadata: jsonObjectSchema.optional(),

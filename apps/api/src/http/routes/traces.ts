@@ -8,6 +8,7 @@ import {
   idSchema,
   importTraceBodySchema,
   ingestEventsBodySchema,
+  pruneTracesBodySchema,
   traceListQuerySchema,
   updateTraceBodySchema,
 } from "@shadow/schemas";
@@ -28,6 +29,7 @@ import {
   deleteTrace,
   getTraceSummary,
   listTraces,
+  pruneTraces,
   traceFacets,
   updateTrace,
 } from "../../services/traces.js";
@@ -63,6 +65,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       const trace = await importTrace(app.services, request.body.bundle, request.body.idStrategy);
       return reply.status(201).send(trace);
     },
+  );
+
+  /** Retention: delete traces that started before a cutoff (see docs/architecture/api.md). */
+  app.post(
+    "/traces/prune",
+    { schema: { tags: ["traces"], body: pruneTracesBodySchema } },
+    async (request) => pruneTraces(app.services, request.body),
   );
 
   app.get(

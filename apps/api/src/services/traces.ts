@@ -1,12 +1,13 @@
 import {
   SCHEMA_VERSION,
   type CreateTraceBody,
+  type PruneTracesBody,
   type Trace,
   type TraceListQuery,
   type TraceSummary,
   type UpdateTraceBody,
 } from "@shadow/schemas";
-import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import { agents, branches, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -227,6 +228,47 @@ export async function updateTrace(
 export async function deleteTrace(ctx: ServiceContext, traceId: string): Promise<void> {
   await getTraceRow(ctx, traceId);
   await ctx.handle.db.delete(traces).where(eq(traces.id, traceId));
+}
+
+export interface PruneResult {
+  dryRun: boolean;
+  /** Traces matching the criteria (capped at `limit`). */
+  matched: number;
+  /** Ids removed (or, in a dry run, that would be removed). Oldest first. */
+  traceIds: string[];
+  /** Whether more traces matched than `limit` allowed in one call. */
+  truncated: boolean;
+}
+
+/**
+ * Delete traces that started before a cutoff, optionally narrowed by project,
+ * agent, status or tag. Deletion cascades like `deleteTrace`. Oldest traces go
+ * first so repeated calls with the same `limit` drain the backlog in order.
+ */
+export async function pruneTraces(
+  ctx: ServiceContext,
+  body: PruneTracesBody,
+): Promise<PruneResult> {
+  const filters: SQL[] = [lt(traces.startedAt, body.before)];
+  if (body.project) filters.push(eq(projects.slug, body.project));
+  if (body.agent) filters.push(eq(agents.slug, body.agent));
+  if (body.status) filters.push(eq(traces.status, body.status));
+  if (body.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([body.tag])}::jsonb`);
+  const rows = await ctx.handle.db
+    .select({ id: traces.id })
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId))
+    .where(and(...filters))
+    .orderBy(asc(traces.startedAt), asc(traces.id))
+    .limit(body.limit + 1);
+  const truncated = rows.length > body.limit;
+  const traceIds = rows.slice(0, body.limit).map((r) => r.id);
+  if (!body.dryRun && traceIds.length > 0) {
+    await ctx.handle.db.delete(traces).where(inArray(traces.id, traceIds));
+    ctx.logger.info({ count: traceIds.length, before: body.before }, "pruned traces");
+  }
+  return { dryRun: body.dryRun, matched: traceIds.length, traceIds, truncated };
 }
 
 /** Distinct filter values for the explorer UI. */

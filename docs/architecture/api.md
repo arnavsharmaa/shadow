@@ -168,6 +168,29 @@ with the same id yields `409`; with `regenerate` every id is replaced while refe
 preserved. Returns `201 Trace`. Events inserted this way keep their original `source` and
 metadata.
 
+### `POST /api/v1/traces/prune`
+
+Retention helper. Body:
+
+```json
+{
+  "before": "2026-06-01T00:00:00Z",
+  "project": "support-agent",
+  "agent": "refund-agent",
+  "status": "completed",
+  "tag": "archived",
+  "dryRun": true,
+  "limit": 1000
+}
+```
+
+Only `before` is required. Deletes (or, with `dryRun`, lists) traces whose `startedAt` is
+earlier than the cutoff and that match every given filter, oldest first, up to `limit`
+(1–10000, default 1000). Deletion cascades like `DELETE /traces/:traceId`. Response:
+`{ dryRun, matched, traceIds, truncated }`; `truncated` is `true` when more traces matched than
+`limit` allowed, so call again to continue. From the CLI: `shadow traces prune --before 30d
+--dry-run`, then add `--yes`.
+
 ### `GET /api/v1/traces/:traceId`
 
 `{ trace: TraceSummary, branches: Branch[] }`.

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parseCutoff } from "../src/format.js";
 import { CLI_VERSION, run } from "../src/index.js";
 
 interface Captured {
@@ -435,6 +436,71 @@ describe("shadow cli", () => {
     });
     expect(await runWith(empty, ["artifacts", "list", "trc_1", "--json"])).toBe(0);
     expect(JSON.parse(empty.captured.out.join("\n"))).toEqual({ items: [] });
+  });
+
+  it("parses absolute and relative prune cutoffs", () => {
+    const now = new Date("2026-09-11T12:00:00.000Z");
+    expect(parseCutoff("30d", now)).toBe("2026-08-12T12:00:00.000Z");
+    expect(parseCutoff("12h", now)).toBe("2026-09-11T00:00:00.000Z");
+    expect(parseCutoff("45m", now)).toBe("2026-09-11T11:15:00.000Z");
+    expect(parseCutoff("2w", now)).toBe("2026-08-28T12:00:00.000Z");
+    expect(parseCutoff("2026-01-01", now)).toBe("2026-01-01T00:00:00.000Z");
+    expect(parseCutoff("2026-03-01T10:00:00+02:00", now)).toBe("2026-03-01T08:00:00.000Z");
+    expect(() => parseCutoff("yesterday", now)).toThrow(/relative age/);
+  });
+
+  it("prunes traces only with --yes and previews with --dry-run", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/prune": (body) => {
+        const b = body as { dryRun: boolean };
+        return {
+          body: {
+            dryRun: b.dryRun,
+            matched: 2,
+            traceIds: ["trc_old1", "trc_old2"],
+            truncated: true,
+          },
+        };
+      },
+    });
+    expect(await runWith(api, ["traces", "prune", "--before", "2026-06-01"])).toBe(2);
+    expect(api.captured.err.join("\n")).toContain("--yes");
+    expect(api.captured.calls).toHaveLength(0);
+
+    expect(
+      await runWith(api, [
+        "traces",
+        "prune",
+        "--before",
+        "2026-06-01",
+        "--dry-run",
+        "--tag",
+        "old",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      before: "2026-06-01T00:00:00.000Z",
+      tag: "old",
+      limit: 1000,
+      dryRun: true,
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("would delete 2 trace(s)");
+    expect(text).toContain("trc_old2");
+    expect(text).toContain("raise --limit");
+
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, ["traces", "prune", "--before", "30d", "--yes", "--limit", "5", "--json"]),
+    ).toBe(0);
+    const sent = api.captured.calls[1]?.body as { before: string; dryRun: boolean; limit: number };
+    expect(sent.dryRun).toBe(false);
+    expect(sent.limit).toBe(5);
+    expect(Date.now() - new Date(sent.before).getTime()).toBeGreaterThan(29 * 86_400_000);
+    expect(JSON.parse(api.captured.out.join("\n")).matched).toBe(2);
+
+    const invalid = fakeApi({});
+    expect(await runWith(invalid, ["traces", "prune", "--before", "soon", "--yes"])).toBe(2);
   });
 
   it("creates forks with typed overrides, replays and compares", async () => {

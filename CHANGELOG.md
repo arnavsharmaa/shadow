@@ -14,6 +14,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 - `PATCH /api/v1/traces/:traceId` and `shadow traces update`: rename a trace, add, remove or
   replace its tags and merge metadata after it has been recorded; the new values are searchable
   immediately.
+- `POST /api/v1/traces/prune` and `shadow traces prune --before <cutoff>`: delete traces that
+  started before a cutoff (optionally by project, agent, status or tag) in bounded batches,
+  with a dry-run preview. The CLI refuses to delete without `--yes`.
 - `shadow artifacts list <traceId>` and `shadow artifacts get <traceId> <artifactId>` CLI
   commands to browse attached documents and save their content to a file.
 - `SHADOW_REPLAY_MODULES`: load replayable `AgentDefinition`s from operator-provided modules at

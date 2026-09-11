@@ -13,7 +13,15 @@ import type {
 } from "@shadow/schemas";
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { ApiClient, CliError, EXIT } from "./client.js";
-import { duration, money, parseAssignment, percent, table, truncate } from "./format.js";
+import {
+  duration,
+  money,
+  parseAssignment,
+  parseCutoff,
+  percent,
+  table,
+  truncate,
+} from "./format.js";
 
 export const CLI_VERSION = "0.1.0";
 
@@ -332,6 +340,72 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       );
       out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
     });
+
+  traces
+    .command("prune")
+    .description("delete traces that started before a cutoff (retention)")
+    .requiredOption(
+      "--before <cutoff>",
+      "ISO timestamp or relative age such as 30d, 12h, 2w",
+      (value: string) => {
+        try {
+          return parseCutoff(value);
+        } catch (error) {
+          throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+        }
+      },
+    )
+    .option("--project <slug>", "only this project")
+    .option("--agent <slug>", "only this agent")
+    .option("--status <status>", "running | completed | failed")
+    .option("--tag <tag>", "only traces carrying this tag")
+    .option("--limit <n>", "maximum traces to delete per run", positiveInt, 1000)
+    .option("--dry-run", "list what would be deleted without deleting")
+    .option("--yes", "confirm the deletion (required unless --dry-run)")
+    .option("--json", "print JSON")
+    .action(
+      async (opts: {
+        before: string;
+        project?: string;
+        agent?: string;
+        status?: string;
+        tag?: string;
+        limit: number;
+        dryRun?: boolean;
+        yes?: boolean;
+        json?: boolean;
+      }) => {
+        if (!opts.dryRun && !opts.yes) {
+          throw new CliError(
+            "refusing to delete without --yes; run with --dry-run first to preview",
+            EXIT.usage,
+          );
+        }
+        const result = await client().post<{
+          dryRun: boolean;
+          matched: number;
+          traceIds: string[];
+          truncated: boolean;
+        }>("/api/v1/traces/prune", {
+          before: opts.before,
+          project: opts.project,
+          agent: opts.agent,
+          status: opts.status,
+          tag: opts.tag,
+          limit: opts.limit,
+          dryRun: Boolean(opts.dryRun),
+        });
+        if (opts.json) return json(result);
+        const verb = result.dryRun ? "would delete" : "deleted";
+        out(`${verb} ${result.matched} trace(s) started before ${opts.before}`);
+        for (const id of result.traceIds) out(`  ${id}`);
+        if (result.truncated) {
+          out(
+            `more traces match; run again${result.dryRun ? "" : " to continue"} or raise --limit`,
+          );
+        }
+      },
+    );
 
   const artifacts = program
     .command("artifacts")
