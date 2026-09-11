@@ -40,6 +40,10 @@ is welcome through GitHub issues; integration proposals have their own
   canonical refund-agent counterfactual.
 - Security baseline: input validation, bounded payloads, key/value-pattern redaction on both
   client and server, no dynamic code execution.
+- Post-recording labelling: trace names, tags and metadata editable through the API, the CLI,
+  the SDK (`trace.tag()`, `trace.setMetadata()`) and the trace header in the web app.
+- Retention: `POST /traces/prune`, `shadow traces prune` and the `SHADOW_RETENTION_DAYS` sweep
+  for bounded, batched deletion of old traces.
 
 ## v0.2 — Framework integrations
 
@@ -74,8 +78,7 @@ is welcome through GitHub issues; integration proposals have their own
   for any shared deployment.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing.
 - Annotations and comments on events and branches.
-- Saved views and filters in the explorer; trace tagging from the UI.
-- Retention policies and bulk deletion.
+- Saved views and filters in the explorer.
 
 ### Ideas / under consideration
 

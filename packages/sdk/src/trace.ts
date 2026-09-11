@@ -279,6 +279,7 @@ export class Trace implements AgentHost {
       update.removeTags = update.removeTags.filter((t) => t !== value);
       if (!update.addTags.includes(value)) update.addTags.push(value);
     }
+    this.flushIfEnded();
   }
 
   /** Remove tags from the trace. */
@@ -290,6 +291,7 @@ export class Trace implements AgentHost {
       update.addTags = update.addTags.filter((t) => t !== value);
       if (!update.removeTags.includes(value)) update.removeTags.push(value);
     }
+    this.flushIfEnded();
   }
 
   /**
@@ -309,6 +311,15 @@ export class Trace implements AgentHost {
     if (redacted !== null && typeof redacted === "object" && !Array.isArray(redacted)) {
       for (const [key, value] of Object.entries(redacted)) update.metadata[key] = value ?? null;
     }
+    this.flushIfEnded();
+  }
+
+  /**
+   * Labels applied after `end()`/`fail()` (typically from the outcome) would
+   * otherwise wait for a flush that never comes, so send them right away.
+   */
+  private flushIfEnded(): void {
+    if (this.ended) void this.flush();
   }
 
   private update(): NonNullable<Trace["pendingUpdate"]> {

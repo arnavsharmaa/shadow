@@ -50,6 +50,9 @@ async function main() {
     console.log(
       `outcome: ${outcome?.label ?? "completed"}${outcome?.summary ? ` (${outcome.summary})` : ""}`,
     );
+    // Label the trace with its outcome so it can be found with `--tag` or the explorer filter.
+    trace.tag(`outcome:${outcome?.kind ?? "completed"}`);
+    trace.setMetadata({ outcomeLabel: outcome?.label ?? "Completed" });
   } catch (error) {
     console.error("agent failed:", error instanceof Error ? error.message : error);
   } finally {

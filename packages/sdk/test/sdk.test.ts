@@ -246,6 +246,19 @@ describe("Shadow SDK", () => {
     expect(quiet.updatesFor(untouched.id)).toEqual([]);
   });
 
+  it("sends labels applied after the trace ended", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({ name: "t" });
+    const outcome = await trace.run(async () => ({ kind: "refunded", label: "Refund issued" }), {});
+    trace.tag(`outcome:${outcome?.kind ?? "unknown"}`);
+    trace.setMetadata({ outcomeLabel: outcome?.label ?? null });
+    await trace.flush();
+    // Both labels land before the scheduled flush runs, so they travel as one update.
+    expect(transport.updatesFor(trace.id)).toEqual([
+      { addTags: ["outcome:refunded"], metadata: { outcomeLabel: "Refund issued" } },
+    ]);
+  });
+
   it("HttpTransport sends trace updates as PATCH requests", async () => {
     const calls: { url: string; method?: string; body?: unknown }[] = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {

@@ -87,7 +87,8 @@ that produced it. Artifacts are sent after their events on the next flush.
 `trace.tag(...tags)`, `trace.untag(...tags)` and `trace.setMetadata({ key: value })` label a
 trace after it has started, for instance with the outcome category or the ticket it resolved.
 Changes are coalesced into one `PATCH` sent after the buffered events; `null` deletes a metadata
-key and values are redacted like event payloads.
+key and values are redacted like event payloads. Labels applied after `end()` (for example from
+the outcome `trace.run()` returned) are sent immediately.
 
 `trace.run(program, input)` runs an `AgentProgram` (the same contract used by Shadow's deterministic replay engine) and ends or fails the trace automatically.
 
