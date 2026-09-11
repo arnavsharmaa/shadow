@@ -152,6 +152,39 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(after).toHaveCount(initial);
   });
 
+  test("tags can be added and removed from the trace header", async ({ page }) => {
+    await openRefundTrace(page);
+    const editor = page.getByTestId("tag-editor");
+    await expect(editor).toBeVisible();
+    const before = await editor.locator('[data-testid="trace-tag"]').count();
+
+    await editor.getByTestId("tag-input").fill("triaged, e2e-check");
+    await editor.getByTestId("tag-input").press("Enter");
+    await expect(editor.locator('[data-testid="trace-tag"][data-tag="triaged"]')).toBeVisible();
+    await expect(editor.locator('[data-testid="trace-tag"][data-tag="e2e-check"]')).toBeVisible();
+
+    // The change is persisted: it survives a reload and reaches the explorer's tag filter.
+    await page.reload();
+    await expect(
+      page.getByTestId("tag-editor").locator('[data-testid="trace-tag"][data-tag="triaged"]'),
+    ).toBeVisible();
+    await page.goto("/?tag=e2e-check");
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
+    await expect(
+      page.locator('[data-testid="trace-row"][data-trace-id="trc_demo_refund_violation"]'),
+    ).toBeVisible();
+
+    await openRefundTrace(page);
+    await page.getByRole("button", { name: "Remove tag triaged" }).click();
+    await expect(
+      page.getByTestId("tag-editor").locator('[data-testid="trace-tag"][data-tag="triaged"]'),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Remove tag e2e-check" }).click();
+    await expect(page.getByTestId("tag-editor").locator('[data-testid="trace-tag"]')).toHaveCount(
+      before,
+    );
+  });
+
   test("explorer filters and keyboard navigation", async ({ page }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);

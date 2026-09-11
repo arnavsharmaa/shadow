@@ -145,6 +145,16 @@ export const api = {
   facets: () => request<Facets>("GET", "/api/v1/traces/facets"),
   trace: (traceId: string) =>
     request<TraceDetail>("GET", `/api/v1/traces/${encodeURIComponent(traceId)}`),
+  updateTrace: (
+    traceId: string,
+    body: {
+      name?: string;
+      tags?: string[];
+      addTags?: string[];
+      removeTags?: string[];
+      metadata?: Record<string, unknown>;
+    },
+  ) => request<TraceSummary>("PATCH", `/api/v1/traces/${encodeURIComponent(traceId)}`, body),
   deleteTrace: (traceId: string) =>
     request<void>("DELETE", `/api/v1/traces/${encodeURIComponent(traceId)}`),
   tree: (traceId: string, branchId?: string) =>

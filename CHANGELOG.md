@@ -14,6 +14,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 - `PATCH /api/v1/traces/:traceId` and `shadow traces update`: rename a trace, add, remove or
   replace its tags and merge metadata after it has been recorded; the new values are searchable
   immediately.
+- Tag editor in the trace header: add tags with Enter or a comma-separated list and remove
+  them with one click; the explorer's tag filter picks them up immediately.
 - SDK: `trace.tag()`, `trace.untag()` and `trace.setMetadata()` label a running trace; the
   changes are coalesced and sent after the buffered events. Transports may implement
   `updateTrace`.

@@ -5,6 +5,7 @@ import { compact, dateTime, duration, money } from "@/lib/format";
 import type { Branch, TraceSummary } from "@shadow/schemas";
 import Link from "next/link";
 import { Badge, Button, Kbd, outcomeTone, statusTone } from "../ui/primitives";
+import { TagEditor } from "./TagEditor";
 
 interface Props {
   trace: TraceSummary;
@@ -16,6 +17,7 @@ interface Props {
   onJumpPolicy: () => void;
   hasError: boolean;
   hasPolicy: boolean;
+  onUpdateTags: (change: { addTags?: string[]; removeTags?: string[] }) => Promise<void>;
 }
 
 export function TraceHeader({
@@ -28,6 +30,7 @@ export function TraceHeader({
   onJumpPolicy,
   hasError,
   hasPolicy,
+  onUpdateTags,
 }: Props) {
   const metrics = branch?.metrics ?? trace.metrics;
   const outcome = branch?.outcome ?? trace.outcome;
@@ -71,6 +74,7 @@ export function TraceHeader({
             {trace.projectSlug} / {trace.agentSlug}
           </span>
           <span>{dateTime(trace.startedAt)}</span>
+          <TagEditor tags={trace.tags} onChange={onUpdateTags} />
         </div>
       </div>
       <dl className="ml-auto flex flex-wrap items-center gap-x-4 text-[11px]">

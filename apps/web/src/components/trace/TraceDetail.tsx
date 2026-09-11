@@ -149,6 +149,18 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     await queryClient.invalidateQueries({ queryKey: ["trace", traceId] });
   }, [queryClient, traceId]);
 
+  const updateTags = useCallback(
+    async (change: { addTags?: string[]; removeTags?: string[] }) => {
+      await api.updateTrace(traceId, change);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["trace", traceId] }),
+        queryClient.invalidateQueries({ queryKey: ["traces"] }),
+        queryClient.invalidateQueries({ queryKey: ["facets"] }),
+      ]);
+    },
+    [queryClient, traceId],
+  );
+
   if (detail.isError) return <ErrorState error={detail.error} retry={() => detail.refetch()} />;
   if (!detail.data || !branchId) {
     return (
@@ -171,6 +183,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
         onJumpPolicy={() => jumpTo(isPolicyViolationEvent)}
         hasError={events.some(isErrorEvent)}
         hasPolicy={events.some(isPolicyViolationEvent)}
+        onUpdateTags={updateTags}
       />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,22%)_minmax(360px,1fr)_minmax(300px,28%)] gap-px bg-border">
         <Panel
