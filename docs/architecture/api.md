@@ -172,6 +172,25 @@ metadata.
 
 `{ trace: TraceSummary, branches: Branch[] }`.
 
+### `PATCH /api/v1/traces/:traceId`
+
+Body (at least one field):
+
+```json
+{
+  "name": "refund-request: escalated",
+  "tags": ["refund"],
+  "addTags": ["triaged"],
+  "removeTags": ["email"],
+  "metadata": { "owner": "jordan", "region": null }
+}
+```
+
+`tags` replaces the list; `addTags`/`removeTags` are applied afterwards and the result is
+de-duplicated. `metadata` is merged key by key; a `null` value deletes the key. The trace's
+search text is extended with the new values (`?q=` and `?tag=` pick them up immediately).
+Returns the updated `Trace`.
+
 ### `DELETE /api/v1/traces/:traceId`
 
 `204`. Cascades to branches, events, snapshots, forks, replays, comparisons and artifacts.

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `PATCH /api/v1/traces/:traceId` and `shadow traces update`: rename a trace, add, remove or
+  replace its tags and merge metadata after it has been recorded; the new values are searchable
+  immediately.
 - `SHADOW_REPLAY_MODULES`: load replayable `AgentDefinition`s from operator-provided modules at
   API startup, so agents recorded through the SDK can be forked and replayed without editing
   the API source.

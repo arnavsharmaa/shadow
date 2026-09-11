@@ -51,6 +51,10 @@ export class ApiClient {
     return this.request<T>("POST", `${this.endpoint}${path}`, body);
   }
 
+  patch<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>("PATCH", `${this.endpoint}${path}`, body);
+  }
+
   private async request<T>(method: string, url: string, body?: unknown): Promise<T> {
     let response: Response;
     try {

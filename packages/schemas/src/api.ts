@@ -100,6 +100,24 @@ export const createForkBodySchema = z.object({
 export type CreateForkBody = z.infer<typeof createForkBodySchema>;
 export type CreateForkBodyInput = z.input<typeof createForkBodySchema>;
 
+/**
+ * Partial update of a trace's editable fields. `tags` replaces the whole list;
+ * `addTags`/`removeTags` adjust it. `metadata` is merged key-by-key (set a key to
+ * `null` to delete it).
+ */
+export const updateTraceBodySchema = z
+  .object({
+    name: z.string().min(1).max(256).optional(),
+    tags: z.array(z.string().min(1).max(64)).max(64).optional(),
+    addTags: z.array(z.string().min(1).max(64)).max(64).optional(),
+    removeTags: z.array(z.string().min(1).max(64)).max(64).optional(),
+    metadata: z.record(z.string(), jsonValueSchema.nullable()).optional(),
+  })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: "provide at least one field to update",
+  });
+export type UpdateTraceBody = z.infer<typeof updateTraceBodySchema>;
+
 export const updateBranchBodySchema = z.object({
   name: z.string().min(1).max(128).optional(),
   metadata: jsonObjectSchema.optional(),

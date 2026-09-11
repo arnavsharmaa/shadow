@@ -4,6 +4,7 @@ import {
   type Trace,
   type TraceListQuery,
   type TraceSummary,
+  type UpdateTraceBody,
 } from "@shadow/schemas";
 import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { agents, branches, projects, traces } from "../db/schema.js";
@@ -169,6 +170,58 @@ export async function listTraces(
       ? Buffer.from(String(offset + query.limit)).toString("base64url")
       : null;
   return { items, nextCursor, total: Number(countRow?.count ?? 0) };
+}
+
+/**
+ * Edit a trace's name, tags and metadata. Tags are de-duplicated and keep their
+ * order; metadata keys set to `null` are removed. The search text is rebuilt so
+ * new names and tags become searchable immediately.
+ */
+export async function updateTrace(
+  ctx: ServiceContext,
+  traceId: string,
+  body: UpdateTraceBody,
+): Promise<Trace> {
+  const row = await getTraceRow(ctx, traceId);
+  const [project] = await ctx.handle.db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, row.projectId))
+    .limit(1);
+  const [agent] = await ctx.handle.db
+    .select()
+    .from(agents)
+    .where(eq(agents.id, row.agentId))
+    .limit(1);
+  if (!project || !agent) throw ApiError.notFound("trace", traceId);
+
+  const current = toTrace(row);
+  const name = body.name ?? current.name;
+  let tags = body.tags ?? current.tags;
+  if (body.addTags) tags = [...tags, ...body.addTags];
+  if (body.removeTags) {
+    const removed = new Set(body.removeTags);
+    tags = tags.filter((tag) => !removed.has(tag));
+  }
+  tags = [...new Set(tags)];
+  const metadata = { ...current.metadata };
+  for (const [key, value] of Object.entries(body.metadata ?? {})) {
+    if (value === null) delete metadata[key];
+    else metadata[key] = value;
+  }
+  const searchText = likeSearchProvider.buildSearchText({
+    trace: { id: row.id, name, tags, metadata },
+    agent,
+    project,
+    events: [],
+    previous: row.searchText,
+  });
+  const [updated] = await ctx.handle.db
+    .update(traces)
+    .set({ name, tags, metadata, searchText, updatedAt: iso(new Date(ctx.clock.now())) })
+    .where(eq(traces.id, traceId))
+    .returning();
+  return toTrace(updated as TraceRow);
 }
 
 export async function deleteTrace(ctx: ServiceContext, traceId: string): Promise<void> {

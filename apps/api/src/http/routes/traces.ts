@@ -9,6 +9,7 @@ import {
   importTraceBodySchema,
   ingestEventsBodySchema,
   traceListQuerySchema,
+  updateTraceBodySchema,
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import {
   getTraceSummary,
   listTraces,
   traceFacets,
+  updateTrace,
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
 
@@ -71,6 +73,12 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       const branches = await listBranches(app.services, trace.id);
       return { trace, branches };
     },
+  );
+
+  app.patch(
+    "/traces/:traceId",
+    { schema: { tags: ["traces"], params: traceParams, body: updateTraceBodySchema } },
+    async (request) => updateTrace(app.services, request.params.traceId, request.body),
   );
 
   app.delete(

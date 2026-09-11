@@ -322,6 +322,67 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["traces", "import", file])).toBe(2);
   });
 
+  it("updates trace names, tags and metadata", async () => {
+    const api = fakeApi({
+      "PATCH /api/v1/traces/trc_1": (body) => {
+        const b = body as { name?: string; addTags?: string[]; removeTags?: string[] };
+        return {
+          body: {
+            ...trace,
+            name: b.name ?? trace.name,
+            tags: [...trace.tags.filter((t) => !b.removeTags?.includes(t)), ...(b.addTags ?? [])],
+            metadata: { owner: "jordan", priority: 2 },
+          },
+        };
+      },
+    });
+    expect(
+      await runWith(api, [
+        "traces",
+        "update",
+        "trc_1",
+        "--name",
+        "renamed",
+        "--tag",
+        "triaged",
+        "--untag",
+        "refund",
+        "--meta",
+        "owner=jordan",
+        "priority=2",
+        "--unset-meta",
+        "region",
+      ]),
+    ).toBe(0);
+    const call = api.captured.calls[0];
+    expect(call?.method).toBe("PATCH");
+    expect(call?.body).toEqual({
+      name: "renamed",
+      addTags: ["triaged"],
+      removeTags: ["refund"],
+      metadata: { owner: "jordan", priority: 2, region: null },
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("updated trc_1");
+    expect(text).toContain("name      renamed");
+    expect(text).toContain("tags      triaged");
+    expect(text).toContain("metadata  owner, priority");
+
+    const replace = fakeApi({
+      "PATCH /api/v1/traces/trc_1": () => ({ body: { ...trace, tags: ["a", "b"] } }),
+    });
+    expect(
+      await runWith(replace, ["traces", "update", "trc_1", "--tags", "a", "b", "--json"]),
+    ).toBe(0);
+    expect(replace.captured.calls[0]?.body).toEqual({ tags: ["a", "b"] });
+    expect(JSON.parse(replace.captured.out.join("\n")).tags).toEqual(["a", "b"]);
+
+    const nothing = fakeApi({});
+    expect(await runWith(nothing, ["traces", "update", "trc_1"])).toBe(2);
+    expect(nothing.captured.err.join("\n")).toContain("nothing to update");
+    expect(nothing.captured.calls).toHaveLength(0);
+  });
+
   it("creates forks with typed overrides, replays and compares", async () => {
     const fork = {
       id: "frk_1",

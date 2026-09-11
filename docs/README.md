@@ -67,7 +67,8 @@ Start with the [project README](../README.md) for installation and the demo, the
   `http://localhost:3000`, OpenAPI at `http://localhost:4000/docs`).
 - Canonical demo: `pnpm demo` records the refund agent, forks it before `refund_order` with
   `refundLimit = 100`, replays the fork and compares the branches.
-- CLI: `shadow traces list`, `shadow traces inspect <traceId>`, `shadow traces export <traceId>`,
+- CLI: `shadow traces list`, `shadow traces inspect <traceId>`, `shadow traces update <traceId>`,
+  `shadow traces export <traceId>`,
   `shadow traces import <file>`, `shadow fork <traceId> --at <eventId> --set key=value`,
   `shadow replay <branchId>`, `shadow compare <baseBranchId> <targetBranchId>`.
 - Database: embedded PGlite by default (`.shadow/data`); set `DATABASE_URL` for PostgreSQL;

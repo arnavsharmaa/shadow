@@ -231,6 +231,63 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
 
   traces
+    .command("update")
+    .description("rename a trace or edit its tags and metadata")
+    .argument("<traceId>", "trace id")
+    .option("--name <name>", "new trace name")
+    .option("--tag <tag...>", "add tags")
+    .option("--untag <tag...>", "remove tags")
+    .option("--tags <tag...>", "replace the whole tag list")
+    .option("--meta <key=value...>", "set metadata keys (JSON values allowed)")
+    .option("--unset-meta <key...>", "remove metadata keys")
+    .option("--json", "print JSON")
+    .action(
+      async (
+        traceId: string,
+        opts: {
+          name?: string;
+          tag?: string[];
+          untag?: string[];
+          tags?: string[];
+          meta?: string[];
+          unsetMeta?: string[];
+          json?: boolean;
+        },
+      ) => {
+        const metadata: Record<string, unknown> = {};
+        for (const item of opts.meta ?? []) {
+          const { key, value } = parseAssignment(item);
+          if (value === null)
+            throw new CliError(`--meta ${key}: use --unset-meta to remove a key`, EXIT.usage);
+          metadata[key] = value;
+        }
+        for (const key of opts.unsetMeta ?? []) metadata[key] = null;
+        const body: Record<string, unknown> = {};
+        if (opts.name !== undefined) body.name = opts.name;
+        if (opts.tags) body.tags = opts.tags;
+        if (opts.tag) body.addTags = opts.tag;
+        if (opts.untag) body.removeTags = opts.untag;
+        if (Object.keys(metadata).length > 0) body.metadata = metadata;
+        if (Object.keys(body).length === 0) {
+          throw new CliError(
+            "nothing to update: pass --name, --tag, --untag, --tags, --meta or --unset-meta",
+            EXIT.usage,
+          );
+        }
+        const updated = await client().patch<TraceSummary>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}`,
+          body,
+        );
+        if (opts.json) return json(updated);
+        out(`updated ${updated.id}`);
+        out(`  name      ${updated.name}`);
+        out(`  tags      ${updated.tags.join(", ") || "-"}`);
+        const keys = Object.keys(updated.metadata);
+        out(`  metadata  ${keys.length > 0 ? keys.join(", ") : "-"}`);
+      },
+    );
+
+  traces
     .command("export")
     .description("export a trace (all branches) as a portable JSON bundle")
     .argument("<traceId>", "trace id")
