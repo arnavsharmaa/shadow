@@ -425,21 +425,33 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 
 ## Configuration
 
-| Variable                       | Default                                       | Purpose                                         |
-| ------------------------------ | --------------------------------------------- | ----------------------------------------------- |
-| `DATABASE_URL`                 | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://` |
-| `SHADOW_DATA_DIR`              | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset   |
-| `SHADOW_API_HOST`              | `127.0.0.1`                                   |                                                 |
-| `SHADOW_API_PORT`              | `4000`                                        |                                                 |
-| `SHADOW_LOG_LEVEL`             | `info`                                        | pino level                                      |
-| `SHADOW_AUTO_MIGRATE`          | `true`                                        | apply migrations at startup                     |
-| `SHADOW_AUTO_SEED`             | `true`                                        | seed demo data when the database is empty       |
-| `SHADOW_MAX_BODY_BYTES`        | `10485760`                                    | request body limit                              |
-| `SHADOW_REDACT_PATTERNS`       | empty                                         | comma-separated extra key regexes for redaction |
-| `SHADOW_CORS_ORIGINS`          | `http://localhost:3000,http://127.0.0.1:3000` |                                                 |
-| `SHADOW_API_TOKEN`             | unset                                         | bearer token required on `/api/*` when set      |
-| `NEXT_PUBLIC_SHADOW_API_TOKEN` | unset                                         | token the web app sends (must match)            |
-| `NEXT_PUBLIC_SHADOW_API_URL`   | `http://localhost:4000`                       | used by the web app                             |
+| Variable                            | Default                                       | Purpose                                         |
+| ----------------------------------- | --------------------------------------------- | ----------------------------------------------- |
+| `DATABASE_URL`                      | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://` |
+| `SHADOW_DATA_DIR`                   | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset   |
+| `SHADOW_API_HOST`                   | `127.0.0.1`                                   |                                                 |
+| `SHADOW_API_PORT`                   | `4000`                                        |                                                 |
+| `SHADOW_LOG_LEVEL`                  | `info`                                        | pino level                                      |
+| `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                     |
+| `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty       |
+| `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                              |
+| `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction |
+| `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                 |
+| `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)     |
+| `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs              |
+| `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set      |
+| `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)            |
+| `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                             |
+
+### Retention
+
+With `SHADOW_RETENTION_DAYS` set, the API deletes traces whose `startedAt` is older than the
+window at startup and then every `SHADOW_RETENTION_INTERVAL_MINUTES`. Each sweep uses the same
+code path as `POST /api/v1/traces/prune` in batches of 500 (at most 20 batches per sweep, so a
+large backlog drains over several intervals without blocking ingestion) and logs a
+`retention sweep` line with the cutoff and count. Sweeps never overlap. Retention applies to the
+seeded demo traces too; with `SHADOW_AUTO_SEED` the demo is re-created only when the database is
+empty.
 
 Logs are structured JSON (pretty-printed on a TTY outside production) and redact
 `authorization`, `cookie`, `password`, `apiKey`, `token`, `secret` and any key matching

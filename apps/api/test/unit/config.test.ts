@@ -32,6 +32,20 @@ describe("loadConfig", () => {
     expect(config.SHADOW_MAX_BODY_BYTES).toBe(2048);
   });
 
+  it("parses retention settings and rejects non-positive values", () => {
+    const off = loadConfig({});
+    expect(off.SHADOW_RETENTION_DAYS).toBeUndefined();
+    expect(off.SHADOW_RETENTION_INTERVAL_MINUTES).toBe(60);
+    expect(loadConfig({ SHADOW_RETENTION_DAYS: "" }).SHADOW_RETENTION_DAYS).toBeUndefined();
+    const on = loadConfig({ SHADOW_RETENTION_DAYS: "30", SHADOW_RETENTION_INTERVAL_MINUTES: "5" });
+    expect(on.SHADOW_RETENTION_DAYS).toBe(30);
+    expect(on.SHADOW_RETENTION_INTERVAL_MINUTES).toBe(5);
+    expect(loadConfig({ SHADOW_RETENTION_DAYS: "0.5" }).SHADOW_RETENTION_DAYS).toBe(0.5);
+    expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "0" })).toThrow(/positive/);
+    expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "soon" })).toThrow(/positive/);
+    expect(() => loadConfig({ SHADOW_RETENTION_INTERVAL_MINUTES: "0" })).toThrow();
+  });
+
   it("rejects an invalid port", () => {
     expect(() => loadConfig({ SHADOW_API_PORT: "99999" })).toThrow(/Invalid configuration/);
     expect(() => loadConfig({ SHADOW_API_PORT: "-1" })).toThrow(/Invalid configuration/);

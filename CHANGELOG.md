@@ -19,6 +19,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 - SDK: `trace.tag()`, `trace.untag()` and `trace.setMetadata()` label a running trace; the
   changes are coalesced and sent after the buffered events. Transports may implement
   `updateTrace`.
+- `SHADOW_RETENTION_DAYS`: automatic retention. The API sweeps traces older than the window at
+  startup and every `SHADOW_RETENTION_INTERVAL_MINUTES` (default 60) in bounded batches.
 - `POST /api/v1/traces/prune` and `shadow traces prune --before <cutoff>`: delete traces that
   started before a cutoff (optionally by project, agent, status or tag) in bounded batches,
   with a dry-run preview. The CLI refuses to delete without `--yes`.

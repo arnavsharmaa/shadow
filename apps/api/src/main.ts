@@ -4,6 +4,7 @@ import { createDatabase } from "./db/client.js";
 import { buildApp } from "./http/app.js";
 import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
+import { createRetention } from "./retention.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
 
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   }
 
   const app = await buildApp({ config, services, logger });
+  const retention = createRetention({ services, config, logger });
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -61,6 +63,7 @@ async function main(): Promise<void> {
     }, 10_000);
     timer.unref();
     try {
+      retention.stop();
       await app.close();
       await handle.close();
       logger.info("shutdown complete");
@@ -77,6 +80,7 @@ async function main(): Promise<void> {
   });
 
   await app.listen({ host: config.SHADOW_API_HOST, port: config.SHADOW_API_PORT });
+  retention.start();
   logger.info(
     {
       url: `http://${config.SHADOW_API_HOST}:${config.SHADOW_API_PORT}`,

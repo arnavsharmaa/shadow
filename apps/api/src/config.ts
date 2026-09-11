@@ -32,6 +32,21 @@ const configSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Delete traces older than this many days (unset disables retention). */
+  SHADOW_RETENTION_DAYS: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined || (typeof v === "string" && v.trim() === "")) return undefined;
+      const n = typeof v === "number" ? v : Number(v);
+      if (!Number.isFinite(n) || n <= 0) {
+        ctx.addIssue({ code: "custom", message: "must be a positive number of days" });
+        return z.NEVER;
+      }
+      return n;
+    }),
+  /** How often the retention sweep runs (minutes). */
+  SHADOW_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(10_080).default(60),
   NODE_ENV: z.string().default("development"),
 });
 
