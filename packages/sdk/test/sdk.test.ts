@@ -222,6 +222,46 @@ describe("Shadow SDK", () => {
     expect(artifacts[0]?.content).toEqual({ subject: "Hi", apiKey: "[REDACTED]" });
   });
 
+  it("coalesces tag and metadata updates and sends them after events", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({ name: "t", tags: ["refund"] });
+    trace.tag("triaged", " escalated ", "");
+    trace.untag("refund", "triaged");
+    trace.tag("triaged");
+    trace.setMetadata({ owner: "jordan", apiKey: "sk-1", stale: null, skipped: undefined });
+    await trace.tool({ name: "x", arguments: null, execute: async () => 1 });
+    await trace.end();
+    expect(transport.updatesFor(trace.id)).toEqual([
+      {
+        addTags: ["escalated", "triaged"],
+        removeTags: ["refund"],
+        metadata: { owner: "jordan", apiKey: "[REDACTED]", stale: null },
+      },
+    ]);
+    expect(transport.eventsFor(trace.id).length).toBeGreaterThan(0);
+
+    const quiet = new MemoryTransport();
+    const untouched = client(quiet).startTrace({ name: "t" });
+    await untouched.end();
+    expect(quiet.updatesFor(untouched.id)).toEqual([]);
+  });
+
+  it("HttpTransport sends trace updates as PATCH requests", async () => {
+    const calls: { url: string; method?: string; body?: unknown }[] = [];
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), method: init?.method, body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ id: "trc_1", tags: ["a"] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const transport = new HttpTransport({ endpoint: "http://shadow.test", fetch: fetchImpl });
+    const updated = await transport.updateTrace("trc_1", { addTags: ["a"] });
+    expect(updated.tags).toEqual(["a"]);
+    expect(calls[0]).toEqual({
+      url: "http://shadow.test/api/v1/traces/trc_1",
+      method: "PATCH",
+      body: { addTags: ["a"] },
+    });
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({

@@ -106,6 +106,12 @@ export class Trace implements AgentHost {
   private handlePromise: Promise<TraceHandle | null> | null = null;
   private readonly queue: PendingEvent[] = [];
   private readonly artifactQueue: CreateArtifactBodyInput[] = [];
+  /** Coalesced tag/metadata changes waiting for the next flush. */
+  private pendingUpdate: {
+    addTags: string[];
+    removeTags: string[];
+    metadata: Record<string, JsonValue | null>;
+  } | null = null;
   private lastEmittedId: string | null = null;
   private flushing: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -210,16 +216,25 @@ export class Trace implements AgentHost {
   }
 
   private async flushNow(): Promise<void> {
-    if (this.queue.length === 0 && this.artifactQueue.length === 0) return;
+    if (this.queue.length === 0 && this.artifactQueue.length === 0 && !this.pendingUpdate) return;
     const handle = await this.ensureHandle();
     if (!handle) return;
     const batch = this.queue.splice(0, this.queue.length);
+    const update = this.pendingUpdate;
+    this.pendingUpdate = null;
     try {
       if (batch.length > 0) await this.transport.sendEvents(handle.id, batch as IngestEventInput[]);
       // Artifacts go after their events so `eventId` links resolve on the server.
       const artifacts = this.artifactQueue.splice(0, this.artifactQueue.length);
       for (const artifact of artifacts) {
         if (this.transport.sendArtifact) await this.transport.sendArtifact(handle.id, artifact);
+      }
+      if (update && this.transport.updateTrace) {
+        await this.transport.updateTrace(handle.id, {
+          ...(update.addTags.length > 0 ? { addTags: update.addTags } : {}),
+          ...(update.removeTags.length > 0 ? { removeTags: update.removeTags } : {}),
+          ...(Object.keys(update.metadata).length > 0 ? { metadata: update.metadata } : {}),
+        });
       }
     } catch (error) {
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
@@ -250,6 +265,55 @@ export class Trace implements AgentHost {
       content: this.options.redact(toJson(input.content)),
       ...(input.eventId ? { eventId: input.eventId } : {}),
     });
+  }
+
+  /**
+   * Add tags to the trace (for example the outcome category once it is known).
+   * Changes are coalesced and sent after the buffered events on the next flush.
+   */
+  tag(...tags: string[]): void {
+    const update = this.update();
+    for (const tag of tags) {
+      const value = tag.trim();
+      if (!value) continue;
+      update.removeTags = update.removeTags.filter((t) => t !== value);
+      if (!update.addTags.includes(value)) update.addTags.push(value);
+    }
+  }
+
+  /** Remove tags from the trace. */
+  untag(...tags: string[]): void {
+    const update = this.update();
+    for (const tag of tags) {
+      const value = tag.trim();
+      if (!value) continue;
+      update.addTags = update.addTags.filter((t) => t !== value);
+      if (!update.removeTags.includes(value)) update.removeTags.push(value);
+    }
+  }
+
+  /**
+   * Merge keys into the trace's metadata (`null` deletes a key). Values are
+   * redacted like event payloads.
+   */
+  setMetadata(metadata: Record<string, JsonValue | null | undefined>): void {
+    const update = this.update();
+    const values: Record<string, JsonValue> = {};
+    for (const [key, value] of Object.entries(metadata)) {
+      if (value === undefined) continue;
+      if (value === null) update.metadata[key] = null;
+      else values[key] = toJson(value);
+    }
+    // Redact the object as a whole so key-based rules (apiKey, token, ...) apply.
+    const redacted = this.options.redact(values);
+    if (redacted !== null && typeof redacted === "object" && !Array.isArray(redacted)) {
+      for (const [key, value] of Object.entries(redacted)) update.metadata[key] = value ?? null;
+    }
+  }
+
+  private update(): NonNullable<Trace["pendingUpdate"]> {
+    this.pendingUpdate ??= { addTags: [], removeTags: [], metadata: {} };
+    return this.pendingUpdate;
   }
 
   private ensureHandle(): Promise<TraceHandle | null> {

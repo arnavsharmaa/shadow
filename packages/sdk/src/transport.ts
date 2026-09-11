@@ -4,6 +4,7 @@ import type {
   CreateTraceBody,
   IngestEventInput,
   Trace,
+  UpdateTraceBody,
 } from "@shadow/schemas";
 
 export interface TraceHandle {
@@ -17,6 +18,8 @@ export interface Transport {
   sendEvents(traceId: string, events: IngestEventInput[]): Promise<void>;
   /** Attach a document to a trace; optional so custom transports stay minimal. */
   sendArtifact?(traceId: string, artifact: CreateArtifactBodyInput): Promise<Artifact | void>;
+  /** Change a trace's name, tags or metadata after it was created; optional. */
+  updateTrace?(traceId: string, update: UpdateTraceBody): Promise<Trace | void>;
 }
 
 export class TransportError extends Error {
@@ -79,6 +82,14 @@ export class HttpTransport implements Transport {
     )) as Artifact;
   }
 
+  async updateTrace(traceId: string, update: UpdateTraceBody): Promise<Trace> {
+    return (await this.request(
+      "PATCH",
+      `/api/v1/traces/${encodeURIComponent(traceId)}`,
+      update,
+    )) as Trace;
+  }
+
   private async request(method: string, path: string, body: unknown): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
@@ -120,6 +131,7 @@ export class MemoryTransport implements Transport {
   readonly traces: CreateTraceBody[] = [];
   readonly events = new Map<string, IngestEventInput[]>();
   readonly artifacts = new Map<string, CreateArtifactBodyInput[]>();
+  readonly updates = new Map<string, UpdateTraceBody[]>();
   private counter = 0;
 
   async createTrace(body: CreateTraceBody): Promise<TraceHandle> {
@@ -137,12 +149,20 @@ export class MemoryTransport implements Transport {
     this.artifacts.set(traceId, [...(this.artifacts.get(traceId) ?? []), artifact]);
   }
 
+  async updateTrace(traceId: string, update: UpdateTraceBody): Promise<void> {
+    this.updates.set(traceId, [...(this.updates.get(traceId) ?? []), update]);
+  }
+
   eventsFor(traceId: string): IngestEventInput[] {
     return this.events.get(traceId) ?? [];
   }
 
   artifactsFor(traceId: string): CreateArtifactBodyInput[] {
     return this.artifacts.get(traceId) ?? [];
+  }
+
+  updatesFor(traceId: string): UpdateTraceBody[] {
+    return this.updates.get(traceId) ?? [];
   }
 }
 

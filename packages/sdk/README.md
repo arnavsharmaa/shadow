@@ -84,6 +84,11 @@ await shadow.shutdown();
 body, a retrieved page, a report) to the trace; use `trace.lastEventId` to link it to the event
 that produced it. Artifacts are sent after their events on the next flush.
 
+`trace.tag(...tags)`, `trace.untag(...tags)` and `trace.setMetadata({ key: value })` label a
+trace after it has started, for instance with the outcome category or the ticket it resolved.
+Changes are coalesced into one `PATCH` sent after the buffered events; `null` deletes a metadata
+key and values are redacted like event payloads.
+
 `trace.run(program, input)` runs an `AgentProgram` (the same contract used by Shadow's deterministic replay engine) and ends or fails the trace automatically.
 
 ## Behaviour
