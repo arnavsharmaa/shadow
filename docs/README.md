@@ -71,6 +71,7 @@ Start with the [project README](../README.md) for installation and the demo, the
   `shadow traces export <traceId>`,
   `shadow traces import <file>`, `shadow fork <traceId> --at <eventId> --set key=value`,
   `shadow replay <branchId>`, `shadow compare <baseBranchId> <targetBranchId>`,
-  `shadow artifacts list <traceId>`, `shadow artifacts get <traceId> <artifactId>`.
+  `shadow events show <traceId> <eventId>`, `shadow artifacts list <traceId>`,
+  `shadow artifacts get <traceId> <artifactId>`.
 - Database: embedded PGlite by default (`.shadow/data`); set `DATABASE_URL` for PostgreSQL;
   `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:reset`.

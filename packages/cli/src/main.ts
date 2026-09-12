@@ -3,6 +3,7 @@ import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
   Artifact,
   Branch,
+  DiffEntry,
   Comparison,
   Fork,
   Override,
@@ -460,6 +461,63 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }
       },
     );
+
+  const eventsCmd = program.command("events").description("inspect single events");
+
+  eventsCmd
+    .command("show")
+    .description("print an event with its payloads and the state change it caused")
+    .argument("<traceId>", "trace id")
+    .argument("<eventId>", "event id")
+    .option("--branch <branchId>", "lineage to reconstruct state from (default: the event's)")
+    .option("--json", "print JSON")
+    .action(async (traceId: string, eventId: string, opts: { branch?: string; json?: boolean }) => {
+      const api = client();
+      const base = `/api/v1/traces/${encodeURIComponent(traceId)}/events/${encodeURIComponent(eventId)}`;
+      const event = await api.get<ShadowEvent>(base);
+      const state = await api.get<{
+        branchId: string;
+        stateDiff: DiffEntry[];
+        contextDiff: DiffEntry[];
+      }>(`${base}/state`, { branchId: opts.branch });
+      if (opts.json) return json({ event, ...state });
+      out(`${event.eventType}  ${event.name}`);
+      out(`  event     ${event.id}    sequence ${event.sequence}    branch ${event.branchId}`);
+      out(
+        `  time      ${event.timestamp}${event.durationMs != null ? `    duration ${duration(event.durationMs)}` : ""}`,
+      );
+      out(`  severity  ${event.severity}    source ${event.source}`);
+      if (event.parentEventId) out(`  parent    ${event.parentEventId}`);
+      if (event.tokenUsage) {
+        out(
+          `  tokens    ${event.tokenUsage.inputTokens} in / ${event.tokenUsage.outputTokens} out (${event.tokenUsage.totalTokens} total)`,
+        );
+      }
+      if (event.estimatedCost)
+        out(`  est. cost ${money(event.estimatedCost.amount, event.estimatedCost.currency)}`);
+      if (event.tags.length > 0) out(`  tags      ${event.tags.join(", ")}`);
+      const section = (title: string, value: unknown) => {
+        if (value === undefined || value === null) return;
+        out("");
+        out(title);
+        for (const line of JSON.stringify(value, null, 2).split("\n")) out(`  ${line}`);
+      };
+      section("input", event.input);
+      section("output", event.output);
+      if (Object.keys(event.metadata).length > 0) section("metadata", event.metadata);
+      const diffs = (title: string, entries: DiffEntry[]) => {
+        out("");
+        out(`${title} (branch ${state.branchId})`);
+        if (entries.length === 0) return out("  no change");
+        for (const d of entries) {
+          out(
+            `  ${d.op.padEnd(8)} ${d.path}  ${JSON.stringify(d.before)} -> ${JSON.stringify(d.after)}`,
+          );
+        }
+      };
+      diffs("state diff", state.stateDiff);
+      diffs("context diff", state.contextDiff);
+    });
 
   const artifacts = program
     .command("artifacts")

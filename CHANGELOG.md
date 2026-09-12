@@ -27,6 +27,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 - `POST /api/v1/traces/prune` and `shadow traces prune --before <cutoff>`: delete traces that
   started before a cutoff (optionally by project, agent, status or tag) in bounded batches,
   with a dry-run preview. The CLI refuses to delete without `--yes`.
+- `shadow events show <traceId> <eventId>` prints one event with its input, output, metadata,
+  token usage and cost, plus the state and context diff it caused on a branch lineage.
 - `shadow traces delete <traceId...> --yes` deletes traces from the CLI, reporting per-trace
   failures.
 - `shadow artifacts list <traceId>` and `shadow artifacts get <traceId> <artifactId>` CLI

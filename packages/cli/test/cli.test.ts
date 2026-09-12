@@ -407,6 +407,55 @@ describe("shadow cli", () => {
     expect(nothing.captured.calls).toHaveLength(0);
   });
 
+  it("shows a single event with its payloads and state change", async () => {
+    const event = ev(7, "tool.response", "refund_order", {
+      durationMs: 812,
+      input: { orderId: "ord_5001", amount: 480 },
+      output: { status: "refunded" },
+      parentEventId: "evt_6",
+      tags: ["money"],
+      estimatedCost: { amount: 0.002, currency: "USD" },
+    });
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1/events/evt_7": () => ({ body: event }),
+      "GET /api/v1/traces/trc_1/events/evt_7/state": () => ({
+        body: {
+          event: { id: "evt_7", sequence: 7 },
+          branchId: "br_main",
+          before: {},
+          after: {},
+          stateDiff: [
+            { path: "/refund/status", op: "added", before: undefined, after: "refunded" },
+          ],
+          contextDiff: [],
+        },
+      }),
+    });
+    expect(await runWith(api, ["events", "show", "trc_1", "evt_7", "--branch", "br_main"])).toBe(0);
+    expect(new URL(api.captured.calls[1]?.url ?? "").searchParams.get("branchId")).toBe("br_main");
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("tool.response  refund_order");
+    expect(text).toContain("sequence 7");
+    expect(text).toContain("duration 812ms");
+    expect(text).toContain("parent    evt_6");
+    expect(text).toContain("est. cost $0.0020");
+    expect(text).toContain('"orderId": "ord_5001"');
+    expect(text).toContain('added    /refund/status  undefined -> "refunded"');
+    expect(text).toContain("context diff (branch br_main)\n  no change");
+
+    const asJson = fakeApi({
+      "GET /api/v1/traces/trc_1/events/evt_7": () => ({ body: event }),
+      "GET /api/v1/traces/trc_1/events/evt_7/state": () => ({
+        body: { branchId: "br_main", stateDiff: [], contextDiff: [] },
+      }),
+    });
+    expect(await runWith(asJson, ["events", "show", "trc_1", "evt_7", "--json"])).toBe(0);
+    expect(JSON.parse(asJson.captured.out.join("\n")).event.id).toBe("evt_7");
+
+    const missing = fakeApi({});
+    expect(await runWith(missing, ["events", "show", "trc_1", "evt_404"])).toBe(4);
+  });
+
   it("lists artifacts and downloads their content", async () => {
     const email = {
       id: "art_1",
