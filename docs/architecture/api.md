@@ -398,6 +398,29 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## OpenTelemetry ingestion
+
+### `POST /api/v1/otlp/v1/traces`
+
+Accepts an OTLP/HTTP `ExportTraceServiceRequest` in the JSON encoding (`application/json`;
+protobuf bodies answer `415`). Every OpenTelemetry trace in the payload becomes, or extends, the
+Shadow trace `trc_otel_<traceId>`; spans are mapped following the GenAI semantic conventions as
+described in [docs/integrations/opentelemetry.md](../integrations/opentelemetry.md). Response:
+
+```json
+{
+  "partialSuccess": {},
+  "shadow": {
+    "traces": [
+      { "traceId": "trc_otel_…", "otelTraceId": "…", "created": true, "accepted": 14, "skipped": 0 }
+    ]
+  }
+}
+```
+
+`skipped` counts spans already stored (retried exports). Requires the bearer token when
+`SHADOW_API_TOKEN` is set.
+
 ## Comparisons
 
 ### `GET /api/v1/comparisons?traceId=&branchId=&limit=`
@@ -428,23 +451,24 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 
 ## Configuration
 
-| Variable                            | Default                                       | Purpose                                         |
-| ----------------------------------- | --------------------------------------------- | ----------------------------------------------- |
-| `DATABASE_URL`                      | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://` |
-| `SHADOW_DATA_DIR`                   | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset   |
-| `SHADOW_API_HOST`                   | `127.0.0.1`                                   |                                                 |
-| `SHADOW_API_PORT`                   | `4000`                                        |                                                 |
-| `SHADOW_LOG_LEVEL`                  | `info`                                        | pino level                                      |
-| `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                     |
-| `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty       |
-| `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                              |
-| `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction |
-| `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                 |
-| `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)     |
-| `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs              |
-| `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set      |
-| `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)            |
-| `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                             |
+| Variable                            | Default                                       | Purpose                                             |
+| ----------------------------------- | --------------------------------------------- | --------------------------------------------------- |
+| `DATABASE_URL`                      | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://`     |
+| `SHADOW_DATA_DIR`                   | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset       |
+| `SHADOW_API_HOST`                   | `127.0.0.1`                                   |                                                     |
+| `SHADOW_API_PORT`                   | `4000`                                        |                                                     |
+| `SHADOW_LOG_LEVEL`                  | `info`                                        | pino level                                          |
+| `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                         |
+| `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty           |
+| `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                                  |
+| `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction     |
+| `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                     |
+| `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace` |
+| `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)         |
+| `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                  |
+| `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set          |
+| `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                |
+| `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                 |
 
 ### Retention
 

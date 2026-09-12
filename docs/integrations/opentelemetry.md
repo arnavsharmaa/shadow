@@ -1,9 +1,51 @@
 # OpenTelemetry (OTLP) integration
 
-> **Status: design proposal for v0.2. Not implemented in v0.1.** The mapping below is intended
-> for review; details may change before code lands. Today, OpenTelemetry users can export spans
-> themselves and convert them to a `shadow.trace` bundle following
-> [custom-runtime.md](./custom-runtime.md).
+> **Status: OTLP/HTTP JSON ingestion is implemented** (`POST /api/v1/otlp/v1/traces`); the
+> mapping below is what the importer does today. Not yet implemented: the protobuf encoding,
+> OTLP/gRPC, the reverse exporter, and the `shadow.state.*` span events. Traces imported this way
+> can be inspected, searched, exported and compared, but not forked and replayed (there is no
+> program to re-run).
+
+## Using it
+
+Point an OTLP/HTTP exporter at the API with the JSON encoding, for example with the
+OpenTelemetry JavaScript SDK:
+
+```ts
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+
+const exporter = new OTLPTraceExporter({
+  url: "http://localhost:4000/api/v1/otlp/v1/traces",
+  headers: { authorization: "Bearer <SHADOW_API_TOKEN>" }, // only when the API requires a token
+});
+```
+
+Environment-based configuration works too: `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4000/api/v1/otlp/v1/traces`
+with `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`. Each request returns the OTLP success envelope
+plus a `shadow` object listing the traces it created or extended:
+
+```json
+{
+  "partialSuccess": {},
+  "shadow": {
+    "traces": [
+      {
+        "traceId": "trc_otel_4bf9…",
+        "otelTraceId": "4bf9…",
+        "created": true,
+        "accepted": 14,
+        "skipped": 0
+      }
+    ]
+  }
+}
+```
+
+Resource attribute `service.namespace` selects the project (default
+`SHADOW_OTLP_DEFAULT_PROJECT`, `otel`) and `service.name` the agent. Imported traces are tagged
+`otel`, every event has `source: "otlp"` and `metadata.otel` keeps the span id, kind, scope,
+attributes and status. Spans re-sent by a retrying exporter are ignored by id; spans that arrive
+after the root span was stored are appended and flagged `metadata.otel.late`.
 
 ## Goal
 
@@ -13,14 +55,14 @@ into Shadow traces so that agents already instrumented with OpenTelemetry (direc
 framework) can be inspected and compared without changing code. A reverse exporter (Shadow
 events to OTLP) is part of the same milestone so Shadow can sit alongside existing observability.
 
-## Proposed surface
+## Surface
 
-- `POST /api/v1/otlp/v1/traces` accepting OTLP/HTTP (protobuf and JSON encodings), the standard
-  path suffix so an OTLP exporter can be pointed at Shadow with a base URL of
-  `http://localhost:4000/api/v1/otlp`.
-- Mapping configuration on the API: which resource attributes identify project and agent, and
-  which span attribute (if any) carries a Shadow trace id override.
-- An `exporters` configuration to forward Shadow events to an OTLP endpoint.
+- `POST /api/v1/otlp/v1/traces` accepting OTLP/HTTP with the JSON encoding (implemented); the
+  protobuf encoding answers `415` for now. The standard path suffix means an exporter can be
+  pointed at Shadow with a base URL of `http://localhost:4000/api/v1/otlp`.
+- Resource attributes `service.namespace` / `service.name` identify project and agent, with
+  `SHADOW_OTLP_DEFAULT_PROJECT` as the project fallback (implemented).
+- An `exporters` configuration to forward Shadow events to an OTLP endpoint (planned).
 
 ## Mapping
 
@@ -72,22 +114,25 @@ code can opt in:
 - span event `shadow.state.patch` with `ops` (JSON) -> `state.patch`;
 - span event `shadow.state.snapshot` with `state` and `context` (JSON) -> `state.snapshot`.
 
-Without these, OTLP-imported traces have empty state and context; forks are possible but only
-tool and policy overrides are meaningful.
+`shadow.context.set`, `shadow.context.remove` and `shadow.policy.evaluated` are implemented;
+the `shadow.state.*` events are not yet. Without them, OTLP-imported traces have empty state and
+context.
 
 ### Policies and approvals
 
-No semantic convention exists. Proposed span events `shadow.policy.evaluated` (attributes
-`policy`, `decision`, `reason`, `subject`) and `shadow.approval.requested` /
-`shadow.approval.resolved` map to the corresponding Shadow events.
+No semantic convention exists. The span event `shadow.policy.evaluated` (attributes `policy`,
+`decision`, `reason`, `subject`) maps to `policy.evaluated`; `shadow.approval.requested` /
+`shadow.approval.resolved` are proposed and not implemented yet.
 
 ## Ordering and sequences
 
-OTLP delivers spans out of order and in batches. The importer buffers spans per OTel trace until
-the root span ends (or a configurable idle timeout), then emits a complete Shadow trace in one
-ingestion call, assigning `sequence` by (start time for openers, end time for closers, span id
-for ties). Late spans after finalisation are appended with fresh sequences and flagged
-`metadata.otel.late = true`.
+OTLP delivers spans out of order and in batches. Within one request the importer orders each
+OTel trace's events by (start time for openers, end time for closers, span id for ties) and
+stores them in one ingestion call; the root span's end closes the trace
+(`trace.completed`, or `trace.failed` when its status is `ERROR`). Spans from later requests are
+appended with fresh sequences and flagged `metadata.otel.late = true`; the lifecycle events are
+not emitted twice. Buffering until the root span ends, so that a trace exported across several
+batches gets one consistent ordering, is not implemented yet.
 
 ## Export (Shadow to OTLP)
 
@@ -96,14 +141,16 @@ puts `metadata` into span attributes (flattened, size-capped), and emits state a
 as span events. Replayed branches are exported as separate OTel traces linked to the original with
 a span link, since OTLP has no branch concept.
 
-## Limitations of the proposal
+## Limitations
 
 - OTLP traces are not replayable: there is no program to re-run. They support historical
   inspection and comparison between separately recorded traces only.
 - Attribute size limits in OTel SDKs truncate large prompts and tool results; the importer cannot
   recover truncated content.
 - Semantic conventions for GenAI are still evolving; the importer will version its mapping and
-  record the convention version it assumed in `metadata.otel.semconv`.
+  record the convention version it assumed in `metadata.otel.semconv` (currently `1.36.0`).
+- Only the JSON encoding of OTLP/HTTP is accepted; protobuf and gRPC exporters need a collector
+  in between, configured with the `otlphttp` exporter and `encoding: json`.
 
 ## Open questions
 

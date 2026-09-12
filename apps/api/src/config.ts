@@ -32,6 +32,8 @@ const configSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Project slug for OTLP traces whose resource has no `service.namespace`. */
+  SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
   /** Delete traces older than this many days (unset disables retention). */
   SHADOW_RETENTION_DAYS: z
     .union([z.string(), z.number()])

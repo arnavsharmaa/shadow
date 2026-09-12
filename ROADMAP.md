@@ -49,8 +49,9 @@ is welcome through GitHub issues; integration proposals have their own
 
 ### Committed
 
-- **OpenTelemetry / OTLP ingestion**: accept OTLP traces and map GenAI semantic-convention spans
-  to Shadow events ([proposal](./docs/integrations/opentelemetry.md)).
+- **OpenTelemetry / OTLP ingestion**: JSON-encoded OTLP/HTTP is accepted and mapped from GenAI
+  semantic-convention spans ([details](./docs/integrations/opentelemetry.md)); remaining:
+  protobuf/gRPC encodings, cross-batch buffering and the `shadow.state.*` span events.
 - **OpenAI Agents SDK adapter**: record runs, handoffs, tool calls and guardrails
   ([proposal](./docs/integrations/openai-agents-sdk.md)).
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state

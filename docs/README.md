@@ -32,7 +32,7 @@ Start with the [project README](../README.md) for installation and the demo, the
 | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | [Integrations overview](./integrations/README.md)        | Mapping principles, the `AgentHost` contract, how adapters plug in               |
 | [Custom runtime](./integrations/custom-runtime.md)       | Available now: SDK instrumentation and bundle import with a worked event mapping |
-| [OpenTelemetry / OTLP](./integrations/opentelemetry.md)  | Proposal for v0.2                                                                |
+| [OpenTelemetry / OTLP](./integrations/opentelemetry.md)  | OTLP/HTTP JSON ingestion (GenAI semantic conventions)                            |
 | [OpenAI Agents SDK](./integrations/openai-agents-sdk.md) | Proposal for v0.2                                                                |
 | [LangGraph](./integrations/langgraph.md)                 | Proposal for v0.2                                                                |
 | [Model Context Protocol](./integrations/mcp.md)          | Proposal for v0.2                                                                |

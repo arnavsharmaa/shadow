@@ -280,7 +280,7 @@ CI runs lint, formatting, typecheck, unit and integration tests (embedded and Po
 
 ## Roadmap
 
-v0.1 (this release) delivers local time travel: schema, ingestion, explorer, state reconstruction, deterministic replay, forks, comparison, SDK, CLI, examples, Docker and CI. Next: framework integrations (OpenTelemetry, OpenAI Agents SDK, LangGraph, MCP), team workflows, live re-execution and production observability. See [ROADMAP.md](ROADMAP.md).
+v0.1 (this release) delivers local time travel: schema, ingestion, explorer, state reconstruction, deterministic replay, forks, comparison, SDK, CLI, examples, Docker and CI. OpenTelemetry traces (OTLP/HTTP JSON, GenAI semantic conventions) can be ingested at `/api/v1/otlp/v1/traces`. Next: further framework integrations (OpenAI Agents SDK, LangGraph, MCP), team workflows, live re-execution and production observability. See [ROADMAP.md](ROADMAP.md).
 
 ## Security
 

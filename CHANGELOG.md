@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OpenTelemetry ingestion: `POST /api/v1/otlp/v1/traces` accepts OTLP/HTTP JSON exports and
+  maps GenAI semantic-convention spans (chat, execute_tool, invoke_agent), HTTP/DB client spans
+  and generic spans to Shadow events, with token usage, status, ordering, parent links, reserved
+  `shadow.context.set` / `shadow.policy.evaluated` span events, de-duplication of re-sent spans
+  and late-span appends. `SHADOW_OTLP_DEFAULT_PROJECT` names the fallback project.
 - Event filtering: `name`, `severity` and `q` (substring of name or type) query parameters on
   the event list endpoints, a filter box above the execution tree, and `--grep`, `--type` and
   `--severity` options on `shadow traces inspect`.
