@@ -23,13 +23,28 @@ const VIRTUALIZE_FROM = 500;
 export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showState, setShowState] = useState(true);
+  const [filter, setFilter] = useState("");
   const byId = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
   const listRef = useRef<HTMLUListElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
 
+  const needle = filter.trim().toLowerCase();
   const rows = useMemo(() => {
     const out: { node: TreeNode; event: ShadowEvent; hidden: boolean }[] = [];
     const hiddenDepth: number[] = [];
+    if (needle) {
+      // A filtered view is a flat list of matches: collapsing and hierarchy do not apply.
+      for (const node of nodes) {
+        const event = byId.get(node.id);
+        if (!event) continue;
+        if (
+          event.name.toLowerCase().includes(needle) ||
+          event.eventType.toLowerCase().includes(needle)
+        )
+          out.push({ node: { ...node, depth: 0, childCount: 0 }, event, hidden: false });
+      }
+      return out;
+    }
     for (const node of nodes) {
       const event = byId.get(node.id);
       if (!event) continue;
@@ -48,7 +63,7 @@ export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }:
       out.push({ node, event, hidden });
     }
     return out.filter((r) => !r.hidden);
-  }, [nodes, byId, collapsed, showState]);
+  }, [nodes, byId, collapsed, showState, needle]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -91,6 +106,20 @@ export function EventTree({ events, nodes, selectedId, onSelect, forkSequence }:
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border px-2 py-1 text-[11px] text-fg-muted">
+        <input
+          type="search"
+          aria-label="Filter events"
+          placeholder="filter by name or type"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="h-5 w-36 rounded border border-border bg-bg px-1 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none"
+          data-testid="event-filter"
+        />
+        {needle && (
+          <span className="text-fg-faint" data-testid="event-filter-count">
+            {rows.length} match{rows.length === 1 ? "" : "es"}
+          </span>
+        )}
         <label className="flex items-center gap-1">
           <input
             type="checkbox"

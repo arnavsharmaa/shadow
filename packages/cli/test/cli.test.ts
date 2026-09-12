@@ -277,6 +277,28 @@ describe("shadow cli", () => {
     expect(text).toContain("120ms");
   });
 
+  it("forwards inspect filters and prints matches flat", async () => {
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1": () => ({ body: { trace, branches: [branch] } }),
+      "GET /api/v1/traces/trc_1/events": () => ({
+        body: {
+          items: [ev(3, "tool.request", "refund_order"), ev(4, "tool.response", "refund_order")],
+          nextCursor: null,
+        },
+      }),
+    });
+    expect(
+      await runWith(api, ["traces", "inspect", "trc_1", "--grep", "refund", "--severity", "info"]),
+    ).toBe(0);
+    const params = new URL(api.captured.calls[1]?.url ?? "").searchParams;
+    expect(params.get("q")).toBe("refund");
+    expect(params.get("severity")).toBe("info");
+    expect(params.get("eventType")).toBeNull();
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("2 matching");
+    expect(text).toMatch(/^ {3}4 {2}tool\.response/m);
+  });
+
   it("maps 404 responses to exit code 4 and connection failures to 3", async () => {
     const api = fakeApi({});
     expect(await runWith(api, ["traces", "inspect", "trc_missing"])).toBe(4);

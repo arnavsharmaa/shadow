@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Event filtering: `name`, `severity` and `q` (substring of name or type) query parameters on
+  the event list endpoints, a filter box above the execution tree, and `--grep`, `--type` and
+  `--severity` options on `shadow traces inspect`.
 - `PATCH /api/v1/traces/:traceId` and `shadow traces update`: rename a trace, add, remove or
   replace its tags and merge metadata after it has been recorded; the new values are searchable
   immediately.

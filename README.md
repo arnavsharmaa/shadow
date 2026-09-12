@@ -190,6 +190,7 @@ shadow --help
 shadow status
 shadow traces list --project support-agent --status failed
 shadow traces inspect trc_demo_refund_violation
+shadow traces inspect trc_demo_refund_violation --grep refund_order
 shadow traces update trc_demo_refund_violation --tag triaged --meta owner=jordan
 shadow artifacts list trc_demo_refund_violation
 shadow traces prune --before 90d --status completed --dry-run

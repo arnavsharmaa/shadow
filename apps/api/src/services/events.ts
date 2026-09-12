@@ -17,7 +17,7 @@ import {
   type ReconstructedState,
   type ShadowEvent,
 } from "@shadow/schemas";
-import { and, asc, desc, eq, gt, inArray, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 import { agents, branches, events, projects, stateSnapshots, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import { chunk, decodeCursor, encodeCursor, type ServiceContext } from "./context.js";
@@ -153,7 +153,14 @@ export interface EventPageQuery {
   cursor?: string;
   limit: number;
   eventType?: string;
+  name?: string;
+  severity?: string;
+  q?: string;
   inherited: boolean;
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, (c) => `\\${c}`);
 }
 
 /** Cursor-paginated effective events of a branch (default: root). */
@@ -174,6 +181,12 @@ export async function pageEvents(ctx: ServiceContext, traceId: string, query: Ev
   ];
   if (after >= 0) conditions.push(gt(events.sequence, after));
   if (query.eventType) conditions.push(eq(events.eventType, query.eventType));
+  if (query.name) conditions.push(eq(events.name, query.name));
+  if (query.severity) conditions.push(eq(events.severity, query.severity));
+  if (query.q && query.q.trim()) {
+    const pattern = `%${escapeLike(query.q.trim())}%`;
+    conditions.push(or(ilike(events.name, pattern), ilike(events.eventType, pattern)) as SQL);
+  }
   const rows = await ctx.handle.db
     .select()
     .from(events)

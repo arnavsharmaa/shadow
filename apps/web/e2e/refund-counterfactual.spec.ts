@@ -152,6 +152,36 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(after).toHaveCount(initial);
   });
 
+  test("the execution tree can be filtered by name or type", async ({ page }) => {
+    await openRefundTrace(page);
+    const nodes = page.locator('[data-testid="event-node"]');
+    await expect(nodes.first()).toBeVisible();
+    const total = await nodes.count();
+
+    await page.getByTestId("event-filter").fill("refund_order");
+    await expect(page.getByTestId("event-filter-count")).toContainText("match");
+    const matching = await nodes.count();
+    expect(matching).toBeGreaterThan(0);
+    expect(matching).toBeLessThan(total);
+    for (const name of await nodes.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-event-name")),
+    )) {
+      expect(name).toBe("refund_order");
+    }
+    await nodes.first().click();
+    await expect(page.getByTestId("event-name")).toHaveText("refund_order");
+
+    await page.getByTestId("event-filter").fill("policy.");
+    for (const type of await nodes.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-event-type")),
+    )) {
+      expect(type?.startsWith("policy.")).toBe(true);
+    }
+
+    await page.getByTestId("event-filter").fill("");
+    await expect(nodes).toHaveCount(total);
+  });
+
   test("tags can be added and removed from the trace header", async ({ page }) => {
     await openRefundTrace(page);
     const editor = page.getByTestId("tag-editor");

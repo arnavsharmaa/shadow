@@ -223,7 +223,9 @@ Returns the updated `Trace`.
 ### `GET /api/v1/traces/:traceId/events`
 
 Query: `cursor`, `limit` (1–1000, default 200), `branchId` (default root), `eventType`,
-`inherited` (default `true`; `false` returns only rows stored on the branch). Returns the
+`name` (exact), `severity` (`debug` | `info` | `warn` | `error`), `q` (case-insensitive
+substring of the name or type) and `inherited` (default `true`; `false` returns only rows stored
+on the branch). The same filters apply to `GET /api/v1/branches/:branchId/events`. Returns the
 effective lineage of the branch ordered by sequence:
 
 ```json

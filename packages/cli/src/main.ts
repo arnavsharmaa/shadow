@@ -190,54 +190,76 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .description("show a trace, its branches and its event timeline")
     .argument("<traceId>", "trace id")
     .option("--branch <branchId>", "branch to inspect (default: main)")
+    .option("--grep <text>", "only events whose name or type contains this text")
+    .option("--type <eventType>", "only events of this type, e.g. tool.request")
+    .option("--severity <level>", "debug | info | warn | error")
     .option("--json", "print JSON instead of text")
-    .action(async (traceId: string, opts: { branch?: string; json?: boolean }) => {
-      const api = client();
-      const detail = await api.get<{ trace: TraceSummary; branches: Branch[] }>(
-        `/api/v1/traces/${encodeURIComponent(traceId)}`,
-      );
-      const branchId = opts.branch ?? detail.trace.rootBranchId;
-      const events = await allEvents(api, traceId, branchId);
-      if (opts.json) return json({ ...detail, branchId, events });
-      const t = detail.trace;
-      out(`${t.name}`);
-      out(`  trace     ${t.id}`);
-      out(`  project   ${t.projectSlug}    agent ${t.agentSlug}`);
-      out(`  status    ${t.status}${t.outcome ? ` (${t.outcome.label})` : ""}`);
-      out(`  started   ${t.startedAt}    duration ${duration(t.durationMs)}`);
-      out(
-        `  usage     ${t.metrics.modelCalls} model calls, ${t.metrics.toolCalls} tool calls, ${t.metrics.totalTokens} tokens, est. cost ${money(t.metrics.totalEstimatedCost, t.metrics.currency)}`,
-      );
-      out(`  tags      ${t.tags.join(", ") || "-"}`);
-      out("");
-      out("branches");
-      out(
-        table(
-          ["BRANCH", "NAME", "PARENT", "FORK SEQ", "STATUS", "OUTCOME", "EST. COST", "DURATION"],
-          detail.branches.map((b) => [
-            b.id,
-            b.name,
-            b.parentBranchId ?? "-",
-            b.forkSequence === null ? "-" : String(b.forkSequence),
-            b.status,
-            b.outcome?.label ?? "-",
-            money(b.metrics.totalEstimatedCost, b.metrics.currency),
-            duration(b.metrics.durationMs),
-          ]),
-        ),
-      );
-      out("");
-      out(`events (branch ${branchId})`);
-      const nodes = flattenTree(buildEventTree(events));
-      for (const node of nodes) {
-        const e = node.event;
-        const indent = "  ".repeat(node.depth);
-        const extra = describeEvent(e);
-        out(
-          `${String(e.sequence).padStart(4)}  ${indent}${e.eventType.padEnd(26)} ${e.name}${extra ? `  ${extra}` : ""}`,
+    .action(
+      async (
+        traceId: string,
+        opts: {
+          branch?: string;
+          grep?: string;
+          type?: string;
+          severity?: string;
+          json?: boolean;
+        },
+      ) => {
+        const api = client();
+        const detail = await api.get<{ trace: TraceSummary; branches: Branch[] }>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}`,
         );
-      }
-    });
+        const branchId = opts.branch ?? detail.trace.rootBranchId;
+        const events = await allEvents(api, traceId, branchId, {
+          q: opts.grep,
+          eventType: opts.type,
+          severity: opts.severity,
+        });
+        if (opts.json) return json({ ...detail, branchId, events });
+        const t = detail.trace;
+        out(`${t.name}`);
+        out(`  trace     ${t.id}`);
+        out(`  project   ${t.projectSlug}    agent ${t.agentSlug}`);
+        out(`  status    ${t.status}${t.outcome ? ` (${t.outcome.label})` : ""}`);
+        out(`  started   ${t.startedAt}    duration ${duration(t.durationMs)}`);
+        out(
+          `  usage     ${t.metrics.modelCalls} model calls, ${t.metrics.toolCalls} tool calls, ${t.metrics.totalTokens} tokens, est. cost ${money(t.metrics.totalEstimatedCost, t.metrics.currency)}`,
+        );
+        out(`  tags      ${t.tags.join(", ") || "-"}`);
+        out("");
+        out("branches");
+        out(
+          table(
+            ["BRANCH", "NAME", "PARENT", "FORK SEQ", "STATUS", "OUTCOME", "EST. COST", "DURATION"],
+            detail.branches.map((b) => [
+              b.id,
+              b.name,
+              b.parentBranchId ?? "-",
+              b.forkSequence === null ? "-" : String(b.forkSequence),
+              b.status,
+              b.outcome?.label ?? "-",
+              money(b.metrics.totalEstimatedCost, b.metrics.currency),
+              duration(b.metrics.durationMs),
+            ]),
+          ),
+        );
+        out("");
+        const filtered = Boolean(opts.grep || opts.type || opts.severity);
+        out(`events (branch ${branchId}${filtered ? `, ${events.length} matching` : ""})`);
+        // A filtered list is not a complete hierarchy, so print it flat.
+        const nodes = filtered
+          ? events.map((event) => ({ event, depth: 0 }))
+          : flattenTree(buildEventTree(events));
+        for (const node of nodes) {
+          const e = node.event;
+          const indent = "  ".repeat(node.depth);
+          const extra = describeEvent(e);
+          out(
+            `${String(e.sequence).padStart(4)}  ${indent}${e.eventType.padEnd(26)} ${e.name}${extra ? `  ${extra}` : ""}`,
+          );
+        }
+      },
+    );
 
   traces
     .command("update")
@@ -723,13 +745,14 @@ async function allEvents(
   api: ApiClient,
   traceId: string,
   branchId: string,
+  filter: { q?: string; eventType?: string; severity?: string } = {},
 ): Promise<ShadowEvent[]> {
   const events: ShadowEvent[] = [];
   let cursor: string | undefined;
   do {
     const page = await api.get<Page<ShadowEvent>>(
       `/api/v1/traces/${encodeURIComponent(traceId)}/events`,
-      { branchId, cursor, limit: 1000 },
+      { branchId, cursor, limit: 1000, ...filter },
     );
     events.push(...page.items);
     cursor = page.nextCursor ?? undefined;

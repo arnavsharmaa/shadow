@@ -82,6 +82,11 @@ export type IngestEventsBodyInput = z.input<typeof ingestEventsBodySchema>;
 export const eventListQuerySchema = cursorPageQuerySchema.extend({
   branchId: idSchema.optional(),
   eventType: z.string().max(96).optional(),
+  /** Exact event name (tool, model, policy or step name). */
+  name: z.string().max(256).optional(),
+  severity: z.enum(["debug", "info", "warn", "error"]).optional(),
+  /** Case-insensitive substring of the event name or type. */
+  q: z.string().max(256).optional(),
   /** Include events inherited from parent branches (default true). */
   inherited: z
     .union([z.boolean(), z.enum(["true", "false"])])

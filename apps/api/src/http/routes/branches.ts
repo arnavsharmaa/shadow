@@ -1,6 +1,6 @@
 import {
   branchStateQuerySchema,
-  cursorPageQuerySchema,
+  eventListQuerySchema,
   idSchema,
   replayRequestBodySchema,
   updateBranchBodySchema,
@@ -33,7 +33,7 @@ export const branchRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: {
         tags: ["events"],
         params,
-        querystring: cursorPageQuerySchema.extend({ eventType: z.string().max(96).optional() }),
+        querystring: eventListQuerySchema.omit({ branchId: true, inherited: true }),
       },
     },
     async (request) => {

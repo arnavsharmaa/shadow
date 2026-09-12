@@ -154,6 +154,31 @@ describe("event pagination", () => {
     expect(none).toEqual({ items: [], nextCursor: null });
   });
 
+  it("filters by name, severity and free text", async () => {
+    const all = await page("limit=1000");
+    const sample = must(
+      all.items.find((e) => e.eventType === "tool.request"),
+      "tool request",
+    );
+    const byName = await page(`limit=1000&name=${encodeURIComponent(sample.name)}`);
+    expect(byName.items.length).toBeGreaterThan(0);
+    expect(byName.items.every((e) => e.name === sample.name)).toBe(true);
+
+    const byText = await page(`limit=1000&q=${encodeURIComponent("TOOL.")}`);
+    expect(byText.items.length).toBeGreaterThan(0);
+    expect(byText.items.every((e) => e.eventType.startsWith("tool."))).toBe(true);
+    const escaped = await page("limit=1000&q=%25");
+    expect(escaped.items).toHaveLength(0);
+
+    const errors = await page("limit=1000&severity=error");
+    expect(errors.items.every((e) => e.severity === "error")).toBe(true);
+    const invalid = await t.app.inject({
+      method: "GET",
+      url: `/api/v1/traces/${trace.id}/events?severity=loud`,
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it("returns only own events for a fork when inherited=false", async () => {
     expect(fork.branch.forkSequence).toBe(9);
     const own = await page(`branchId=${fork.branch.id}&inherited=false`);
