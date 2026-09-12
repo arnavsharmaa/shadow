@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
   Artifact,
@@ -416,6 +417,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--tag <tag>", "only traces carrying this tag")
     .option("--limit <n>", "maximum traces to delete per run", positiveInt, 1000)
     .option("--dry-run", "list what would be deleted without deleting")
+    .option(
+      "--archive <dir>",
+      "export each trace to <dir>/<traceId>.shadow.json before deleting it",
+    )
     .option("--yes", "confirm the deletion (required unless --dry-run)")
     .option("--json", "print JSON")
     .action(
@@ -427,6 +432,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         tag?: string;
         limit: number;
         dryRun?: boolean;
+        archive?: string;
         yes?: boolean;
         json?: boolean;
       }) => {
@@ -436,24 +442,59 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             EXIT.usage,
           );
         }
-        const result = await client().post<{
-          dryRun: boolean;
-          matched: number;
-          traceIds: string[];
-          truncated: boolean;
-        }>("/api/v1/traces/prune", {
+        const api = client();
+        const body = {
           before: opts.before,
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
           tag: opts.tag,
           limit: opts.limit,
-          dryRun: Boolean(opts.dryRun),
-        });
-        if (opts.json) return json(result);
+        };
+        type PruneResult = {
+          dryRun: boolean;
+          matched: number;
+          traceIds: string[];
+          truncated: boolean;
+        };
+        let result: PruneResult;
+        const archived: string[] = [];
+        if (opts.archive && !opts.dryRun) {
+          // Archive first, then delete one by one: a trace is only removed once its
+          // bundle is safely on disk.
+          const preview = await api.post<PruneResult>("/api/v1/traces/prune", {
+            ...body,
+            dryRun: true,
+          });
+          await mkdir(opts.archive, { recursive: true });
+          const deleted: string[] = [];
+          for (const traceId of preview.traceIds) {
+            const bundle = await api.get<TraceExport>(
+              `/api/v1/traces/${encodeURIComponent(traceId)}/export`,
+            );
+            const file = path.join(opts.archive, `${traceId}.shadow.json`);
+            await writeFile(file, JSON.stringify(bundle, null, 2), "utf8");
+            archived.push(file);
+            await api.delete(`/api/v1/traces/${encodeURIComponent(traceId)}`);
+            deleted.push(traceId);
+          }
+          result = {
+            dryRun: false,
+            matched: deleted.length,
+            traceIds: deleted,
+            truncated: preview.truncated,
+          };
+        } else {
+          result = await api.post<PruneResult>("/api/v1/traces/prune", {
+            ...body,
+            dryRun: Boolean(opts.dryRun),
+          });
+        }
+        if (opts.json) return json({ ...result, archived });
         const verb = result.dryRun ? "would delete" : "deleted";
         out(`${verb} ${result.matched} trace(s) started before ${opts.before}`);
         for (const id of result.traceIds) out(`  ${id}`);
+        if (archived.length > 0) out(`archived ${archived.length} bundle(s) to ${opts.archive}`);
         if (result.truncated) {
           out(
             `more traces match; run again${result.dryRun ? "" : " to continue"} or raise --limit`,

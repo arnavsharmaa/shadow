@@ -189,7 +189,8 @@ earlier than the cutoff and that match every given filter, oldest first, up to `
 (1–10000, default 1000). Deletion cascades like `DELETE /traces/:traceId`. Response:
 `{ dryRun, matched, traceIds, truncated }`; `truncated` is `true` when more traces matched than
 `limit` allowed, so call again to continue. From the CLI: `shadow traces prune --before 30d
---dry-run`, then add `--yes`.
+--dry-run`, then add `--yes`; `--archive <dir>` exports each trace to
+`<dir>/<traceId>.shadow.json` before deleting it, so pruned data can be re-imported later.
 
 ### `GET /api/v1/traces/:traceId`
 

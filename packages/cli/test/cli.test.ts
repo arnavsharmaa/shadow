@@ -603,6 +603,66 @@ describe("shadow cli", () => {
     expect(await runWith(invalid, ["traces", "prune", "--before", "soon", "--yes"])).toBe(2);
   });
 
+  it("archives bundles before deleting when pruning with --archive", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-archive-"));
+    const bundle = (id: string) => ({
+      format: "shadow.trace",
+      trace: { ...trace, id },
+      branches: [],
+      events: [],
+      forks: [],
+      replays: [],
+      comparisons: [],
+    });
+    const api = fakeApi({
+      "POST /api/v1/traces/prune": (body) => {
+        expect((body as { dryRun: boolean }).dryRun).toBe(true);
+        return {
+          body: { dryRun: true, matched: 2, traceIds: ["trc_a", "trc_b"], truncated: false },
+        };
+      },
+      "GET /api/v1/traces/trc_a/export": () => ({ body: bundle("trc_a") }),
+      "GET /api/v1/traces/trc_b/export": () => ({ body: bundle("trc_b") }),
+      "DELETE /api/v1/traces/trc_a": () => ({ status: 204, body: null }),
+      "DELETE /api/v1/traces/trc_b": () => ({ status: 204, body: null }),
+    });
+    expect(
+      await runWith(api, ["traces", "prune", "--before", "2026-01-01", "--archive", dir, "--yes"]),
+    ).toBe(0);
+    const order = api.captured.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`);
+    expect(order).toEqual([
+      "POST /api/v1/traces/prune",
+      "GET /api/v1/traces/trc_a/export",
+      "DELETE /api/v1/traces/trc_a",
+      "GET /api/v1/traces/trc_b/export",
+      "DELETE /api/v1/traces/trc_b",
+    ]);
+    const saved = JSON.parse(await readFile(path.join(dir, "trc_b.shadow.json"), "utf8"));
+    expect(saved.trace.id).toBe("trc_b");
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("deleted 2 trace(s)");
+    expect(text).toContain(`archived 2 bundle(s) to ${dir}`);
+
+    // An export failure stops before anything is deleted.
+    const failing = fakeApi({
+      "POST /api/v1/traces/prune": () => ({
+        body: { dryRun: true, matched: 1, traceIds: ["trc_gone"], truncated: false },
+      }),
+    });
+    expect(
+      await runWith(failing, [
+        "traces",
+        "prune",
+        "--before",
+        "2026-01-01",
+        "--archive",
+        dir,
+        "--yes",
+      ]),
+    ).toBe(4);
+    expect(failing.captured.calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
   it("creates forks with typed overrides, replays and compares", async () => {
     const fork = {
       id: "frk_1",
