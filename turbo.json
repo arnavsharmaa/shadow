@@ -12,16 +12,16 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": []
+      "dependsOn": ["^typecheck"]
     },
     "typecheck": {
-      "dependsOn": []
+      "dependsOn": ["^typecheck"]
     },
     "test": {
-      "dependsOn": []
+      "dependsOn": ["^typecheck"]
     },
     "test:coverage": {
-      "dependsOn": [],
+      "dependsOn": ["^typecheck"],
       "outputs": ["coverage/**"]
     },
     "test:integration": {

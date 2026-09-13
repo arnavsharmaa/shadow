@@ -170,6 +170,7 @@ describe("regenerateBundleIds", () => {
         {
           id: "cmp_1",
           traceId: r.trace.id,
+          targetTraceId: null,
           baseBranchId: r.root.id,
           targetBranchId: child.branch.id,
           createdAt: spec.startAt,
