@@ -305,6 +305,28 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("replay-unavailable-badge")).toHaveCount(0);
   });
 
+  test("two traces can be compared from the explorer", async ({ page }) => {
+    await page.goto("/");
+    const rows = page.locator('[data-testid="trace-row"]');
+    await expect(rows.first()).toBeVisible();
+    await expect(page.getByTestId("compare-bar")).toHaveCount(0);
+    await rows.nth(0).getByTestId("trace-select").check();
+    await expect(page.getByTestId("compare-selected")).toBeDisabled();
+    await rows.nth(1).getByTestId("trace-select").check();
+    await expect(rows.nth(2).getByTestId("trace-select")).toBeDisabled();
+    const baseId = await rows.nth(0).getAttribute("data-trace-id");
+    const targetId = await rows.nth(1).getAttribute("data-trace-id");
+    await page.getByTestId("compare-selected").click();
+    await expect(page.getByTestId("comparison-view")).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(new RegExp(`/traces/${baseId}/compare`));
+    await expect(page.getByTestId("cross-trace-badge")).toContainText(targetId ?? "");
+    await expect(page.getByTestId("target-branch-name")).toHaveAttribute(
+      "href",
+      new RegExp(`/traces/${targetId}\\?branch=`),
+    );
+    await expect(page.getByTestId("comparison-metrics")).toBeVisible();
+  });
+
   test("explorer filters and keyboard navigation", async ({ page }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);

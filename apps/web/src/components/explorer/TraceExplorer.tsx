@@ -43,6 +43,16 @@ export function TraceExplorer() {
   const params = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
   const [search, setSearch] = useState(filters.q ?? "");
+  /** Traces ticked for a cross-trace comparison (at most two). */
+  const [picked, setPicked] = useState<TraceSummary[]>([]);
+  const togglePick = (trace: TraceSummary) =>
+    setPicked((current) =>
+      current.some((t) => t.id === trace.id)
+        ? current.filter((t) => t.id !== trace.id)
+        : current.length >= 2
+          ? current
+          : [...current, trace],
+    );
 
   const setFilter = useCallback(
     (patch: Partial<Record<string, string | undefined>>) => {
@@ -196,6 +206,9 @@ export function TraceExplorer() {
           >
             <thead className="sticky top-0 z-10 bg-panel text-left text-[11px] uppercase tracking-wide text-fg-muted">
               <tr>
+                <th className="w-8 px-2 py-1.5" scope="col">
+                  <span className="sr-only">Select for comparison</span>
+                </th>
                 <Th>Project / Agent</Th>
                 <Th
                   sortable
@@ -250,12 +263,47 @@ export function TraceExplorer() {
             </thead>
             <tbody>
               {traces.data?.items.map((t) => (
-                <TraceRow key={t.id} trace={t} />
+                <TraceRow
+                  key={t.id}
+                  trace={t}
+                  picked={picked.some((p) => p.id === t.id)}
+                  pickable={picked.length < 2 || picked.some((p) => p.id === t.id)}
+                  onTogglePick={() => togglePick(t)}
+                />
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {picked.length > 0 && (
+        <div
+          className="flex items-center gap-3 border-t border-border bg-panel px-3 py-1.5 text-[11px]"
+          data-testid="compare-bar"
+        >
+          <span className="text-fg-muted">
+            {picked.length} of 2 selected:{" "}
+            <span className="mono">{picked.map((p) => p.id).join(" vs ")}</span>
+          </span>
+          <Button
+            size="xs"
+            variant="primary"
+            disabled={picked.length !== 2}
+            data-testid="compare-selected"
+            onClick={() => {
+              const [base, target] = picked;
+              if (!base || !target) return;
+              router.push(
+                `/traces/${encodeURIComponent(base.id)}/compare?base=${encodeURIComponent(base.rootBranchId)}&target=${encodeURIComponent(target.rootBranchId)}`,
+              );
+            }}
+          >
+            Compare traces
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setPicked([])}>
+            Clear
+          </Button>
+        </div>
+      )}
       {traces.data && (traces.data.nextCursor || filters.cursor) && (
         <div className="flex items-center justify-end gap-2 border-t border-border bg-panel px-3 py-1.5 text-[11px]">
           <Button
@@ -278,13 +326,34 @@ export function TraceExplorer() {
   );
 }
 
-function TraceRow({ trace }: { trace: TraceSummary }) {
+function TraceRow({
+  trace,
+  picked,
+  pickable,
+  onTogglePick,
+}: {
+  trace: TraceSummary;
+  picked: boolean;
+  pickable: boolean;
+  onTogglePick: () => void;
+}) {
   return (
     <tr
       className="border-b border-border hover:bg-hover"
       data-testid="trace-row"
       data-trace-id={trace.id}
     >
+      <td className="px-2 py-1.5 align-top">
+        <input
+          type="checkbox"
+          checked={picked}
+          disabled={!pickable}
+          onChange={onTogglePick}
+          aria-label={`Select ${trace.name} for comparison`}
+          title={pickable ? "Select for a cross-trace comparison" : "Two traces already selected"}
+          data-testid="trace-select"
+        />
+      </td>
       <td className="px-3 py-1.5 align-top">
         <div className="text-fg-muted">{trace.projectName}</div>
         <div>{trace.agentName}</div>

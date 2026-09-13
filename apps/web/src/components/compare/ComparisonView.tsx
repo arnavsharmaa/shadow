@@ -63,6 +63,9 @@ function ComparisonBody({ traceId, comparison }: { traceId: string; comparison: 
   const [copied, setCopied] = useState(false);
 
   const visibleSteps = showShared ? r.steps : r.steps.filter((s) => s.kind !== "shared");
+  // Cross-trace comparisons: the counterfactual side lives in another trace.
+  const targetTraceId = comparison.targetTraceId ?? traceId;
+  const crossTrace = targetTraceId !== traceId;
   const sharedCount = r.steps.filter((s) => s.kind === "shared").length;
 
   return (
@@ -90,12 +93,17 @@ function ComparisonBody({ traceId, comparison }: { traceId: string; comparison: 
             Counterfactual
           </span>
           <Link
-            href={`/traces/${encodeURIComponent(traceId)}?branch=${encodeURIComponent(r.target.branchId)}`}
+            href={`/traces/${encodeURIComponent(targetTraceId)}?branch=${encodeURIComponent(r.target.branchId)}`}
             className="mono hover:underline"
             data-testid="target-branch-name"
           >
             {r.target.name}
           </Link>
+          {crossTrace && (
+            <Badge tone="info" title={`Target branch belongs to trace ${targetTraceId}`}>
+              <span data-testid="cross-trace-badge">other trace: {targetTraceId}</span>
+            </Badge>
+          )}
         </h1>
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -192,7 +200,7 @@ function ComparisonBody({ traceId, comparison }: { traceId: string; comparison: 
                     <SideEvent
                       label="Counterfactual"
                       eventRef={r.firstDivergence.target}
-                      traceId={traceId}
+                      traceId={targetTraceId}
                       branchId={r.target.branchId}
                     />
                   </div>
@@ -600,7 +608,7 @@ function toMarkdown(c: Comparison): string {
   const lines = [
     `# Shadow comparison: ${r.base.name} vs ${r.target.name}`,
     "",
-    `Trace: \`${c.traceId}\` · comparison \`${c.id}\``,
+    `Trace: \`${c.traceId}\`${c.targetTraceId ? ` vs \`${c.targetTraceId}\`` : ""} · comparison \`${c.id}\``,
     "",
     "| Metric | Original | Counterfactual | Delta |",
     "| --- | --- | --- | --- |",

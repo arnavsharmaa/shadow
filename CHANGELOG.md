@@ -55,7 +55,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   linked to the selected event, and the demo seeds each sent email as one.
 - Cross-trace comparisons: `POST /api/v1/comparisons` (and `shadow compare`) accept branches
   of two different traces, aligning two separately recorded runs step by step. Such comparisons
-  carry `targetTraceId`, are listed under both traces and are excluded from exports.
+  carry `targetTraceId`, are listed under both traces and are excluded from exports. In the web
+  app, tick two traces in the explorer and choose "Compare traces"; the comparison view links
+  each side to its own trace.
 - `GET /health` reports the replayable agent slugs and which features are enabled (auth,
   retention, OTLP ingestion); `shadow status` prints them.
 - `shadow status` CLI command: API health, database backend and trace/project/agent counts.
