@@ -263,6 +263,7 @@ export function toComparison(row: ComparisonRow): Comparison {
   return {
     id: row.id,
     traceId: row.traceId,
+    targetTraceId: row.targetTraceId ?? null,
     baseBranchId: row.baseBranchId,
     targetBranchId: row.targetBranchId,
     createdAt: iso(row.createdAt),

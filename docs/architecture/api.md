@@ -435,17 +435,21 @@ described in [docs/integrations/opentelemetry.md](../integrations/opentelemetry.
 
 ### `GET /api/v1/comparisons?traceId=&branchId=&limit=`
 
-`{ items: Comparison[], nextCursor: null }`, newest first. `branchId` matches either side.
+`{ items: Comparison[], nextCursor: null }`, newest first. `branchId` matches either side;
+`traceId` matches the base trace or the target trace of a cross-trace comparison.
 
 ### `POST /api/v1/comparisons`
 
-Body `{ baseBranchId, targetBranchId }`; both branches must belong to the same trace and differ.
-Computes and stores the comparison; returns `201 Comparison`:
+Body `{ baseBranchId, targetBranchId }`; the branches must differ. They may belong to different
+traces: two separately recorded runs then share no prefix and every step is aligned by content
+(`targetTraceId` is set on the result and the comparison is listed under both traces, but not
+exported with either). Computes and stores the comparison; returns `201 Comparison`:
 
 ```json
 {
   "id": "cmp_…",
   "traceId": "trc_…",
+  "targetTraceId": null,
   "baseBranchId": "br_main",
   "targetBranchId": "br_fork1",
   "createdAt": "…",

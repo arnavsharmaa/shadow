@@ -1,6 +1,6 @@
 import { BundleValidationError, parseBundle, regenerateBundleIds, sortEvents } from "@shadow/core";
 import { SCHEMA_VERSION, type Trace, type TraceExport } from "@shadow/schemas";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import {
   agents,
   artifacts,
@@ -62,7 +62,8 @@ export async function exportTrace(ctx: ServiceContext, traceId: string): Promise
       db
         .select()
         .from(comparisons)
-        .where(eq(comparisons.traceId, traceId))
+        // Cross-trace comparisons reference branches outside the bundle and are not portable.
+        .where(and(eq(comparisons.traceId, traceId), isNull(comparisons.targetTraceId)))
         .orderBy(asc(comparisons.createdAt)),
       db
         .select()
@@ -198,7 +199,11 @@ export async function importTrace(
       await tx.insert(replays).values({ ...replay, traceId: bundle.trace.id });
     }
     for (const comparison of bundle.comparisons) {
-      await tx.insert(comparisons).values({ ...comparison, traceId: bundle.trace.id });
+      await tx.insert(comparisons).values({
+        ...comparison,
+        traceId: bundle.trace.id,
+        targetTraceId: null,
+      });
     }
     for (const artifact of bundle.artifacts) {
       await tx.insert(artifacts).values({ ...artifact, traceId: bundle.trace.id });

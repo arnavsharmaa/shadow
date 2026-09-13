@@ -301,7 +301,7 @@ describe("fork, replay and comparison end-to-end", () => {
     ).toBe(404);
   });
 
-  it("rejects comparisons of the same branch, unknown branches and different traces", async () => {
+  it("rejects comparisons of the same branch and unknown branches; other traces are allowed", async () => {
     const same = await t.app.inject({
       method: "POST",
       url: "/api/v1/comparisons",
@@ -327,8 +327,8 @@ describe("fork, replay and comparison end-to-end", () => {
       url: "/api/v1/comparisons",
       payload: { baseBranchId: scenario.rootBranchId, targetBranchId: other.rootBranchId },
     });
-    expect(different.statusCode).toBe(422);
-    expect(json<ErrorEnvelope>(different).error.code).toBe("different_traces");
+    expect(different.statusCode).toBe(201);
+    expect(json<Comparison>(different).targetTraceId).toBe(other.id);
   });
 
   it("serves the effective lineage of the fork", async () => {

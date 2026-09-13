@@ -165,7 +165,10 @@ export type ComparisonResult = z.infer<typeof comparisonResultSchema>;
 
 export const comparisonSchema = z.object({
   id: idSchema,
+  /** Trace of the base branch. */
   traceId: idSchema,
+  /** Trace of the target branch when it differs from `traceId` (cross-trace comparison). */
+  targetTraceId: idSchema.nullable().default(null),
   baseBranchId: idSchema,
   targetBranchId: idSchema,
   createdAt: z.iso.datetime({ offset: true }),

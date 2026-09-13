@@ -1,7 +1,8 @@
 # Branch comparison
 
 The comparison engine (`compareBranches` in `packages/core/src/comparison/compare.ts`) explains
-how two branches of the same trace differ: where they diverge first, which steps were added,
+how two branches differ (usually of the same trace, but two separately recorded runs of an
+agent can be compared the same way): where they diverge first, which steps were added,
 removed or modified, how tool calls, context, state, metrics, outcome and policy decisions
 changed. Results are stored by `POST /api/v1/comparisons` and rendered by the web app's
 comparison view.

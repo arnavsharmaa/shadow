@@ -213,11 +213,14 @@ export const comparisons = pgTable(
       .references(() => traces.id, { onDelete: "cascade" }),
     baseBranchId: text("base_branch_id").notNull(),
     targetBranchId: text("target_branch_id").notNull(),
+    /** Set when the target branch belongs to another trace (cross-trace comparison). */
+    targetTraceId: text("target_trace_id").references(() => traces.id, { onDelete: "cascade" }),
     result: jsonb("result").notNull(),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
     index("comparisons_trace_idx").on(t.traceId),
+    index("comparisons_target_trace_idx").on(t.targetTraceId),
     index("comparisons_branches_idx").on(t.baseBranchId, t.targetBranchId),
   ],
 );

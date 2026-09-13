@@ -759,7 +759,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   program
     .command("compare")
-    .description("compare two branches of a trace")
+    .description("compare two branches, of the same trace or of two different traces")
     .argument("<baseBranchId>", "original branch")
     .argument("<targetBranchId>", "counterfactual branch")
     .option("--json", "print JSON")

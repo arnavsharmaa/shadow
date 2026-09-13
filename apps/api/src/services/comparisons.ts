@@ -13,11 +13,11 @@ export async function createComparison(
 ): Promise<Comparison> {
   const base = toBranch(await getBranchRow(ctx, input.baseBranchId));
   const target = toBranch(await getBranchRow(ctx, input.targetBranchId));
-  if (base.traceId !== target.traceId) {
-    throw ApiError.unprocessable("different_traces", "branches must belong to the same trace");
-  }
   if (base.id === target.id)
     throw ApiError.unprocessable("same_branch", "choose two different branches");
+  // Branches of different traces share no prefix, so every step is aligned by content:
+  // this is how two separately recorded runs of an agent are compared.
+  const crossTrace = base.traceId !== target.traceId;
   const [baseEvents, targetEvents] = await Promise.all([
     loadEffectiveEvents(ctx, base.id),
     loadEffectiveEvents(ctx, target.id),
@@ -36,6 +36,7 @@ export async function createComparison(
   const row = {
     id: ctx.ids.next("cmp"),
     traceId: base.traceId,
+    targetTraceId: crossTrace ? target.traceId : null,
     baseBranchId: base.id,
     targetBranchId: target.id,
     result,
@@ -63,7 +64,14 @@ export async function listComparisons(
   query: { traceId?: string; branchId?: string; limit: number },
 ): Promise<{ items: Comparison[]; nextCursor: null }> {
   const filters: SQL[] = [];
-  if (query.traceId) filters.push(eq(comparisons.traceId, query.traceId));
+  if (query.traceId) {
+    filters.push(
+      or(
+        eq(comparisons.traceId, query.traceId),
+        eq(comparisons.targetTraceId, query.traceId),
+      ) as SQL,
+    );
+  }
   if (query.branchId) {
     filters.push(
       or(
