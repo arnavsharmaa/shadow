@@ -210,8 +210,9 @@ export const api = {
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/export`,
   docsUrl: () => `${apiBaseUrl()}/docs`,
   health: () =>
-    request<{ status: string; database: { kind: string; location: string; healthy: boolean } }>(
-      "GET",
-      "/health",
-    ),
+    request<{
+      status: string;
+      database: { kind: string; location: string; healthy: boolean };
+      agents?: { replayable: string[] };
+    }>("GET", "/health"),
 };

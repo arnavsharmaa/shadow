@@ -215,6 +215,96 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     );
   });
 
+  test("OTLP-imported traces fork without replay", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const traceId = "e2e0000000000000000000000000abcd";
+    const ns = (offsetMs: number) =>
+      String(1_788_253_924_000_000_000n + BigInt(offsetMs) * 1_000_000n);
+    const str = (key: string, value: string) => ({ key, value: { stringValue: value } });
+    const imported = await request.post(`${apiUrl}/api/v1/otlp/v1/traces`, {
+      data: {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [str("service.name", "otel-bot"), str("service.namespace", "e2e")],
+            },
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId,
+                    spanId: "e2e0000000000001",
+                    name: "handle ticket",
+                    kind: 2,
+                    startTimeUnixNano: ns(0),
+                    endTimeUnixNano: ns(500),
+                  },
+                  {
+                    traceId,
+                    spanId: "e2e0000000000002",
+                    parentSpanId: "e2e0000000000001",
+                    name: "execute_tool lookup",
+                    kind: 1,
+                    startTimeUnixNano: ns(100),
+                    endTimeUnixNano: ns(200),
+                    attributes: [
+                      str("gen_ai.operation.name", "execute_tool"),
+                      str("gen_ai.tool.name", "lookup"),
+                      str("gen_ai.tool.call.result", '{"found":true}'),
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(imported.ok()).toBeTruthy();
+
+    await page.goto(`/traces/trc_otel_${traceId}`);
+    await expect(page.getByTestId("trace-detail")).toBeVisible();
+    await expect(page.getByTestId("replay-unavailable-badge")).toBeVisible();
+    await page
+      .locator(
+        '[data-testid="event-node"][data-event-type="tool.request"][data-event-name="lookup"]',
+      )
+      .click();
+    await page.getByTestId("fork-from-here").click();
+    const dialog = page.getByTestId("fork-dialog");
+    await expect(dialog.getByTestId("replay-unavailable")).toContainText("otel-bot");
+    await expect(dialog.getByTestId("run-counterfactual")).toHaveText("Create branch");
+    await dialog.getByTestId("fork-name").fill("inspect-only");
+    await dialog.getByTestId("add-context-override").click();
+    await dialog.getByTestId("override-field").fill("region");
+    await dialog.getByTestId("override-value").fill("eu");
+    await dialog.getByTestId("run-counterfactual").click();
+
+    // The branch is created and selected; no comparison page is opened.
+    await expect(page).toHaveURL(/branch=/);
+    await expect(page).not.toHaveURL(/compare/);
+    await expect(page.getByTestId("branch-select")).toContainText("inspect-only");
+    const forkNode = page.locator('[data-testid="event-node"][data-event-type="fork.created"]');
+    await expect(forkNode).toBeVisible();
+    await forkNode.click();
+    await expect(page.getByTestId("event-name")).toHaveText("inspect-only");
+    const forks = await (
+      await request.get(`${apiUrl}/api/v1/traces/trc_otel_${traceId}/forks`)
+    ).json();
+    expect(forks.items).toHaveLength(1);
+    expect(forks.items[0].overrides).toHaveLength(1);
+    expect(forks.items[0].overrides[0]).toMatchObject({
+      kind: "context",
+      op: "set",
+      key: "region",
+      value: "eu",
+    });
+
+    // The refund demo agent is replayable, so it keeps the normal wording.
+    await openRefundTrace(page);
+    await expect(page.getByTestId("replay-unavailable-badge")).toHaveCount(0);
+  });
+
   test("explorer filters and keyboard navigation", async ({ page }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);

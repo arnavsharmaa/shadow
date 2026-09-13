@@ -38,6 +38,12 @@ export function TraceDetail({ traceId }: { traceId: string }) {
   const queryClient = useQueryClient();
 
   const detail = useQuery({ queryKey: ["trace", traceId], queryFn: () => api.trace(traceId) });
+  const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
+  // Older APIs do not report replayable agents; assume replay is possible then.
+  const replayable =
+    !health.data?.agents || !detail.data
+      ? true
+      : health.data.agents.replayable.includes(detail.data.trace.agentSlug);
   const branches = detail.data?.branches ?? [];
   const branchId = params.get("branch") ?? detail.data?.trace.rootBranchId ?? null;
   const branch = branches.find((b) => b.id === branchId) ?? null;
@@ -184,6 +190,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
         hasError={events.some(isErrorEvent)}
         hasPolicy={events.some(isPolicyViolationEvent)}
         onUpdateTags={updateTags}
+        replayable={replayable}
       />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,22%)_minmax(360px,1fr)_minmax(300px,28%)] gap-px bg-border">
         <Panel
@@ -309,6 +316,8 @@ export function TraceDetail({ traceId }: { traceId: string }) {
           branch={branch}
           branches={branches}
           event={selected}
+          replayable={replayable}
+          agentSlug={detail.data.trace.agentSlug}
           onCreated={async (created: Branch, comparisonId: string | null) => {
             setForkOpen(false);
             await refreshBranches();

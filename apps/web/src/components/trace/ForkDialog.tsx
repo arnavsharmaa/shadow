@@ -26,6 +26,9 @@ interface Props {
   branches: Branch[];
   event: ShadowEvent;
   onCreated: (branch: Branch, comparisonId: string | null) => Promise<void> | void;
+  /** False when the agent has no registered program; the fork is then created without replay. */
+  replayable?: boolean;
+  agentSlug?: string;
 }
 
 function parseValue(text: string): JsonValue {
@@ -98,7 +101,17 @@ function toOverride(row: Row): Parsed {
 let rowKey = 0;
 
 /** Fork editor: choose typed overrides and run the deterministic counterfactual. */
-export function ForkDialog({ open, onClose, traceId, branch, branches, event, onCreated }: Props) {
+export function ForkDialog({
+  open,
+  onClose,
+  traceId,
+  branch,
+  branches,
+  event,
+  onCreated,
+  replayable = true,
+  agentSlug,
+}: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [name, setName] = useState(
     () => `fork-${branches.filter((b) => b.parentBranchId !== null).length + 1}`,
@@ -139,6 +152,11 @@ export function ForkDialog({ open, onClose, traceId, branch, branches, event, on
         name: name.trim() || undefined,
         overrides,
       });
+      if (!replayable) {
+        // No program to re-run: keep the branch (with its override events) for inspection.
+        await onCreated(created.branch, null);
+        return;
+      }
       setPhase("replaying");
       const replayed = await api.replay(created.branch.id);
       if (replayed.replay.status !== "completed") {
@@ -370,11 +388,29 @@ export function ForkDialog({ open, onClose, traceId, branch, branches, event, on
             {error}
           </p>
         )}
+        {!replayable && (
+          <p
+            className="rounded border border-warn/40 bg-warn-bg p-2 text-warn"
+            data-testid="replay-unavailable"
+          >
+            No program is registered for agent{" "}
+            <span className="mono font-semibold">{agentSlug ?? "this agent"}</span>, so this fork
+            cannot be replayed. The branch will be created with the overrides saved on its fork
+            (shown on the fork.created event) for inspection only. See docs/concepts/replay-modes.md
+            to register a program.
+          </p>
+        )}
 
         <div className="flex items-center justify-between border-t border-border pt-3">
           <span className="text-fg-muted">
-            {overrides.length} override{overrides.length === 1 ? "" : "s"} · deterministic replay{" "}
-            <Badge tone="muted">no external calls</Badge>
+            {overrides.length} override{overrides.length === 1 ? "" : "s"} ·{" "}
+            {replayable ? (
+              <>
+                deterministic replay <Badge tone="muted">no external calls</Badge>
+              </>
+            ) : (
+              <Badge tone="warn">branch only, no replay</Badge>
+            )}
           </span>
           <div className="flex items-center gap-2">
             {phase !== "idle" && (
@@ -397,7 +433,7 @@ export function ForkDialog({ open, onClose, traceId, branch, branches, event, on
               disabled={!canRun}
               data-testid="run-counterfactual"
             >
-              Run counterfactual
+              {replayable ? "Run counterfactual" : "Create branch"}
             </Button>
           </div>
         </div>

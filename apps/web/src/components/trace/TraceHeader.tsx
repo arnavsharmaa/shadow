@@ -18,6 +18,8 @@ interface Props {
   hasError: boolean;
   hasPolicy: boolean;
   onUpdateTags: (change: { addTags?: string[]; removeTags?: string[] }) => Promise<void>;
+  /** Whether the trace's agent has a registered program (forks can be replayed). */
+  replayable?: boolean;
 }
 
 export function TraceHeader({
@@ -31,6 +33,7 @@ export function TraceHeader({
   hasError,
   hasPolicy,
   onUpdateTags,
+  replayable = true,
 }: Props) {
   const metrics = branch?.metrics ?? trace.metrics;
   const outcome = branch?.outcome ?? trace.outcome;
@@ -73,6 +76,14 @@ export function TraceHeader({
           <span>
             {trace.projectSlug} / {trace.agentSlug}
           </span>
+          {!replayable && (
+            <Badge
+              tone="warn"
+              title="No program is registered for this agent: forks are created for inspection but cannot be replayed"
+            >
+              <span data-testid="replay-unavailable-badge">not replayable</span>
+            </Badge>
+          )}
           <span>{dateTime(trace.startedAt)}</span>
           <TagEditor tags={trace.tags} onChange={onUpdateTags} />
         </div>
