@@ -177,6 +177,12 @@ describe("shadow cli", () => {
           version: "0.1.0",
           uptimeSeconds: 125,
           database: { kind: "pglite", location: "pglite:/tmp/data", healthy: true },
+          agents: { replayable: ["inventory-agent", "refund-agent"] },
+          features: {
+            auth: true,
+            retention: { enabled: true, days: 30, intervalMinutes: 60 },
+            otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+          },
         },
       }),
       "GET /api/v1/traces": () => ({ body: { items: [trace], nextCursor: null, total: 7 } }),
@@ -194,6 +200,10 @@ describe("shadow cli", () => {
     expect(text).toContain("0.1.0");
     expect(text).toContain("pglite");
     expect(text).toContain("7 across 2 project(s) and 1 agent(s); 3 distinct tool(s)");
+    expect(text).toContain("replay    inventory-agent, refund-agent");
+    expect(text).toContain(
+      "auth required; retention 30d every 60m; otlp at /api/v1/otlp/v1/traces",
+    );
     const json = fakeApi({
       "GET /health": () => ({
         body: {
@@ -210,6 +220,23 @@ describe("shadow cli", () => {
     });
     expect(await runWith(json, ["status", "--json"])).toBe(1);
     expect(JSON.parse(json.captured.out.join("\n")).database.healthy).toBe(false);
+    // Older APIs without the agents/features fields still work.
+    const older = fakeApi({
+      "GET /health": () => ({
+        body: {
+          status: "ok",
+          version: "0.1.0",
+          uptimeSeconds: 1,
+          database: { kind: "pglite", location: "pglite:memory", healthy: true },
+        },
+      }),
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+      "GET /api/v1/traces/facets": () => ({
+        body: { projects: [], agents: [], tags: [], tools: [] },
+      }),
+    });
+    expect(await runWith(older, ["status"])).toBe(0);
+    expect(older.captured.out.join("\n")).toContain("no replayable agents registered");
   });
 
   it("returns a usage exit code for unknown commands", async () => {

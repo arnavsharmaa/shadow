@@ -217,7 +217,7 @@ export async function buildApp(options: BuildAppOptions) {
       .send({ error: { code: "internal_error", message: "internal server error", requestId } });
   });
 
-  await app.register(healthRoutes);
+  await app.register(healthRoutes, { config: options.config });
   await app.register(projectRoutes, { prefix: "/api/v1" });
   await app.register(traceRoutes, { prefix: "/api/v1" });
   await app.register(branchRoutes, { prefix: "/api/v1" });

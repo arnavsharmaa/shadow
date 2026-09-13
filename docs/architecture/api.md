@@ -83,9 +83,19 @@ Returns `200` when the database answers, `503` otherwise.
   "status": "ok",
   "version": "0.1.0",
   "uptimeSeconds": 42,
-  "database": { "kind": "pglite", "location": "pglite:/…/.shadow/data", "healthy": true }
+  "database": { "kind": "pglite", "location": "pglite:/…/.shadow/data", "healthy": true },
+  "agents": { "replayable": ["refund-agent", "inventory-agent"] },
+  "features": {
+    "auth": false,
+    "retention": { "enabled": true, "days": 30, "intervalMinutes": 60 },
+    "otlp": { "path": "/api/v1/otlp/v1/traces", "defaultProject": "otel" }
+  }
 }
 ```
+
+`agents.replayable` lists the agent slugs with a registered program (bundled scenarios plus
+`SHADOW_REPLAY_MODULES`), so a client can tell before forking whether replay is possible.
+`features` reflects the server configuration without exposing secrets.
 
 ## Projects and agents
 

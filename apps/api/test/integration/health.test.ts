@@ -28,6 +28,45 @@ describe("health and error envelope", () => {
     expect(response.headers["x-request-id"]).toMatch(/^req_[a-f0-9]{20}$/);
   });
 
+  it("GET /health lists replayable agents and enabled features", async () => {
+    const body = json<{
+      agents: { replayable: string[] };
+      features: {
+        auth: boolean;
+        retention: { enabled: boolean; days?: number; intervalMinutes?: number };
+        otlp: { path: string; defaultProject: string };
+      };
+    }>(await t.app.inject({ method: "GET", url: "/health" }));
+    expect(body.agents.replayable).toContain("refund-agent");
+    expect(body.agents.replayable).toEqual([...body.agents.replayable].sort());
+    expect(body.features).toEqual({
+      auth: false,
+      retention: { enabled: false },
+      otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+    });
+
+    const configured = await createTestApp({
+      env: {
+        SHADOW_API_TOKEN: "secret",
+        SHADOW_RETENTION_DAYS: "30",
+        SHADOW_RETENTION_INTERVAL_MINUTES: "15",
+        SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
+      },
+    });
+    try {
+      const enabled = json<{ features: Record<string, unknown> }>(
+        await configured.app.inject({ method: "GET", url: "/health" }),
+      );
+      expect(enabled.features).toEqual({
+        auth: true,
+        retention: { enabled: true, days: 30, intervalMinutes: 15 },
+        otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "ingest" },
+      });
+    } finally {
+      await configured.close();
+    }
+  });
+
   it("returns the not_found envelope for unknown routes", async () => {
     const response = await t.app.inject({ method: "GET", url: "/api/v1/nothing-here" });
     expect(response.statusCode).toBe(404);

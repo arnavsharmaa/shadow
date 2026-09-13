@@ -50,6 +50,8 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- `GET /health` reports the replayable agent slugs and which features are enabled (auth,
+  retention, OTLP ingestion); `shadow status` prints them.
 - `shadow status` CLI command: API health, database backend and trace/project/agent counts.
 - "Copy link" button in the event inspector for permalinks to a selected event and branch.
 - Repository metadata (`repository`, `homepage`, `bugs`, `keywords`) in every package manifest and a

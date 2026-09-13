@@ -81,6 +81,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         version: string;
         uptimeSeconds: number;
         database: { kind: string; location: string; healthy: boolean };
+        agents?: { replayable: string[] };
+        features?: {
+          auth: boolean;
+          retention: { enabled: boolean; days?: number; intervalMinutes?: number };
+          otlp: { path: string; defaultProject: string };
+        };
       }>("/health");
       const traces = await api.get<Page<TraceSummary>>("/api/v1/traces", { limit: 1 });
       const facets = await api.get<{
@@ -98,6 +104,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         projects: facets.projects.length,
         agents: facets.agents.length,
         tools: facets.tools.length,
+        replayable: health.agents?.replayable ?? [],
+        features: health.features,
       };
       if (opts.json) {
         json(summary);
@@ -111,6 +119,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         out(
           `  traces    ${summary.traces} across ${summary.projects} project(s) and ${summary.agents} agent(s); ${summary.tools} distinct tool(s)`,
         );
+        out(
+          `  replay    ${summary.replayable.length > 0 ? summary.replayable.join(", ") : "no replayable agents registered"}`,
+        );
+        if (summary.features) {
+          const retention = summary.features.retention.enabled
+            ? `retention ${summary.features.retention.days}d every ${summary.features.retention.intervalMinutes}m`
+            : "retention off";
+          out(
+            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; otlp at ${summary.features.otlp.path}`,
+          );
+        }
       }
       if (summary.status !== "ok")
         throw new CliError("the API reports a degraded status", EXIT.error);

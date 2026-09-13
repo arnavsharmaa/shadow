@@ -1,5 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import type { ApiConfig } from "../../config.js";
 import { API_VERSION } from "../app.js";
 
 const healthSchema = z.object({
@@ -7,15 +8,39 @@ const healthSchema = z.object({
   version: z.string(),
   uptimeSeconds: z.number(),
   database: z.object({ kind: z.string(), location: z.string(), healthy: z.boolean() }),
+  /** Agents with a registered program, i.e. forkable and replayable. */
+  agents: z.object({ replayable: z.array(z.string()) }),
+  features: z.object({
+    /** Whether /api/* requires a bearer token. */
+    auth: z.boolean(),
+    retention: z.object({
+      enabled: z.boolean(),
+      days: z.number().optional(),
+      intervalMinutes: z.number().optional(),
+    }),
+    otlp: z.object({ path: z.string(), defaultProject: z.string() }),
+  }),
 });
 
-export const healthRoutes: FastifyPluginAsyncZod = async (app) => {
+export interface HealthRouteOptions {
+  config: Pick<
+    ApiConfig,
+    | "SHADOW_API_TOKEN"
+    | "SHADOW_RETENTION_DAYS"
+    | "SHADOW_RETENTION_INTERVAL_MINUTES"
+    | "SHADOW_OTLP_DEFAULT_PROJECT"
+  >;
+}
+
+export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (app, options) => {
   const started = Date.now();
+  const { config } = options;
   app.get(
     "/health",
     { schema: { tags: ["health"], response: { 200: healthSchema, 503: healthSchema } } },
     async (_request, reply) => {
       const healthy = await app.services.handle.ping();
+      const retentionDays = config.SHADOW_RETENTION_DAYS;
       const body = {
         status: healthy ? ("ok" as const) : ("degraded" as const),
         version: API_VERSION,
@@ -24,6 +49,27 @@ export const healthRoutes: FastifyPluginAsyncZod = async (app) => {
           kind: app.services.handle.kind,
           location: app.services.handle.location,
           healthy,
+        },
+        agents: {
+          replayable: app.services.registry
+            .list()
+            .map((d) => d.slug)
+            .sort(),
+        },
+        features: {
+          auth: config.SHADOW_API_TOKEN !== undefined,
+          retention:
+            retentionDays === undefined
+              ? { enabled: false }
+              : {
+                  enabled: true,
+                  days: retentionDays,
+                  intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
+                },
+          otlp: {
+            path: "/api/v1/otlp/v1/traces",
+            defaultProject: config.SHADOW_OTLP_DEFAULT_PROJECT,
+          },
         },
       };
       return reply.status(healthy ? 200 : 503).send(body);
