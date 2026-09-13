@@ -50,6 +50,8 @@ describe("convertOtlpTraces", () => {
       "model.response:shadow-sim-large",
       "tool.request:refund_order",
       "context.added:refundLimit",
+      "state.patch:/selectedOrderId",
+      "state.patch:state.patch",
       "policy.evaluated:refund.autonomous_limit",
       "otel.span_started:compute",
       "otel.span_ended:compute",
@@ -98,17 +100,28 @@ describe("convertOtlpTraces", () => {
     });
     expect(events[5]?.output).toEqual({ key: "refundLimit", value: 100 });
     expect(events[6]?.output).toEqual({
+      ops: [{ op: "add", path: "/selectedOrderId", value: "ord_5001" }],
+    });
+    expect(events[7]?.output).toEqual({
+      ops: [
+        { op: "add", path: "/refund", value: { amount: 480, status: "pending" } },
+        { op: "replace", path: "/refund/status", value: "processed" },
+      ],
+    });
+    // The malformed patch (unknown op) is dropped rather than failing the import.
+    expect(events.filter((e) => e.eventType === "state.patch")).toHaveLength(2);
+    expect(events[8]?.output).toEqual({
       policy: "refund.autonomous_limit",
       decision: "deny",
       reason: "amount above limit",
       subject: { amount: 480 },
     });
-    expect(events[6]?.severity).toBe("warn");
-    expect(events[6]?.parentEventId).toBe(toolRequest?.id);
-    expect(events[7]?.parentEventId).toBe(toolRequest?.id);
-    expect(events[9]?.output).toEqual({ result: { status: "processed", refundId: "rf_5001" } });
+    expect(events[8]?.severity).toBe("warn");
+    expect(events[8]?.parentEventId).toBe(toolRequest?.id);
+    expect(events[9]?.parentEventId).toBe(toolRequest?.id);
+    expect(events[11]?.output).toEqual({ result: { status: "processed", refundId: "rf_5001" } });
 
-    expect(events[10]?.input).toEqual({
+    expect(events[12]?.input).toEqual({
       tool: "POST /email",
       arguments: {
         "http.request.method": "POST",
@@ -116,13 +129,13 @@ describe("convertOtlpTraces", () => {
         "http.response.status_code": 502,
       },
     });
-    expect(events[11]?.output).toEqual({ error: { message: "bad gateway", code: "502" } });
-    expect(events[11]?.severity).toBe("error");
+    expect(events[13]?.output).toEqual({ error: { message: "bad gateway", code: "502" } });
+    expect(events[13]?.severity).toBe("error");
 
-    expect(events[13]?.output).toEqual({
+    expect(events[15]?.output).toEqual({
       outcome: { kind: "error", label: "Failed: refund exceeded limit" },
     });
-    expect(events[13]?.timestamp).toBe("2026-09-01T09:12:08.000Z");
+    expect(events[15]?.timestamp).toBe("2026-09-01T09:12:08.000Z");
     const otel = (events[2]?.metadata as { otel: Record<string, unknown> }).otel;
     expect(otel).toMatchObject({
       traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
@@ -173,6 +186,24 @@ describe("convertOtlpTraces", () => {
                 }),
                 span({
                   traceId: "aa",
+                  spanId: "s1",
+                  parentSpanId: "r1",
+                  name: "restore",
+                  startTimeUnixNano: ms(5),
+                  endTimeUnixNano: ms(6),
+                  events: [
+                    {
+                      name: "shadow.state.snapshot",
+                      attributes: [
+                        kv("state", { step: "resume" }),
+                        kv("context", { customerId: "cus_1" }),
+                      ],
+                    },
+                    { name: "shadow.state.snapshot", attributes: [kv("state", "not an object")] },
+                  ],
+                }),
+                span({
+                  traceId: "aa",
                   spanId: "m2",
                   parentSpanId: "r1",
                   name: "chat",
@@ -202,6 +233,9 @@ describe("convertOtlpTraces", () => {
       "trace.started",
       "agent.started",
       "otel.span_started",
+      "otel.span_started",
+      "state.snapshot",
+      "otel.span_ended",
       "model.request",
       "model.response",
       "model.request",
@@ -212,16 +246,17 @@ describe("convertOtlpTraces", () => {
     ]);
     expect(a[2]?.parentEventId).toBe("evt_otel_aa_agent_start");
     expect(a[2]?.parentSpanId).toBe("spn_aa_agent");
-    expect(a[3]?.input).toMatchObject({
+    expect(a[4]?.output).toEqual({ state: { step: "resume" }, context: { customerId: "cus_1" } });
+    expect(a[6]?.input).toMatchObject({
       provider: "openai",
       model: "gpt-x",
       messages: [{ role: "user", content: "hi" }],
     });
-    expect(a[4]?.output).toEqual({ message: { role: "assistant", content: "hello" } });
-    expect((a[5]?.metadata as { otel: { contentMissing?: boolean } }).otel.contentMissing).toBe(
+    expect(a[7]?.output).toEqual({ message: { role: "assistant", content: "hello" } });
+    expect((a[8]?.metadata as { otel: { contentMissing?: boolean } }).otel.contentMissing).toBe(
       true,
     );
-    expect(a[9]?.output).toEqual({ outcome: { kind: "completed", label: "Completed" } });
+    expect(a[12]?.output).toEqual({ outcome: { kind: "completed", label: "Completed" } });
 
     const b = traces[1]?.events ?? [];
     expect(b.map((e) => e.eventType)).toEqual([

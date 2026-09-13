@@ -2,7 +2,7 @@
 
 > **Status: OTLP/HTTP JSON ingestion is implemented** (`POST /api/v1/otlp/v1/traces`); the
 > mapping below is what the importer does today. Not yet implemented: the protobuf encoding,
-> OTLP/gRPC, the reverse exporter, and the `shadow.state.*` span events. Traces imported this way
+> OTLP/gRPC and the reverse exporter. Traces imported this way
 > can be inspected, searched, exported and compared, but not forked and replayed (there is no
 > program to re-run).
 
@@ -111,12 +111,15 @@ OpenTelemetry has no notion of agent state. The proposal reserves attributes so 
 code can opt in:
 
 - span event `shadow.context.set` with attributes `key` and `value` (JSON) -> `context.added`;
-- span event `shadow.state.patch` with `ops` (JSON) -> `state.patch`;
+- span event `shadow.state.set` with `path` (JSON pointer) and `value` -> `state.patch`;
+- span event `shadow.state.patch` with `ops` (JSON, RFC 6902 `add`/`replace`/`remove`) ->
+  `state.patch`;
 - span event `shadow.state.snapshot` with `state` and `context` (JSON) -> `state.snapshot`.
 
-`shadow.context.set`, `shadow.context.remove` and `shadow.policy.evaluated` are implemented;
-the `shadow.state.*` events are not yet. Without them, OTLP-imported traces have empty state and
-context.
+All of these are implemented, plus `shadow.state.set` with `path` and `value` (a single `add`
+operation) as a convenience. Values arrive as JSON strings and are parsed; malformed patches
+(unknown operations, invalid pointers) are dropped rather than failing the export. Without these
+events, OTLP-imported traces have empty state and context.
 
 ### Policies and approvals
 

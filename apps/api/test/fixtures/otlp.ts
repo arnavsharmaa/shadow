@@ -102,6 +102,26 @@ export function refundPayload(): OtlpTracesPayload {
                     name: "shadow.context.set",
                     attributes: [kv("key", "refundLimit"), kv("value", 100)],
                   },
+                  {
+                    timeUnixNano: ms(1020),
+                    name: "shadow.state.set",
+                    attributes: [kv("path", "/selectedOrderId"), kv("value", "ord_5001")],
+                  },
+                  {
+                    timeUnixNano: ms(1030),
+                    name: "shadow.state.patch",
+                    attributes: [
+                      kv("ops", [
+                        { op: "add", path: "/refund", value: { amount: 480, status: "pending" } },
+                        { op: "replace", path: "/refund/status", value: "processed" },
+                      ]),
+                    ],
+                  },
+                  {
+                    timeUnixNano: ms(1040),
+                    name: "shadow.state.patch",
+                    attributes: [kv("ops", [{ op: "teleport", path: "/x" }])],
+                  },
                 ],
               }),
               span({

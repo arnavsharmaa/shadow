@@ -1,11 +1,13 @@
-import type {
-  IngestEventInput,
-  JsonObject,
-  JsonValue,
-  ModelMessage,
-  Outcome,
-  TokenUsage,
+import {
+  patchOperationSchema,
+  type IngestEventInput,
+  type JsonObject,
+  type JsonValue,
+  type ModelMessage,
+  type Outcome,
+  type TokenUsage,
 } from "@shadow/schemas";
+import { z } from "zod";
 
 /**
  * OTLP/HTTP JSON encoding of ExportTraceServiceRequest (the subset Shadow reads).
@@ -385,7 +387,13 @@ function mapSpan(span: OtlpSpan, attrs: JsonObject, agentSlug: string): Mapped {
   };
 }
 
-/** Shadow-specific span events that opt in to context and policy recording. */
+const patchOperationsSchema = z.array(patchOperationSchema).max(10_000);
+
+function isObject(value: JsonValue | undefined): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Shadow-specific span events that opt in to state, context and policy recording. */
 function reservedEvents(
   span: OtlpSpan,
   spanId: string,
@@ -426,6 +434,53 @@ function reservedEvents(
           output: { key: attrs.key },
         },
       });
+    } else if (spanEvent.name === "shadow.state.set" && typeof attrs.path === "string") {
+      const op = patchOperationSchema.safeParse({
+        op: "add",
+        path: attrs.path,
+        value: parseJson(attrs.value) ?? null,
+      });
+      if (op.success) {
+        out.push({
+          at,
+          event: {
+            ...base,
+            eventType: "state.patch",
+            name: attrs.path,
+            output: { ops: [op.data] },
+          },
+        });
+      }
+    } else if (spanEvent.name === "shadow.state.patch") {
+      const ops = patchOperationsSchema.safeParse(parseJson(attrs.ops));
+      if (ops.success && ops.data.length > 0) {
+        out.push({
+          at,
+          event: {
+            ...base,
+            eventType: "state.patch",
+            name: "state.patch",
+            output: { ops: ops.data },
+          },
+        });
+      }
+    } else if (spanEvent.name === "shadow.state.snapshot") {
+      const state = parseJson(attrs.state);
+      const context = parseJson(attrs.context);
+      if (isObject(state) || isObject(context)) {
+        out.push({
+          at,
+          event: {
+            ...base,
+            eventType: "state.snapshot",
+            name: "state.snapshot",
+            output: {
+              state: isObject(state) ? state : {},
+              context: isObject(context) ? context : {},
+            },
+          },
+        });
+      }
     } else if (spanEvent.name === "shadow.policy.evaluated" && typeof attrs.policy === "string") {
       const decision = attrs.decision;
       if (decision === "allow" || decision === "deny" || decision === "approval_required") {

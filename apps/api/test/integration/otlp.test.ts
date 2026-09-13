@@ -30,7 +30,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
             traceId: TRACE_ID,
             otelTraceId: "4bf92f3577b34da6a3ce929d0e0e4736",
             created: true,
-            accepted: 14,
+            accepted: 16,
             skipped: 0,
           },
         ],
@@ -52,7 +52,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     });
     expect(detail.trace.outcome).toEqual({ kind: "error", label: "Failed: refund exceeded limit" });
     expect(detail.trace.metrics).toMatchObject({
-      eventCount: 14,
+      eventCount: 16,
       modelCalls: 1,
       toolCalls: 2,
       toolErrors: 1,
@@ -76,13 +76,17 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     );
 
     // Context from the reserved span event is visible in reconstructed state.
-    const state = json<{ context: Record<string, unknown> }>(
+    const state = json<{ context: Record<string, unknown>; state: Record<string, unknown> }>(
       await t.app.inject({
         method: "GET",
         url: `/api/v1/branches/${detail.trace.rootBranchId}/state`,
       }),
     );
     expect(state.context).toEqual({ refundLimit: 100 });
+    expect(state.state).toEqual({
+      selectedOrderId: "ord_5001",
+      refund: { amount: 480, status: "processed" },
+    });
   });
 
   it("ignores re-sent spans and appends late spans without a second lifecycle", async () => {
@@ -94,7 +98,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     expect(
       json<{ shadow: { traces: { created: boolean; accepted: number; skipped: number }[] } }>(again)
         .shadow.traces[0],
-    ).toEqual(expect.objectContaining({ created: false, accepted: 0, skipped: 12 }));
+    ).toEqual(expect.objectContaining({ created: false, accepted: 0, skipped: 14 }));
 
     const late = refundPayload();
     const scope = late.resourceSpans?.[0]?.scopeSpans?.[0];
@@ -124,7 +128,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
       await t.app.inject({ method: "GET", url: `/api/v1/traces/${TRACE_ID}` }),
     );
     const events = await listAllEvents(t, TRACE_ID, { branchId: detail.trace.rootBranchId });
-    expect(events).toHaveLength(16);
+    expect(events).toHaveLength(18);
     expect(events.filter((e: ShadowEvent) => e.eventType.startsWith("trace."))).toHaveLength(2);
     const lateEvents = events.filter((e: ShadowEvent) => e.name === "audit_log");
     expect(lateEvents.map((e: ShadowEvent) => e.eventType)).toEqual([
