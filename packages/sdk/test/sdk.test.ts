@@ -275,6 +275,34 @@ describe("Shadow SDK", () => {
     });
   });
 
+  it("reads project, agent and the enabled flag from the environment", async () => {
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_PROJECT = "env-project";
+      process.env.SHADOW_AGENT = "env-agent";
+      delete process.env.SHADOW_ENABLED;
+      const transport = new MemoryTransport();
+      const shadow = new Shadow({ transport, flushIntervalMs: 0 });
+      const trace = shadow.startTrace({ name: "t" });
+      await trace.end();
+      expect(transport.traces[0]).toMatchObject({ project: "env-project", agent: "env-agent" });
+
+      process.env.SHADOW_ENABLED = "false";
+      const off = new Shadow({ project: "p", agent: "a", transport, flushIntervalMs: 0 });
+      expect(off.enabled).toBe(false);
+      const explicit = new Shadow({ project: "p", agent: "a", transport, enabled: true });
+      expect(explicit.enabled).toBe(true);
+      process.env.SHADOW_ENABLED = "yes";
+      expect(new Shadow({ project: "p", agent: "a", transport }).enabled).toBe(true);
+
+      delete process.env.SHADOW_PROJECT;
+      process.env.SHADOW_PROJECT = "  ";
+      expect(() => new Shadow({ transport })).toThrow(/SHADOW_PROJECT/);
+    } finally {
+      process.env = saved;
+    }
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({

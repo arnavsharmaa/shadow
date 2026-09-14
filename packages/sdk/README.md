@@ -98,7 +98,11 @@ the outcome `trace.run()` returned) are sent immediately.
 - The HTTP transport retries network errors and 5xx responses with exponential backoff. Failures are reported through `onError` (default: one console warning) and **never throw into agent code**.
 - Sensitive keys (`password`, `api_key`, `authorization`, `secret`, `token`, `cookie`, …) are redacted before events leave the process. Add patterns with `redact: { keyPatterns: [...] }` or disable with `redact: false` (the server redacts again).
 - A full state snapshot is emitted every `snapshotEvery` mutations (default 25) so state can be reconstructed quickly.
-- `enabled: false` turns the SDK into a no-op.
+- `enabled: false` turns the SDK into a no-op; so does `SHADOW_ENABLED=false` (or `0`, `no`,
+  `off`) in the environment, which lets a deployment switch recording off without a code change.
+- `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
+  `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
+  configuration.
 - `MemoryTransport` keeps events in memory for tests; implement `Transport` for custom destinations.
 
 ## Replay

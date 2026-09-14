@@ -4,9 +4,9 @@ import { Trace } from "./trace.js";
 import { HttpTransport, NoopTransport, type Transport } from "./transport.js";
 
 export interface ShadowOptions {
-  /** Project slug traces are recorded under. Created on first use. */
-  project: string;
-  /** Default agent slug for traces started from this client. */
+  /** Project slug traces are recorded under (default: `SHADOW_PROJECT` env). Created on first use. */
+  project?: string;
+  /** Default agent slug for traces started from this client (default: `SHADOW_AGENT` env). */
   agent?: string;
   /** Shadow API base URL. Defaults to `SHADOW_ENDPOINT` or http://localhost:4000. */
   endpoint?: string;
@@ -25,7 +25,10 @@ export interface ShadowOptions {
   redact?: RedactOptions | false;
   /** Emit a full state snapshot every N mutations (default 25; 0 disables). */
   snapshotEvery?: number;
-  /** Disable recording entirely (no events are produced or sent). */
+  /**
+   * Disable recording entirely (no events are produced or sent). Defaults to the
+   * `SHADOW_ENABLED` env: `0`, `false`, `no` or `off` disable the SDK.
+   */
   enabled?: boolean;
 }
 
@@ -41,7 +44,13 @@ export interface StartTraceOptions {
 function readEnv(name: string): string | undefined {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
     ?.env;
-  return env?.[name];
+  const value = env?.[name];
+  return value !== undefined && value.trim() !== "" ? value.trim() : undefined;
+}
+
+function envEnabled(): boolean {
+  const value = readEnv("SHADOW_ENABLED")?.toLowerCase();
+  return !(value === "0" || value === "false" || value === "no" || value === "off");
 }
 
 /** Entry point of the SDK: configures the transport and starts traces. */
@@ -51,11 +60,17 @@ export class Shadow {
   private readonly active = new Set<Trace>();
   private warned = false;
 
-  constructor(options: ShadowOptions) {
-    if (!options.project) throw new Error("Shadow requires a project slug");
-    this.options = options;
+  constructor(options: ShadowOptions = {}) {
+    const project = options.project ?? readEnv("SHADOW_PROJECT");
+    if (!project) throw new Error("Shadow requires a project slug (option or SHADOW_PROJECT)");
+    this.options = {
+      ...options,
+      project,
+      agent: options.agent ?? readEnv("SHADOW_AGENT"),
+      enabled: options.enabled ?? envEnabled(),
+    };
     this.transport =
-      options.enabled === false
+      this.options.enabled === false
         ? new NoopTransport()
         : (options.transport ??
           new HttpTransport({
@@ -87,7 +102,7 @@ export class Shadow {
         : createRedactor(this.options.redact ?? {});
     const trace = new Trace(this.transport, {
       name: input.name,
-      project: this.options.project,
+      project: this.options.project as string,
       agent,
       id: input.id,
       metadata: input.metadata,

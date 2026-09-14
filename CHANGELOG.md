@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- SDK: `SHADOW_PROJECT`, `SHADOW_AGENT` and `SHADOW_ENABLED` environment defaults, so
+  `new Shadow()` can be configured entirely from the environment and recording switched off
+  per deployment.
 - `shadow traces list` gains `--from`, `--to` (ISO timestamps or relative ages such as `7d`),
   `--min-cost`, `--min-duration`, `--sort` and `--order`, matching the API's filters.
 - `GET /metrics`: Prometheus exposition of HTTP request counts and latencies, traces created,
