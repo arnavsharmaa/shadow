@@ -275,6 +275,45 @@ describe("shadow cli", () => {
     });
     expect(await runWith(json, ["traces", "list", "--json"])).toBe(0);
     expect(JSON.parse(json.captured.out.join("\n")).items[0].id).toBe("trc_1");
+
+    const ranged = fakeApi({
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+    });
+    expect(
+      await runWith(ranged, [
+        "traces",
+        "list",
+        "--from",
+        "2026-09-01",
+        "--to",
+        "2026-09-02T00:00:00Z",
+        "--min-cost",
+        "0.5",
+        "--min-duration",
+        "1500",
+        "--sort",
+        "totalEstimatedCost",
+        "--order",
+        "asc",
+      ]),
+    ).toBe(0);
+    const params = new URL(ranged.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("from")).toBe("2026-09-01T00:00:00.000Z");
+    expect(params.get("to")).toBe("2026-09-02T00:00:00.000Z");
+    expect(params.get("minCost")).toBe("0.5");
+    expect(params.get("minDurationMs")).toBe("1500");
+    expect(params.get("sort")).toBe("totalEstimatedCost");
+    expect(params.get("order")).toBe("asc");
+    expect(ranged.captured.out.join("\n")).toContain("no traces found");
+
+    const relative = fakeApi({
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+    });
+    expect(await runWith(relative, ["traces", "list", "--from", "7d"])).toBe(0);
+    const from = new URL(relative.captured.calls[0]?.url ?? "").searchParams.get("from") ?? "";
+    expect(Date.now() - Date.parse(from)).toBeGreaterThan(6.9 * 86_400_000);
+    expect(await runWith(fakeApi({}), ["traces", "list", "--sort", "cost"])).toBe(2);
+    expect(await runWith(fakeApi({}), ["traces", "list", "--min-cost", "-1"])).toBe(2);
   });
 
   it("inspects a trace with an indented event tree", async () => {

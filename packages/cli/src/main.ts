@@ -215,6 +215,25 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--tag <tag>", "filter by tag")
     .option("--tool <name>", "traces that called a tool")
     .option("-q, --query <text>", "free-text search")
+    .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
+    .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
+    .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option(
+      "--sort <field>",
+      "startedAt | durationMs | totalEstimatedCost | totalTokens | name",
+      (value: string) => {
+        const fields = ["startedAt", "durationMs", "totalEstimatedCost", "totalTokens", "name"];
+        if (!fields.includes(value))
+          throw new InvalidArgumentError(`expected one of ${fields.join(", ")}`);
+        return value;
+      },
+    )
+    .option("--order <direction>", "asc | desc", (value: string) => {
+      if (value !== "asc" && value !== "desc")
+        throw new InvalidArgumentError("expected asc or desc");
+      return value;
+    })
     .option("--limit <n>", "maximum rows", positiveInt, 25)
     .option("--json", "print JSON instead of a table")
     .action(
@@ -225,6 +244,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         tag?: string;
         tool?: string;
         query?: string;
+        from?: string;
+        to?: string;
+        minCost?: number;
+        minDuration?: number;
+        sort?: string;
+        order?: string;
         limit: number;
         json?: boolean;
       }) => {
@@ -235,6 +260,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           tag: opts.tag,
           tool: opts.tool,
           q: opts.query,
+          from: opts.from,
+          to: opts.to,
+          minCost: opts.minCost,
+          minDurationMs: opts.minDuration,
+          sort: opts.sort,
+          order: opts.order,
           limit: opts.limit,
         });
         if (opts.json) return json(page);
@@ -491,13 +522,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .requiredOption(
       "--before <cutoff>",
       "ISO timestamp or relative age such as 30d, 12h, 2w",
-      (value: string) => {
-        try {
-          return parseCutoff(value);
-        } catch (error) {
-          throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
-        }
-      },
+      cutoff,
     )
     .option("--project <slug>", "only this project")
     .option("--agent <slug>", "only this agent")
@@ -938,6 +963,22 @@ function artifactText(artifact: Artifact): string {
   return typeof artifact.content === "string"
     ? artifact.content
     : JSON.stringify(artifact.content, null, 2);
+}
+
+function nonNegative(value: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0)
+    throw new InvalidArgumentError("expected a non-negative number");
+  return n;
+}
+
+/** Commander parser for cutoff options: ISO timestamps or relative ages. */
+function cutoff(value: string): string {
+  try {
+    return parseCutoff(value);
+  } catch (error) {
+    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function positiveInt(value: string): number {

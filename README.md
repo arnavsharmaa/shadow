@@ -189,6 +189,7 @@ shadow --version
 shadow --help
 shadow status
 shadow traces list --project support-agent --status failed
+shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow traces inspect trc_demo_refund_violation
 shadow traces inspect trc_demo_refund_violation --grep refund_order
 shadow events show trc_demo_refund_violation <eventId>
