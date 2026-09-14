@@ -112,7 +112,8 @@ is welcome through GitHub issues; integration proposals have their own
 
 - Scalable storage path: table partitioning by time and project, hot/cold tiers, object-storage
   offload for large payloads (see [ADR 0004](./docs/adr/0004-postgres-initial-storage.md)).
-- Metrics and dashboards: per-agent cost, latency, error and policy-violation trends.
+- Metrics and dashboards: per-agent cost, latency, error and policy-violation trends (the API
+  already exposes operational counters and gauges at `GET /metrics`).
 - Alerting on anomalies in cost, tool failures and policy decisions.
 - Sampling and rate limiting on ingestion.
 - Real pricing tables and per-provider cost providers; the bundled `shadow-sim` pricing remains

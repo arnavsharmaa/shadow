@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- `GET /metrics`: Prometheus exposition of HTTP request counts and latencies, traces created,
+  events ingested by source, forks, replays by status, comparisons, OTLP requests, pruned traces
+  and storage gauges. Protected by the bearer token when one is configured.
 - Comparison history: a "Comparisons" tab on the trace detail lists saved comparisons with
   their outcome change and first divergence, and `shadow comparisons list <traceId>` /
   `shadow comparisons show <comparisonId>` do the same from the CLI.

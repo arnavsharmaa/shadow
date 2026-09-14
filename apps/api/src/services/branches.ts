@@ -196,6 +196,7 @@ export async function createForkForTrace(
       .set({ branchCount: all.length + 1, updatedAt: iso(new Date(ctx.clock.now())) })
       .where(eq(traces.id, trace.id));
   });
+  ctx.metrics.forks.inc();
   return { branch: created.branch, fork: created.fork };
 }
 
@@ -313,6 +314,7 @@ export async function runReplay(
       .set({ status: outcome.branchStatus, outcome: outcome.outcome, updatedAt: completedAt })
       .where(eq(branches.id, branchId));
   });
+  ctx.metrics.replays.inc({ status: outcome.status });
   if (outcome.status === "failed") log.error({ error: outcome.error }, "replay failed");
   else
     log.info({ events: outcome.events.length, outcome: outcome.outcome?.kind }, "replay completed");

@@ -33,6 +33,7 @@ export async function importOtlpTraces(
 ): Promise<OtlpImportResult> {
   const converted = convertOtlpTraces(payload, options);
   const result: OtlpImportResult = { traces: [] };
+  ctx.metrics.otlpRequests.inc();
   for (const trace of converted) {
     const [existing] = await ctx.handle.db
       .select({ id: traces.id })
@@ -41,15 +42,19 @@ export async function importOtlpTraces(
       .limit(1);
     let batch: IngestEventInput[] = trace.events;
     if (!existing) {
-      await createTrace(ctx, {
-        id: trace.traceId,
-        project: trace.project,
-        agent: trace.agent,
-        name: trace.name,
-        startedAt: trace.startedAt,
-        tags: ["otel"],
-        metadata: { otel: { traceId: trace.otelTraceId, semconv: OTEL_SEMCONV } },
-      });
+      await createTrace(
+        ctx,
+        {
+          id: trace.traceId,
+          project: trace.project,
+          agent: trace.agent,
+          name: trace.name,
+          startedAt: trace.startedAt,
+          tags: ["otel"],
+          metadata: { otel: { traceId: trace.otelTraceId, semconv: OTEL_SEMCONV } },
+        },
+        { source: "otlp" },
+      );
     } else {
       batch = batch
         .filter((e) => !e.eventType.startsWith("trace.") && !e.id?.includes("_agent_"))

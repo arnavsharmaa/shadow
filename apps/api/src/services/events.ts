@@ -271,6 +271,7 @@ export async function ingestEvents(
     mergeMetrics(toMetrics(branchRow.metrics), aggregateMetrics(inserted)),
   );
   await updateSearchText(ctx, trace, inserted);
+  for (const event of inserted) ctx.metrics.eventsIngested.inc({ source: event.source });
   return { events: inserted, branch };
 }
 

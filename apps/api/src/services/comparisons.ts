@@ -43,6 +43,7 @@ export async function createComparison(
     createdAt: iso(new Date(ctx.clock.now())),
   };
   await ctx.handle.db.insert(comparisons).values(row);
+  ctx.metrics.comparisons.inc({ kind: crossTrace ? "cross_trace" : "branch" });
   return toComparison({ ...row, result });
 }
 

@@ -7,6 +7,7 @@ import {
 } from "@shadow/core";
 import type { Logger } from "pino";
 import type { DatabaseHandle } from "../db/client.js";
+import { ShadowMetrics } from "../metrics/registry.js";
 import type { AgentRegistry } from "../replay/registry.js";
 
 /** Dependencies shared by every service function. */
@@ -17,16 +18,19 @@ export interface ServiceContext {
   ids: IdGenerator;
   clock: Clock;
   redactor: Redactor;
+  /** Process-wide counters rendered by GET /metrics. */
+  metrics: ShadowMetrics;
 }
 
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
-    Partial<Pick<ServiceContext, "ids" | "clock">>,
+    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics">>,
 ): ServiceContext {
   return {
     ...input,
     ids: input.ids ?? randomIdGenerator(),
     clock: input.clock ?? systemClock,
+    metrics: input.metrics ?? new ShadowMetrics(),
   };
 }
 

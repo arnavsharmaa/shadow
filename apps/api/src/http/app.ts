@@ -19,6 +19,7 @@ import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
 import { healthRoutes } from "./routes/health.js";
+import { metricsRoutes } from "./routes/metrics.js";
 import { projectRoutes } from "./routes/projects.js";
 import { traceRoutes } from "./routes/traces.js";
 
@@ -61,7 +62,7 @@ export async function buildApp(options: BuildAppOptions) {
   if (expectedToken) {
     const expectedDigest = createHash("sha256").update(expectedToken).digest();
     app.addHook("onRequest", async (request, reply) => {
-      if (!request.url.startsWith("/api/")) return;
+      if (!request.url.startsWith("/api/") && request.url !== "/metrics") return;
       const header = request.headers.authorization ?? "";
       const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
       const digest = createHash("sha256").update(presented).digest();
@@ -78,6 +79,18 @@ export async function buildApp(options: BuildAppOptions) {
     });
   }
   app.addHook("onResponse", async (request, reply) => {
+    const route = request.routeOptions.url ?? "unmatched";
+    if (route !== "/metrics") {
+      options.services.metrics.httpRequests.inc({
+        method: request.method,
+        route,
+        status: String(reply.statusCode),
+      });
+      options.services.metrics.httpDuration.observe(
+        { method: request.method, route },
+        reply.elapsedTime,
+      );
+    }
     request.log.info(
       {
         requestId: request.id,
@@ -218,6 +231,7 @@ export async function buildApp(options: BuildAppOptions) {
   });
 
   await app.register(healthRoutes, { config: options.config });
+  await app.register(metricsRoutes);
   await app.register(projectRoutes, { prefix: "/api/v1" });
   await app.register(traceRoutes, { prefix: "/api/v1" });
   await app.register(branchRoutes, { prefix: "/api/v1" });

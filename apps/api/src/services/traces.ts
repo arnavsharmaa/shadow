@@ -44,7 +44,7 @@ export async function getTraceSummary(ctx: ServiceContext, traceId: string): Pro
 export async function createTrace(
   ctx: ServiceContext,
   body: CreateTraceBody,
-  options: { rootBranchId?: string } = {},
+  options: { rootBranchId?: string; source?: string } = {},
 ): Promise<Trace> {
   const project = await ensureProject(ctx, { slug: body.project });
   const agent = await ensureAgent(ctx, { projectId: project.id, slug: body.agent });
@@ -97,6 +97,7 @@ export async function createTrace(
     });
     return inserted as TraceRow;
   });
+  ctx.metrics.tracesCreated.inc({ source: options.source ?? "api" });
   return toTrace(row);
 }
 
@@ -266,6 +267,7 @@ export async function pruneTraces(
   const traceIds = rows.slice(0, body.limit).map((r) => r.id);
   if (!body.dryRun && traceIds.length > 0) {
     await ctx.handle.db.delete(traces).where(inArray(traces.id, traceIds));
+    ctx.metrics.pruned.inc({}, traceIds.length);
     ctx.logger.info({ count: traceIds.length, before: body.before }, "pruned traces");
   }
   return { dryRun: body.dryRun, matched: traceIds.length, traceIds, truncated };

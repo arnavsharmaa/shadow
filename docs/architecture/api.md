@@ -21,7 +21,8 @@ detail. Types referenced below (`Trace`, `Branch`, `ShadowEvent`, `Fork`, `Repla
 - Timestamps are ISO 8601 with offset.
 - Every response carries an `x-request-id` header. Clients may send their own `x-request-id`;
   otherwise one is generated (`req_…`). Request ids appear in structured logs and error bodies.
-- Authentication is off by default. With `SHADOW_API_TOKEN` set, every `/api/*` request must
+- Authentication is off by default. With `SHADOW_API_TOKEN` set, every `/api/*` request (and
+  `/metrics`) must
   send `Authorization: Bearer <token>` or receives `401 unauthorized`; `/health`, `/docs` and
   `/openapi.json` stay open (see [SECURITY.md](../../SECURITY.md)).
 - CORS is enabled for the origins in `SHADOW_CORS_ORIGINS` (default the local web app).
@@ -96,6 +97,18 @@ Returns `200` when the database answers, `503` otherwise.
 `agents.replayable` lists the agent slugs with a registered program (bundled scenarios plus
 `SHADOW_REPLAY_MODULES`), so a client can tell before forking whether replay is possible.
 `features` reflects the server configuration without exposing secrets.
+
+### `GET /metrics`
+
+Prometheus text exposition (`text/plain; version=0.0.4`). Counters: `shadow_http_requests_total`
+(`method`, `route`, `status`) with the `shadow_http_request_duration_ms` histogram,
+`shadow_traces_created_total` (`source`), `shadow_events_ingested_total` (`source`),
+`shadow_forks_total`, `shadow_replays_total` (`status`), `shadow_comparisons_total` (`kind`),
+`shadow_otlp_requests_total` and `shadow_traces_pruned_total`. Gauges sampled at scrape time:
+`shadow_traces`, `shadow_branches`, `shadow_events`, `shadow_replayable_agents`, plus
+`process_uptime_seconds`, `process_resident_memory_bytes` and `nodejs_heap_used_bytes`. Counters
+reset when the process restarts. When `SHADOW_API_TOKEN` is set the scrape must carry the bearer
+token (`/health` stays open).
 
 ## Projects and agents
 
