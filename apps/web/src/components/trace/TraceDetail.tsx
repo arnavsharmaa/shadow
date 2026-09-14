@@ -9,6 +9,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, ErrorState, Kbd, Panel, Skeleton } from "../ui/primitives";
 import { BranchGraph } from "./BranchGraph";
+import { ComparisonList } from "./ComparisonList";
 import { EventDetail } from "./EventDetail";
 import { EventTree } from "./EventTree";
 import { ForkDialog } from "./ForkDialog";
@@ -94,7 +95,11 @@ export function TraceDetail({ traceId }: { traceId: string }) {
   }, [events, selectedId, selectEvent]);
 
   const [forkOpen, setForkOpen] = useState(false);
-  const [leftTab, setLeftTab] = useState<"events" | "branches">("events");
+  const [leftTab, setLeftTab] = useState<"events" | "branches" | "comparisons">("events");
+  const comparisons = useQuery({
+    queryKey: ["comparisons", traceId],
+    queryFn: () => api.comparisons(traceId),
+  });
   const [bottomOpen, setBottomOpen] = useState(true);
 
   const selectedIndex = selected ? events.findIndex((e) => e.id === selected.id) : -1;
@@ -152,7 +157,10 @@ export function TraceDetail({ traceId }: { traceId: string }) {
   }, [moveSelection, jumpTo, selected, forkOpen]);
 
   const refreshBranches = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["trace", traceId] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["trace", traceId] }),
+      queryClient.invalidateQueries({ queryKey: ["comparisons", traceId] }),
+    ]);
   }, [queryClient, traceId]);
 
   const updateTags = useCallback(
@@ -210,6 +218,13 @@ export function TraceDetail({ traceId }: { traceId: string }) {
               >
                 Branches ({branches.length})
               </TabButton>
+              <TabButton
+                active={leftTab === "comparisons"}
+                onClick={() => setLeftTab("comparisons")}
+                testId="tab-comparisons"
+              >
+                Comparisons{comparisons.data ? ` (${comparisons.data.items.length})` : ""}
+              </TabButton>
             </span>
           }
           actions={
@@ -237,7 +252,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
                 forkSequence={branch?.forkSequence ?? null}
               />
             )
-          ) : (
+          ) : leftTab === "branches" ? (
             <BranchGraph
               trace={detail.data.trace}
               branches={branches}
@@ -246,6 +261,8 @@ export function TraceDetail({ traceId }: { traceId: string }) {
               onSelectBranch={selectBranch}
               onChanged={refreshBranches}
             />
+          ) : (
+            <ComparisonList traceId={traceId} />
           )}
         </Panel>
         <Panel

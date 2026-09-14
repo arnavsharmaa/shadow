@@ -305,6 +305,18 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("replay-unavailable-badge")).toHaveCount(0);
   });
 
+  test("saved comparisons are listed on the trace", async ({ page }) => {
+    await openRefundTrace(page);
+    await page.getByTestId("tab-comparisons").click();
+    const rows = page.locator('[data-testid="comparison-row"]');
+    await expect(rows.first()).toBeVisible();
+    await expect(page.getByTestId("tab-comparisons")).toContainText(/\(\d+\)/);
+    await expect(rows.first().getByTestId("comparison-divergence")).toContainText("diverges");
+    await rows.first().getByTestId("comparison-link").click();
+    await expect(page.getByTestId("comparison-view")).toBeVisible();
+    await expect(page).toHaveURL(/compare\?comparison=cmp_/);
+  });
+
   test("two traces can be compared from the explorer", async ({ page }) => {
     await page.goto("/");
     const rows = page.locator('[data-testid="trace-row"]');

@@ -70,6 +70,75 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
   };
   const json = (value: unknown) => out(JSON.stringify(value, null, 2));
 
+  const printComparison = (comparison: Comparison) => {
+    const r = comparison.result;
+    out(`${r.base.name} (original)  vs  ${r.target.name} (counterfactual)`);
+    out("");
+    out(
+      table(
+        ["METRIC", "ORIGINAL", "COUNTERFACTUAL", "DELTA"],
+        [
+          [
+            "outcome",
+            r.outcome.base?.label ?? "-",
+            r.outcome.target?.label ?? "-",
+            r.outcome.changed ? "changed" : "same",
+          ],
+          [
+            "est. cost",
+            money(r.metrics.totalEstimatedCost.base),
+            money(r.metrics.totalEstimatedCost.target),
+            percent(r.metrics.totalEstimatedCost.percent),
+          ],
+          [
+            "latency",
+            duration(r.metrics.durationMs.base),
+            duration(r.metrics.durationMs.target),
+            percent(r.metrics.durationMs.percent),
+          ],
+          [
+            "tokens",
+            String(r.metrics.totalTokens.base),
+            String(r.metrics.totalTokens.target),
+            percent(r.metrics.totalTokens.percent),
+          ],
+          [
+            "tool calls",
+            String(r.metrics.toolCalls.base),
+            String(r.metrics.toolCalls.target),
+            String(r.metrics.toolCalls.delta),
+          ],
+          [
+            "model calls",
+            String(r.metrics.modelCalls.base),
+            String(r.metrics.modelCalls.target),
+            String(r.metrics.modelCalls.delta),
+          ],
+          [
+            "policy",
+            policyCounts(r.policy.base),
+            policyCounts(r.policy.target),
+            r.policy.changed ? "changed" : "same",
+          ],
+        ],
+      ),
+    );
+    out("");
+    if (r.firstDivergence) {
+      out(
+        `first divergence at sequence ${r.firstDivergence.sequence}: ${r.firstDivergence.summary}`,
+      );
+      for (const f of r.firstDivergence.fields.slice(0, 8)) {
+        out(`  ${f.path}: ${JSON.stringify(f.before)} -> ${JSON.stringify(f.after)}`);
+      }
+    } else {
+      out("no divergence: both branches executed identically");
+    }
+    out(
+      `added ${r.addedEvents.length}, removed ${r.removedEvents.length}, modified ${r.modifiedEvents.length} events; comparison id ${comparison.id}`,
+    );
+  };
+
   program
     .command("status")
     .description("check the Shadow API and summarise what it holds")
@@ -769,72 +838,58 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         targetBranchId,
       });
       if (opts.json) return json(comparison);
-      const r = comparison.result;
-      out(`${r.base.name} (original)  vs  ${r.target.name} (counterfactual)`);
-      out("");
+      printComparison(comparison);
+    });
+
+  const comparisonsCmd = program
+    .command("comparisons")
+    .description("list and show saved comparisons");
+
+  comparisonsCmd
+    .command("list")
+    .description("list saved comparisons involving a trace, newest first")
+    .argument("<traceId>", "trace id")
+    .option("--limit <n>", "maximum rows", positiveInt, 50)
+    .option("--json", "print JSON")
+    .action(async (traceId: string, opts: { limit: number; json?: boolean }) => {
+      const page = await client().get<Page<Comparison>>("/api/v1/comparisons", {
+        traceId,
+        limit: opts.limit,
+      });
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no comparisons found");
       out(
         table(
-          ["METRIC", "ORIGINAL", "COUNTERFACTUAL", "DELTA"],
-          [
-            [
-              "outcome",
-              r.outcome.base?.label ?? "-",
-              r.outcome.target?.label ?? "-",
-              r.outcome.changed ? "changed" : "same",
-            ],
-            [
-              "est. cost",
-              money(r.metrics.totalEstimatedCost.base),
-              money(r.metrics.totalEstimatedCost.target),
-              percent(r.metrics.totalEstimatedCost.percent),
-            ],
-            [
-              "latency",
-              duration(r.metrics.durationMs.base),
-              duration(r.metrics.durationMs.target),
-              percent(r.metrics.durationMs.percent),
-            ],
-            [
-              "tokens",
-              String(r.metrics.totalTokens.base),
-              String(r.metrics.totalTokens.target),
-              percent(r.metrics.totalTokens.percent),
-            ],
-            [
-              "tool calls",
-              String(r.metrics.toolCalls.base),
-              String(r.metrics.toolCalls.target),
-              String(r.metrics.toolCalls.delta),
-            ],
-            [
-              "model calls",
-              String(r.metrics.modelCalls.base),
-              String(r.metrics.modelCalls.target),
-              String(r.metrics.modelCalls.delta),
-            ],
-            [
-              "policy",
-              policyCounts(r.policy.base),
-              policyCounts(r.policy.target),
-              r.policy.changed ? "changed" : "same",
-            ],
-          ],
+          ["COMPARISON", "CREATED", "BASE", "TARGET", "OUTCOME", "FIRST DIVERGENCE"],
+          page.items.map((c) => [
+            c.id,
+            c.createdAt,
+            c.result.base.name,
+            `${c.result.target.name}${c.targetTraceId && c.targetTraceId !== traceId ? ` (${c.targetTraceId})` : ""}`,
+            c.result.outcome.changed ? "changed" : "same",
+            c.result.firstDivergence
+              ? truncate(
+                  `#${c.result.firstDivergence.sequence} ${c.result.firstDivergence.summary}`,
+                  60,
+                )
+              : "identical",
+          ]),
         ),
       );
-      out("");
-      if (r.firstDivergence) {
-        out(
-          `first divergence at sequence ${r.firstDivergence.sequence}: ${r.firstDivergence.summary}`,
-        );
-        for (const f of r.firstDivergence.fields.slice(0, 8)) {
-          out(`  ${f.path}: ${JSON.stringify(f.before)} -> ${JSON.stringify(f.after)}`);
-        }
-      } else {
-        out("no divergence: both branches executed identically");
-      }
-      out(
-        `added ${r.addedEvents.length}, removed ${r.removedEvents.length}, modified ${r.modifiedEvents.length} events; comparison id ${comparison.id}`,
+      out(`${page.items.length} comparison(s)`);
+    });
+
+  comparisonsCmd
+    .command("show")
+    .description("print a saved comparison")
+    .argument("<comparisonId>", "comparison id")
+    .option("--json", "print JSON")
+    .action(async (comparisonId: string, opts: { json?: boolean }) => {
+      const comparison = await client().get<Comparison>(
+        `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`,
       );
+      if (opts.json) return json(comparison);
+      printComparison(comparison);
     });
 
   try {

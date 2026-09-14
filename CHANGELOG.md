@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Comparison history: a "Comparisons" tab on the trace detail lists saved comparisons with
+  their outcome change and first divergence, and `shadow comparisons list <traceId>` /
+  `shadow comparisons show <comparisonId>` do the same from the CLI.
 - Cross-trace comparisons: `POST /api/v1/comparisons` (and `shadow compare`) accept branches
   of two different traces, aligning two separately recorded runs step by step. Such comparisons
   carry `targetTraceId`, are listed under both traces and are excluded from exports. In the web

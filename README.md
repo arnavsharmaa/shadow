@@ -202,6 +202,7 @@ shadow traces import refund.json --regenerate-ids
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay
 shadow replay <branchId>
 shadow compare <baseBranchId> <targetBranchId>
+shadow comparisons list trc_demo_refund_violation
 ```
 
 In this repository run it with `pnpm --filter @shadow/cli exec tsx src/cli.ts …` or build it (`pnpm build`) and use `packages/cli/bin/shadow.js`. Set `--endpoint` or `SHADOW_ENDPOINT` for a non-default API.

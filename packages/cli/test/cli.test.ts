@@ -630,6 +630,89 @@ describe("shadow cli", () => {
     expect(await runWith(invalid, ["traces", "prune", "--before", "soon", "--yes"])).toBe(2);
   });
 
+  it("lists and shows saved comparisons", async () => {
+    const comparison = {
+      id: "cmp_1",
+      traceId: "trc_1",
+      targetTraceId: "trc_2",
+      baseBranchId: "br_main",
+      targetBranchId: "br_other",
+      createdAt: "2026-09-03T10:00:00.000Z",
+      result: {
+        base: {
+          branchId: "br_main",
+          name: "main",
+          metrics: trace.metrics,
+          outcome: trace.outcome,
+          eventCount: 52,
+        },
+        target: {
+          branchId: "br_other",
+          name: "main",
+          metrics: trace.metrics,
+          outcome: null,
+          eventCount: 50,
+        },
+        steps: [],
+        sharedPrefixSequence: -1,
+        firstDivergence: {
+          stepIndex: 3,
+          sequence: 7,
+          reason: "output_changed",
+          summary: "refund_order returned a different result",
+          base: null,
+          target: null,
+          fields: [{ path: "output.status", before: "processed", after: "queued" }],
+        },
+        addedEvents: [],
+        removedEvents: [],
+        modifiedEvents: [],
+        toolCalls: [],
+        context: { diff: [] },
+        state: { diff: [] },
+        metrics: Object.fromEntries(
+          [
+            "totalTokens",
+            "inputTokens",
+            "outputTokens",
+            "totalEstimatedCost",
+            "durationMs",
+            "toolCalls",
+            "modelCalls",
+          ].map((k) => [k, { base: 1, target: 2, delta: 1, percent: 100 }]),
+        ),
+        outcome: { base: trace.outcome, target: null, changed: true },
+        policy: { base: [], target: [], changed: false },
+      },
+    };
+    const api = fakeApi({
+      "GET /api/v1/comparisons": () => ({ body: { items: [comparison], nextCursor: null } }),
+      "GET /api/v1/comparisons/cmp_1": () => ({ body: comparison }),
+    });
+    expect(await runWith(api, ["comparisons", "list", "trc_1"])).toBe(0);
+    expect(new URL(api.captured.calls[0]?.url ?? "").searchParams.get("traceId")).toBe("trc_1");
+    let text = api.captured.out.join("\n");
+    expect(text).toContain("cmp_1");
+    expect(text).toContain("main (trc_2)");
+    expect(text).toContain("changed");
+    expect(text).toContain("#7 refund_order returned a different result");
+    expect(text).toContain("1 comparison(s)");
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["comparisons", "show", "cmp_1"])).toBe(0);
+    text = api.captured.out.join("\n");
+    expect(text).toContain("main (original)  vs  main (counterfactual)");
+    expect(text).toContain("first divergence at sequence 7");
+    expect(text).toContain('output.status: "processed" -> "queued"');
+    expect(text).toContain("comparison id cmp_1");
+
+    const none = fakeApi({
+      "GET /api/v1/comparisons": () => ({ body: { items: [], nextCursor: null } }),
+    });
+    expect(await runWith(none, ["comparisons", "list", "trc_1"])).toBe(0);
+    expect(none.captured.out.join("\n")).toContain("no comparisons found");
+  });
+
   it("archives bundles before deleting when pruning with --archive", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "shadow-archive-"));
     const bundle = (id: string) => ({
