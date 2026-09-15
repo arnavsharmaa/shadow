@@ -669,6 +669,53 @@ describe("shadow cli", () => {
     expect(await runWith(invalid, ["traces", "prune", "--before", "soon", "--yes"])).toBe(2);
   });
 
+  it("prints per-agent statistics", async () => {
+    const api = fakeApi({
+      "GET /api/v1/stats/agents": () => ({
+        body: {
+          from: null,
+          to: null,
+          items: [
+            {
+              agentId: "agt_1",
+              agentSlug: "refund-agent",
+              agentName: "Refund Agent",
+              projectSlug: "support-agent",
+              projectName: "Support",
+              traces: 12,
+              completed: 9,
+              failed: 3,
+              running: 0,
+              policyViolations: 2,
+              toolErrors: 1,
+              avgDurationMs: 4210,
+              p95DurationMs: 6100,
+              totalEstimatedCost: 0.0576,
+              avgEstimatedCost: 0.0048,
+              totalTokens: 7476,
+              lastStartedAt: "2026-09-10T08:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    });
+    expect(await runWith(api, ["agents", "--project", "support-agent", "--from", "30d"])).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("project")).toBe("support-agent");
+    expect(params.get("from")).toMatch(/^\d{4}-/);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("refund-agent");
+    expect(text).toContain("12");
+    expect(text).toContain("4.21s");
+    expect(text).toContain("6.10s");
+    expect(text).toContain("7476");
+    const empty = fakeApi({
+      "GET /api/v1/stats/agents": () => ({ body: { from: null, to: null, items: [] } }),
+    });
+    expect(await runWith(empty, ["agents"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toContain("no traces in range");
+  });
+
   it("lists and shows saved comparisons", async () => {
     const comparison = {
       id: "cmp_1",

@@ -113,7 +113,8 @@ is welcome through GitHub issues; integration proposals have their own
 - Scalable storage path: table partitioning by time and project, hot/cold tiers, object-storage
   offload for large payloads (see [ADR 0004](./docs/adr/0004-postgres-initial-storage.md)).
 - Metrics and dashboards: per-agent cost, latency, error and policy-violation trends (the API
-  already exposes operational counters and gauges at `GET /metrics`).
+  exposes operational counters at `GET /metrics` and per-agent aggregates at
+  `GET /api/v1/stats/agents`; charts and time series remain).
 - Alerting on anomalies in cost, tool failures and policy decisions.
 - Server-side sampling on ingestion (the SDK samples with `sampleRate`, and a per-client API
   rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).

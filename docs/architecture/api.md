@@ -138,6 +138,42 @@ Returns `201 Project`; `409` if the slug exists. Projects are also created impli
 `replayable` lists programs registered in the API's `AgentRegistry`; `Agent.replayable` is true
 when the agent slug matches one of them.
 
+### `GET /api/v1/stats/agents?from=&to=&project=`
+
+Per-agent aggregates over traces started in the range (both bounds optional, ISO timestamps;
+`project` is a slug):
+
+```json
+{
+  "from": null,
+  "to": null,
+  "items": [
+    {
+      "agentId": "agt_…",
+      "agentSlug": "refund-agent",
+      "agentName": "Refund Agent",
+      "projectSlug": "support-agent",
+      "projectName": "Support Agent",
+      "traces": 12,
+      "completed": 9,
+      "failed": 3,
+      "running": 0,
+      "policyViolations": 2,
+      "toolErrors": 1,
+      "avgDurationMs": 4210,
+      "p95DurationMs": 6100,
+      "totalEstimatedCost": 0.0576,
+      "avgEstimatedCost": 0.0048,
+      "totalTokens": 7476,
+      "lastStartedAt": "2026-09-10T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
+constant in the number of events. CLI: `shadow agents --from 7d`.
+
 ## Traces
 
 ### `GET /api/v1/traces`

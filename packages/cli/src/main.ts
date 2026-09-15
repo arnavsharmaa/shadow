@@ -616,6 +616,67 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  program
+    .command("agents")
+    .description("per-agent volume, failures, policy violations, latency, cost and tokens")
+    .option("--project <slug>", "only this project")
+    .option(
+      "--from <cutoff>",
+      "traces started at or after (ISO timestamp or age such as 7d)",
+      cutoff,
+    )
+    .option("--to <cutoff>", "traces started at or before", cutoff)
+    .option("--json", "print JSON")
+    .action(async (opts: { project?: string; from?: string; to?: string; json?: boolean }) => {
+      const stats = await client().get<{
+        items: {
+          agentSlug: string;
+          projectSlug: string;
+          traces: number;
+          failed: number;
+          policyViolations: number;
+          toolErrors: number;
+          avgDurationMs: number | null;
+          p95DurationMs: number | null;
+          totalEstimatedCost: number;
+          totalTokens: number;
+          lastStartedAt: string | null;
+        }[];
+      }>("/api/v1/stats/agents", { project: opts.project, from: opts.from, to: opts.to });
+      if (opts.json) return json(stats);
+      if (stats.items.length === 0) return out("no traces in range");
+      out(
+        table(
+          [
+            "AGENT",
+            "PROJECT",
+            "TRACES",
+            "FAILED",
+            "POLICY VIOL.",
+            "TOOL ERR",
+            "AVG",
+            "P95",
+            "EST. COST",
+            "TOKENS",
+            "LAST RUN",
+          ],
+          stats.items.map((a) => [
+            a.agentSlug,
+            a.projectSlug,
+            String(a.traces),
+            String(a.failed),
+            String(a.policyViolations),
+            String(a.toolErrors),
+            duration(a.avgDurationMs),
+            duration(a.p95DurationMs),
+            money(a.totalEstimatedCost),
+            String(a.totalTokens),
+            a.lastStartedAt ?? "-",
+          ]),
+        ),
+      );
+    });
+
   const eventsCmd = program.command("events").description("inspect single events");
 
   eventsCmd
