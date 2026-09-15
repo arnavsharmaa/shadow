@@ -32,6 +32,8 @@ const configSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Requests per client IP per minute on /api/* (0 disables rate limiting). */
+  SHADOW_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).max(1_000_000).default(0),
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */
   SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
   /** Delete traces older than this many days (unset disables retention). */

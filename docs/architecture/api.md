@@ -27,6 +27,9 @@ detail. Types referenced below (`Trace`, `Branch`, `ShadowEvent`, `Fork`, `Repla
   `/openapi.json` stay open (see [SECURITY.md](../../SECURITY.md)).
 - CORS is enabled for the origins in `SHADOW_CORS_ORIGINS` (default the local web app).
 - Request bodies are limited to `SHADOW_MAX_BODY_BYTES` (default 10 MiB).
+- With `SHADOW_RATE_LIMIT_PER_MINUTE` set, each client IP gets that many `/api/*` requests per
+  minute (`x-ratelimit-*` headers report the budget; `429 rate_limited` when spent). `/health`,
+  `/metrics` and the docs are never limited. Off by default.
 
 ### Pagination
 
@@ -68,7 +71,8 @@ All errors use one envelope:
 | 422    | `agent_not_replayable`                           | No program registered for the trace's agent (`details.replayable` lists registered slugs)                                  |
 | 422    | `invalid_plan`, `no_program`, `history_mismatch` | Replay plan could not be built                                                                                             |
 | 422    | `root_branch`                                    | Attempt to delete the root branch                                                                                          |
-| 422    | `different_traces`, `same_branch`                | Invalid comparison pair                                                                                                    |
+| 422    | `same_branch`                                    | Comparison of a branch with itself                                                                                         |
+| 429    | `rate_limited`                                   | Client exceeded `SHADOW_RATE_LIMIT_PER_MINUTE` (`retry-after` header, `details.retryAfterMs`)                              |
 | 500    | `internal_error`                                 | Unhandled error (logged with the request id)                                                                               |
 | 500    | `serialization_error`                            | Response did not match its schema                                                                                          |
 | 501    | `live_replay_disabled`                           | `mode: "live"` is not enabled in this release                                                                              |
@@ -488,6 +492,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                         |
 | `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty           |
 | `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                                  |
+| `SHADOW_RATE_LIMIT_PER_MINUTE`      | `0` (off)                                     | `/api/*` requests per client IP per minute          |
 | `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction     |
 | `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                     |
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace` |

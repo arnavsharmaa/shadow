@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -78,6 +79,24 @@ export async function buildApp(options: BuildAppOptions) {
       }
     });
   }
+  if (options.config.SHADOW_RATE_LIMIT_PER_MINUTE > 0) {
+    // Per-client budget for the API surface; health, metrics and docs stay unlimited.
+    await app.register(rateLimit, {
+      global: true,
+      max: options.config.SHADOW_RATE_LIMIT_PER_MINUTE,
+      timeWindow: 60_000,
+      allowList: (request) => !request.url.startsWith("/api/"),
+      // The plugin throws this object; the error handler below turns it into the envelope.
+      errorResponseBuilder: (_request, context) => ({
+        statusCode: 429,
+        code: "rate_limited",
+        message: `rate limit of ${context.max} requests per minute exceeded; retry in ${context.after}`,
+        max: context.max,
+        retryAfterMs: context.ttl,
+      }),
+    });
+  }
+
   app.addHook("onResponse", async (request, reply) => {
     const route = request.routeOptions.url ?? "unmatched";
     if (route !== "/metrics") {
@@ -190,7 +209,24 @@ export async function buildApp(options: BuildAppOptions) {
       });
       return;
     }
-    const fastifyError = error as { code?: string; statusCode?: number; message?: string };
+    const fastifyError = error as {
+      code?: string;
+      statusCode?: number;
+      message?: string;
+      max?: number;
+      retryAfterMs?: number;
+    };
+    if (fastifyError.statusCode === 429) {
+      reply.status(429).send({
+        error: {
+          code: "rate_limited",
+          message: fastifyError.message ?? "rate limit exceeded",
+          details: { max: fastifyError.max, retryAfterMs: fastifyError.retryAfterMs },
+          requestId,
+        },
+      });
+      return;
+    }
     if (fastifyError.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
       reply.status(413).send({
         error: {

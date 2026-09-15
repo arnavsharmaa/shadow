@@ -32,6 +32,15 @@ describe("loadConfig", () => {
     expect(config.SHADOW_MAX_BODY_BYTES).toBe(2048);
   });
 
+  it("parses the rate limit and keeps it off by default", () => {
+    expect(loadConfig({}).SHADOW_RATE_LIMIT_PER_MINUTE).toBe(0);
+    expect(loadConfig({ SHADOW_RATE_LIMIT_PER_MINUTE: "600" }).SHADOW_RATE_LIMIT_PER_MINUTE).toBe(
+      600,
+    );
+    expect(() => loadConfig({ SHADOW_RATE_LIMIT_PER_MINUTE: "-1" })).toThrow();
+    expect(() => loadConfig({ SHADOW_RATE_LIMIT_PER_MINUTE: "lots" })).toThrow();
+  });
+
   it("parses retention settings and rejects non-positive values", () => {
     const off = loadConfig({});
     expect(off.SHADOW_RETENTION_DAYS).toBeUndefined();
