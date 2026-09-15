@@ -136,7 +136,32 @@ export type TraceFilters = Partial<Omit<TraceListQuery, "limit" | "cursor">> & {
   cursor?: string;
 };
 
+export interface AgentStatsRow {
+  agentId: string;
+  agentSlug: string;
+  agentName: string;
+  projectSlug: string;
+  projectName: string;
+  traces: number;
+  completed: number;
+  failed: number;
+  running: number;
+  policyViolations: number;
+  toolErrors: number;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  totalEstimatedCost: number;
+  avgEstimatedCost: number | null;
+  totalTokens: number;
+  lastStartedAt: string | null;
+}
+
 export const api = {
+  agentStats: (filter: { from?: string; to?: string; project?: string } = {}) =>
+    request<{ from: string | null; to: string | null; items: AgentStatsRow[] }>(
+      "GET",
+      `/api/v1/stats/agents${query(filter)}`,
+    ),
   listTraces: (filters: TraceFilters) =>
     request<TracePage>(
       "GET",

@@ -339,6 +339,29 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("comparison-metrics")).toBeVisible();
   });
 
+  test("the agents page summarises traces per agent", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("nav-agents").click();
+    await expect(page).toHaveURL(/\/agents/);
+    const rows = page.locator('[data-testid="agent-row"]');
+    await expect(rows.first()).toBeVisible();
+    expect(await rows.count()).toBeGreaterThanOrEqual(3);
+    const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
+    await expect(refund).toBeVisible();
+    await expect(refund.getByTestId("agent-policy-violations")).not.toHaveText("0");
+    await page.getByTestId("agent-range").selectOption("24h");
+    await expect(page).toHaveURL(/range=24h/);
+    await expect(page.getByTestId("agent-stats")).toContainText("No traces in this range");
+    await page.getByTestId("agent-range").selectOption("all");
+    await expect(refund).toBeVisible();
+    await refund.getByTestId("agent-link").click();
+    await expect(page).toHaveURL(/agent=refund-agent/);
+    await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();
+    for (const text of await page.locator('[data-testid="trace-row"]').allInnerTexts()) {
+      expect(text).toContain("Refund Agent");
+    }
+  });
+
   test("explorer filters and keyboard navigation", async ({ page }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);

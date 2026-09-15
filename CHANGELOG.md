@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Agents page in the web app (`/agents`): per-agent traces, failures, policy violations, tool
+  errors, latency, cost and tokens with range and project filters, linking to the filtered
+  explorer.
 - `GET /api/v1/stats/agents` and `shadow agents`: per-agent trace volume, completed/failed/
   running counts, policy violations, tool errors, mean and p95 duration, estimated cost and
   tokens over a time range.

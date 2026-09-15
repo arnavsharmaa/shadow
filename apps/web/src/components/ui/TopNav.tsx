@@ -55,6 +55,16 @@ export function TopNav() {
         >
           Traces
         </Link>
+        <Link
+          href="/agents"
+          className={classNames(
+            "text-[12px] text-fg-muted hover:text-fg",
+            pathname === "/agents" && "text-fg font-medium",
+          )}
+          data-testid="nav-agents"
+        >
+          Agents
+        </Link>
         <a
           href={api.docsUrl()}
           target="_blank"
