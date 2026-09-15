@@ -98,6 +98,11 @@ the outcome `trace.run()` returned) are sent immediately.
 - The HTTP transport retries network errors and 5xx responses with exponential backoff. Failures are reported through `onError` (default: one console warning) and **never throw into agent code**.
 - Sensitive keys (`password`, `api_key`, `authorization`, `secret`, `token`, `cookie`, …) are redacted before events leave the process. Add patterns with `redact: { keyPatterns: [...] }` or disable with `redact: false` (the server redacts again).
 - A full state snapshot is emitted every `snapshotEvery` mutations (default 25) so state can be reconstructed quickly.
+- `sampleRate` (0 to 1, or `SHADOW_SAMPLE_RATE`) records only a fraction of traces; traces started
+  with an explicit `id` are sampled deterministically from it. `sampler: (input) => boolean`
+  replaces the rate with your own rule, and `startTrace({ sample: true | false })` forces the
+  decision for one trace. A sampled-out trace behaves normally but discards its events
+  (`trace.recorded === false`).
 - `enabled: false` turns the SDK into a no-op; so does `SHADOW_ENABLED=false` (or `0`, `no`,
   `off`) in the environment, which lets a deployment switch recording off without a code change.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,

@@ -30,6 +30,14 @@ export interface ShadowOptions {
    * `SHADOW_ENABLED` env: `0`, `false`, `no` or `off` disable the SDK.
    */
   enabled?: boolean;
+  /**
+   * Fraction of traces to record, 0 to 1 (default 1, or `SHADOW_SAMPLE_RATE`). Traces started
+   * with an explicit `id` are sampled deterministically from that id, so retries of the same
+   * run make the same decision; others are sampled at random.
+   */
+  sampleRate?: number;
+  /** Custom sampling decision; overrides `sampleRate` (except for `sample` on startTrace). */
+  sampler?: (input: StartTraceOptions) => boolean;
 }
 
 export interface StartTraceOptions {
@@ -39,6 +47,18 @@ export interface StartTraceOptions {
   metadata?: JsonObject;
   tags?: string[];
   startedAt?: string;
+  /** Force the sampling decision for this trace (true records, false discards). */
+  sample?: boolean;
+}
+
+/** FNV-1a hash of a string mapped to [0, 1). */
+function hashToUnit(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash / 0x100000000;
 }
 
 function readEnv(name: string): string | undefined {
@@ -46,6 +66,13 @@ function readEnv(name: string): string | undefined {
     ?.env;
   const value = env?.[name];
   return value !== undefined && value.trim() !== "" ? value.trim() : undefined;
+}
+
+function envSampleRate(): number | undefined {
+  const raw = readEnv("SHADOW_SAMPLE_RATE");
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
 }
 
 function envEnabled(): boolean {
@@ -57,17 +84,23 @@ function envEnabled(): boolean {
 export class Shadow {
   private readonly options: ShadowOptions;
   private readonly transport: Transport;
+  private readonly discard: Transport = new NoopTransport();
   private readonly active = new Set<Trace>();
   private warned = false;
 
   constructor(options: ShadowOptions = {}) {
     const project = options.project ?? readEnv("SHADOW_PROJECT");
     if (!project) throw new Error("Shadow requires a project slug (option or SHADOW_PROJECT)");
+    const sampleRate = options.sampleRate ?? envSampleRate() ?? 1;
+    if (!(sampleRate >= 0 && sampleRate <= 1)) {
+      throw new Error(`Shadow sampleRate must be between 0 and 1, got ${String(sampleRate)}`);
+    }
     this.options = {
       ...options,
       project,
       agent: options.agent ?? readEnv("SHADOW_AGENT"),
       enabled: options.enabled ?? envEnabled(),
+      sampleRate,
     };
     this.transport =
       this.options.enabled === false
@@ -100,7 +133,8 @@ export class Shadow {
       this.options.redact === false
         ? (v: JsonValue) => v
         : createRedactor(this.options.redact ?? {});
-    const trace = new Trace(this.transport, {
+    const recorded = this.shouldRecord(input);
+    const trace = new Trace(recorded ? this.transport : this.discard, {
       name: input.name,
       project: this.options.project as string,
       agent,
@@ -114,9 +148,20 @@ export class Shadow {
       onError: (error) => this.handleError(error),
       redact: redactor,
       now: () => Date.now(),
+      recorded,
     });
-    this.active.add(trace);
+    if (recorded) this.active.add(trace);
     return trace;
+  }
+
+  private shouldRecord(input: StartTraceOptions): boolean {
+    if (!this.enabled) return false;
+    if (input.sample !== undefined) return input.sample;
+    if (this.options.sampler) return this.options.sampler(input);
+    const rate = this.options.sampleRate ?? 1;
+    if (rate >= 1) return true;
+    if (rate <= 0) return false;
+    return (input.id !== undefined ? hashToUnit(input.id) : Math.random()) < rate;
   }
 
   /** Flush every active trace. */

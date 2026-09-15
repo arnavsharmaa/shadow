@@ -40,6 +40,8 @@ export interface TraceOptions {
   /** Whether to emit an automatic state snapshot every N mutations (0 disables). */
   snapshotEvery: number;
   now: () => number;
+  /** False when the trace was sampled out; events are then discarded. */
+  recorded?: boolean;
 }
 
 interface EmitInput {
@@ -239,6 +241,11 @@ export class Trace implements AgentHost {
     } catch (error) {
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /** False when sampling decided not to record this trace (see `sampleRate`). */
+  get recorded(): boolean {
+    return this.options.recorded !== false;
   }
 
   /** Id of the most recently recorded event (handy for `artifact({ eventId })`). */

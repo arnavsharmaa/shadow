@@ -115,8 +115,8 @@ is welcome through GitHub issues; integration proposals have their own
 - Metrics and dashboards: per-agent cost, latency, error and policy-violation trends (the API
   already exposes operational counters and gauges at `GET /metrics`).
 - Alerting on anomalies in cost, tool failures and policy decisions.
-- Sampling on ingestion (a per-client API rate limit already exists via
-  `SHADOW_RATE_LIMIT_PER_MINUTE`).
+- Server-side sampling on ingestion (the SDK samples with `sampleRate`, and a per-client API
+  rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).
 - Real pricing tables and per-provider cost providers; the bundled `shadow-sim` pricing remains
   for demos.
 

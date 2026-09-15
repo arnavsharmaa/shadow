@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- SDK sampling: `sampleRate` / `SHADOW_SAMPLE_RATE`, a custom `sampler`, and
+  `startTrace({ sample })` decide which traces are recorded; sampled-out traces discard their
+  events and report `trace.recorded === false`.
 - `SHADOW_RATE_LIMIT_PER_MINUTE`: optional per-client rate limit on `/api/*` with
   `x-ratelimit-*` headers and a `429 rate_limited` error envelope; health, metrics and docs stay
   exempt.

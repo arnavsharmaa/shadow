@@ -303,6 +303,84 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("samples traces by rate, deterministically by id, with per-trace overrides", async () => {
+    const transport = new MemoryTransport();
+    const none = new Shadow({
+      project: "p",
+      agent: "a",
+      transport,
+      sampleRate: 0,
+      flushIntervalMs: 0,
+    });
+    const dropped = none.startTrace({ name: "t" });
+    expect(dropped.recorded).toBe(false);
+    await dropped.tool({ name: "x", arguments: null, execute: async () => 1 });
+    await dropped.end();
+    expect(transport.traces).toHaveLength(0);
+    const forced = none.startTrace({ name: "t", sample: true });
+    expect(forced.recorded).toBe(true);
+    await forced.end();
+    expect(transport.traces).toHaveLength(1);
+
+    const all = new Shadow({
+      project: "p",
+      agent: "a",
+      transport,
+      sampleRate: 1,
+      flushIntervalMs: 0,
+    });
+    expect(all.startTrace({ name: "t" }).recorded).toBe(true);
+    expect(all.startTrace({ name: "t", sample: false }).recorded).toBe(false);
+
+    // Deterministic by id: the same id always makes the same decision at a given rate.
+    const half = new Shadow({
+      project: "p",
+      agent: "a",
+      transport,
+      sampleRate: 0.5,
+      flushIntervalMs: 0,
+    });
+    const decisions = new Map<string, boolean>();
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < 40; i++) {
+        const id = `trc_sample_${i}`;
+        const recorded = half.startTrace({ name: "t", id }).recorded;
+        if (decisions.has(id)) expect(decisions.get(id)).toBe(recorded);
+        decisions.set(id, recorded);
+      }
+    }
+    const kept = [...decisions.values()].filter(Boolean).length;
+    expect(kept).toBeGreaterThan(5);
+    expect(kept).toBeLessThan(35);
+
+    const custom = new Shadow({
+      project: "p",
+      agent: "a",
+      transport,
+      sampler: (input) => input.tags?.includes("important") ?? false,
+      flushIntervalMs: 0,
+    });
+    expect(custom.startTrace({ name: "t" }).recorded).toBe(false);
+    expect(custom.startTrace({ name: "t", tags: ["important"] }).recorded).toBe(true);
+
+    expect(() => new Shadow({ project: "p", transport, sampleRate: 1.5 })).toThrow(
+      /between 0 and 1/,
+    );
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_SAMPLE_RATE = "0";
+      expect(
+        new Shadow({ project: "p", agent: "a", transport }).startTrace({ name: "t" }).recorded,
+      ).toBe(false);
+      process.env.SHADOW_SAMPLE_RATE = "not a number";
+      expect(
+        new Shadow({ project: "p", agent: "a", transport }).startTrace({ name: "t" }).recorded,
+      ).toBe(true);
+    } finally {
+      process.env = saved;
+    }
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({
