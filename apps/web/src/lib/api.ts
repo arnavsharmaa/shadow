@@ -61,7 +61,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
-  let parsed: unknown = null;
+  let parsed: unknown;
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {

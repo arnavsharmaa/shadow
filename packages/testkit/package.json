@@ -47,7 +47,7 @@
   "devDependencies": {
     "@shadow/config": "workspace:*",
     "@types/node": "24.13.3",
-    "eslint": "9.39.5",
+    "eslint": "10.10.0",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
