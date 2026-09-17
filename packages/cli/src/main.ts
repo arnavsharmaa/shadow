@@ -677,6 +677,73 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       );
     });
 
+  const otlp = program.command("otlp").description("OpenTelemetry (OTLP) tools");
+
+  otlp
+    .command("import")
+    .description("send an OTLP/HTTP JSON traces export (for example a collector file export)")
+    .argument("<file...>", "OTLP JSON file(s); each line may hold one ExportTraceServiceRequest")
+    .option("--json", "print JSON")
+    .action(async (files: string[], opts: { json?: boolean }) => {
+      const api = client();
+      const results: { file: string; traces: unknown[] }[] = [];
+      for (const file of files) {
+        let raw: string;
+        try {
+          raw = await readFile(file, "utf8");
+        } catch (error) {
+          throw new CliError(
+            `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
+            EXIT.usage,
+          );
+        }
+        // Accept a single JSON document or newline-delimited JSON (collector file exporter).
+        const documents: unknown[] = [];
+        const trimmed = raw.trim();
+        try {
+          documents.push(JSON.parse(trimmed));
+        } catch {
+          for (const [index, line] of trimmed.split("\n").entries()) {
+            if (!line.trim()) continue;
+            try {
+              documents.push(JSON.parse(line));
+            } catch {
+              throw new CliError(`${file}:${index + 1} is not valid JSON`, EXIT.usage);
+            }
+          }
+        }
+        for (const document of documents) {
+          const result = await api.post<{ shadow: { traces: unknown[] } }>(
+            "/api/v1/otlp/v1/traces",
+            document,
+          );
+          results.push({ file, traces: result.shadow.traces });
+        }
+      }
+      if (opts.json) return json(results);
+      let created = 0;
+      let extended = 0;
+      let accepted = 0;
+      for (const r of results) {
+        for (const t of r.traces as {
+          traceId: string;
+          created: boolean;
+          accepted: number;
+          skipped: number;
+        }[]) {
+          if (t.created) created++;
+          else extended++;
+          accepted += t.accepted;
+          out(
+            `${t.created ? "created " : "extended"} ${t.traceId}: ${t.accepted} event(s)${t.skipped ? `, ${t.skipped} already stored` : ""}`,
+          );
+        }
+      }
+      out(
+        `imported ${results.length} request(s) from ${files.length} file(s): ${created} trace(s) created, ${extended} extended, ${accepted} event(s) stored`,
+      );
+    });
+
   const eventsCmd = program.command("events").description("inspect single events");
 
   eventsCmd

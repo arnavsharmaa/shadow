@@ -669,6 +669,53 @@ describe("shadow cli", () => {
     expect(await runWith(invalid, ["traces", "prune", "--before", "soon", "--yes"])).toBe(2);
   });
 
+  it("imports OTLP JSON files, including newline-delimited exports", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-otlp-"));
+    const single = path.join(dir, "one.json");
+    const ndjson = path.join(dir, "many.ndjson");
+    const bad = path.join(dir, "bad.ndjson");
+    await writeFile(single, JSON.stringify({ resourceSpans: [{ id: 1 }] }));
+    await writeFile(
+      ndjson,
+      `${JSON.stringify({ resourceSpans: [{ id: 2 }] })}\n\n${JSON.stringify({ resourceSpans: [{ id: 3 }] })}\n`,
+    );
+    await writeFile(bad, '{"resourceSpans":[]}\nnot json\n');
+    let calls = 0;
+    const api = fakeApi({
+      "POST /api/v1/otlp/v1/traces": (body) => {
+        calls++;
+        const id = (body as { resourceSpans: { id: number }[] }).resourceSpans[0]?.id;
+        return {
+          body: {
+            partialSuccess: {},
+            shadow: {
+              traces: [
+                {
+                  traceId: `trc_otel_${id}`,
+                  otelTraceId: String(id),
+                  created: id !== 3,
+                  accepted: 4,
+                  skipped: id === 3 ? 2 : 0,
+                },
+              ],
+            },
+          },
+        };
+      },
+    });
+    expect(await runWith(api, ["otlp", "import", single, ndjson])).toBe(0);
+    expect(calls).toBe(3);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("created  trc_otel_1: 4 event(s)");
+    expect(text).toContain("extended trc_otel_3: 4 event(s), 2 already stored");
+    expect(text).toContain(
+      "imported 3 request(s) from 2 file(s): 2 trace(s) created, 1 extended, 12 event(s) stored",
+    );
+
+    expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
+    expect(await runWith(fakeApi({}), ["otlp", "import", path.join(dir, "missing.json")])).toBe(2);
+  });
+
   it("prints per-agent statistics", async () => {
     const api = fakeApi({
       "GET /api/v1/stats/agents": () => ({
