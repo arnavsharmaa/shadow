@@ -32,7 +32,10 @@ export interface Retention {
  */
 export function createRetention(input: {
   services: ServiceContext;
-  config: Pick<ApiConfig, "SHADOW_RETENTION_DAYS" | "SHADOW_RETENTION_INTERVAL_MINUTES">;
+  config: Pick<
+    ApiConfig,
+    "SHADOW_RETENTION_DAYS" | "SHADOW_RETENTION_INTERVAL_MINUTES" | "SHADOW_RETENTION_KEEP_TAG"
+  >;
   logger: Logger;
 }): Retention {
   const { services, config, logger } = input;
@@ -46,13 +49,27 @@ export function createRetention(input: {
     let deleted = 0;
     let truncated = false;
     for (let i = 0; i < MAX_BATCHES; i++) {
-      const result = await pruneTraces(services, { before: cutoff, dryRun: false, limit: BATCH });
+      const result = await pruneTraces(services, {
+        before: cutoff,
+        dryRun: false,
+        limit: BATCH,
+        excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
+      });
       deleted += result.matched;
       truncated = result.truncated;
       if (!truncated) break;
     }
     if (deleted > 0 || truncated) {
-      logger.info({ cutoff, deleted, truncated, retentionDays: days }, "retention sweep");
+      logger.info(
+        {
+          cutoff,
+          deleted,
+          truncated,
+          retentionDays: days,
+          keepTag: config.SHADOW_RETENTION_KEEP_TAG,
+        },
+        "retention sweep",
+      );
     }
     return { cutoff, deleted, truncated };
   };
@@ -79,7 +96,11 @@ export function createRetention(input: {
       timer = setInterval(tick, intervalMs);
       timer.unref();
       logger.info(
-        { retentionDays: days, intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES },
+        {
+          retentionDays: days,
+          intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
+          keepTag: config.SHADOW_RETENTION_KEEP_TAG,
+        },
         "retention enabled",
       );
       tick();

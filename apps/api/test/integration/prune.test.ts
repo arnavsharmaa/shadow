@@ -89,6 +89,25 @@ describe("POST /traces/prune", () => {
     expect(gone.statusCode).toBe(404);
   });
 
+  it("never deletes traces carrying the excluded tag", async () => {
+    await createTrace("kept", "2025-01-01T00:00:00.000Z", { tags: ["keep"] });
+    await createTrace("doomed", "2025-01-02T00:00:00.000Z");
+    const preview = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/prune",
+      payload: { before: "2025-02-01T00:00:00.000Z", excludeTag: "keep", dryRun: true },
+    });
+    expect(json<{ traceIds: string[] }>(preview).traceIds).toEqual([ids.doomed]);
+    const pruned = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/prune",
+      payload: { before: "2025-02-01T00:00:00.000Z", excludeTag: "keep" },
+    });
+    expect(json<{ traceIds: string[] }>(pruned).traceIds).toEqual([ids.doomed]);
+    expect(await listIds()).toContain(ids.kept);
+    await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${ids.kept}` });
+  });
+
   it("is a no-op when nothing matches and validates the cutoff", async () => {
     const nothing = await t.app.inject({
       method: "POST",

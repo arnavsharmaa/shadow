@@ -50,6 +50,11 @@ describe("loadConfig", () => {
     expect(on.SHADOW_RETENTION_DAYS).toBe(30);
     expect(on.SHADOW_RETENTION_INTERVAL_MINUTES).toBe(5);
     expect(loadConfig({ SHADOW_RETENTION_DAYS: "0.5" }).SHADOW_RETENTION_DAYS).toBe(0.5);
+    expect(off.SHADOW_RETENTION_KEEP_TAG).toBe("keep");
+    expect(loadConfig({ SHADOW_RETENTION_KEEP_TAG: " archive " }).SHADOW_RETENTION_KEEP_TAG).toBe(
+      "archive",
+    );
+    expect(loadConfig({ SHADOW_RETENTION_KEEP_TAG: "" }).SHADOW_RETENTION_KEEP_TAG).toBeUndefined();
     expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "0" })).toThrow(/positive/);
     expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "soon" })).toThrow(/positive/);
     expect(() => loadConfig({ SHADOW_RETENTION_INTERVAL_MINUTES: "0" })).toThrow();

@@ -255,6 +255,9 @@ export async function pruneTraces(
   if (body.agent) filters.push(eq(agents.slug, body.agent));
   if (body.status) filters.push(eq(traces.status, body.status));
   if (body.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([body.tag])}::jsonb`);
+  if (body.excludeTag) {
+    filters.push(sql`not (${traces.tags} @> ${JSON.stringify([body.excludeTag])}::jsonb)`);
+  }
   const rows = await ctx.handle.db
     .select({ id: traces.id })
     .from(traces)

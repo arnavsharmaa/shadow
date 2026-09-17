@@ -49,6 +49,12 @@ const configSchema = z.object({
       }
       return n;
     }),
+  /** Traces tagged with this are exempt from retention (empty disables the exemption). */
+  SHADOW_RETENTION_KEEP_TAG: z
+    .string()
+    .max(64)
+    .default("keep")
+    .transform((v) => (v.trim().length > 0 ? v.trim() : undefined)),
   /** How often the retention sweep runs (minutes). */
   SHADOW_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(10_080).default(60),
   NODE_ENV: z.string().default("development"),

@@ -59,7 +59,7 @@ describe("health and error envelope", () => {
       );
       expect(enabled.features).toEqual({
         auth: true,
-        retention: { enabled: true, days: 30, intervalMinutes: 15 },
+        retention: { enabled: true, days: 30, intervalMinutes: 15, keepTag: "keep" },
         otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "ingest" },
       });
     } finally {

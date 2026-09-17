@@ -133,6 +133,8 @@ export const pruneTracesBodySchema = z.object({
   agent: z.string().max(64).optional(),
   status: traceStatusSchema.optional(),
   tag: z.string().max(64).optional(),
+  /** Traces carrying this tag are never deleted (retention uses `SHADOW_RETENTION_KEEP_TAG`). */
+  excludeTag: z.string().max(64).optional(),
   dryRun: z.boolean().default(false),
   limit: z.number().int().min(1).max(10_000).default(1000),
 });

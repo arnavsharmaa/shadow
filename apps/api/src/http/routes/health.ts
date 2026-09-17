@@ -17,6 +17,7 @@ const healthSchema = z.object({
       enabled: z.boolean(),
       days: z.number().optional(),
       intervalMinutes: z.number().optional(),
+      keepTag: z.string().optional(),
     }),
     otlp: z.object({ path: z.string(), defaultProject: z.string() }),
   }),
@@ -28,6 +29,7 @@ export interface HealthRouteOptions {
     | "SHADOW_API_TOKEN"
     | "SHADOW_RETENTION_DAYS"
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
+    | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
   >;
 }
@@ -65,6 +67,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
                   enabled: true,
                   days: retentionDays,
                   intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
+                  ...(config.SHADOW_RETENTION_KEEP_TAG
+                    ? { keepTag: config.SHADOW_RETENTION_KEEP_TAG }
+                    : {}),
                 },
           otlp: {
             path: "/api/v1/otlp/v1/traces",

@@ -647,6 +647,7 @@ describe("shadow cli", () => {
     expect(api.captured.calls[0]?.body).toEqual({
       before: "2026-06-01T00:00:00.000Z",
       tag: "old",
+      excludeTag: "keep",
       limit: 1000,
       dryRun: true,
     });
@@ -662,6 +663,24 @@ describe("shadow cli", () => {
     const sent = api.captured.calls[1]?.body as { before: string; dryRun: boolean; limit: number };
     expect(sent.dryRun).toBe(false);
     expect(sent.limit).toBe(5);
+
+    const everything = fakeApi({
+      "POST /api/v1/traces/prune": () => ({
+        body: { dryRun: true, matched: 0, traceIds: [], truncated: false },
+      }),
+    });
+    expect(
+      await runWith(everything, [
+        "traces",
+        "prune",
+        "--before",
+        "1d",
+        "--dry-run",
+        "--exclude-tag",
+        "",
+      ]),
+    ).toBe(0);
+    expect(everything.captured.calls[0]?.body).not.toHaveProperty("excludeTag");
     expect(Date.now() - new Date(sent.before).getTime()).toBeGreaterThan(29 * 86_400_000);
     expect(JSON.parse(api.captured.out.join("\n")).matched).toBe(2);
 

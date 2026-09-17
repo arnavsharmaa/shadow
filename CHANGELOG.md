@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Retention exemptions: traces tagged `keep` (configurable with `SHADOW_RETENTION_KEEP_TAG`)
+  survive retention sweeps, `POST /traces/prune` accepts `excludeTag`, and `shadow traces prune`
+  excludes `keep` unless `--exclude-tag ""` is passed.
 - `shadow otlp import <file...>`: send OTLP/HTTP JSON exports (single documents or
   newline-delimited collector file exports) to the OpenTelemetry endpoint from the CLI.
 - Agents page in the web app (`/agents`): per-agent traces, failures, policy violations, tool
