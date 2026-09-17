@@ -36,10 +36,17 @@ machine or inside a trusted network:
 
 - **A single shared token, no per-user authorisation.** By default the API (`apps/api`) and the
   web app accept every request. Setting `SHADOW_API_TOKEN` requires `Authorization: Bearer
-<token>` on every `/api/*` request (the SDK, CLI and web app forward it), which keeps
-  unauthenticated clients out but does not distinguish users or projects. The web app embeds
-  its copy of the token in the browser bundle, so anyone who can load the web app can use the
-  API.
+<token>` on every `/api/*` request and on `/metrics` (the SDK, CLI and web app forward it),
+  which keeps unauthenticated clients out but does not distinguish users or projects. The web
+  app embeds its copy of the token in the browser bundle, so anyone who can load the web app
+  can use the API. `/health`, `/docs` and `/openapi.json` stay open; `/health` reports which
+  features are enabled but no secrets.
+- **The OpenTelemetry endpoint accepts foreign data.** `POST /api/v1/otlp/v1/traces` turns any
+  OTLP JSON export into traces under the project named by its resource attributes. It is
+  covered by the same token, body limit and redaction as ingestion, but with the token unset
+  anyone who can reach the API can create traces.
+- **Metrics reveal usage.** `GET /metrics` exposes request, ingestion and storage counts (never
+  payloads). Protect it with the token or keep it on a private interface.
 - **No encryption at rest.** Events are stored as plain JSON in PGlite (`.shadow/data`) or in the
   PostgreSQL database you point `DATABASE_URL` at.
 - **Bind to localhost.** The default `SHADOW_API_HOST` is `127.0.0.1`. Do not expose the API to
@@ -58,7 +65,12 @@ production logs or database dumps:
 
 - Review what your agent passes through tools and models before instrumenting it.
 - Do not commit exported bundles that contain real data to source control.
-- Delete traces you no longer need (`DELETE /api/v1/traces/:traceId`).
+- Delete traces you no longer need (`DELETE /api/v1/traces/:traceId`, `shadow traces delete`),
+  or let retention do it: `SHADOW_RETENTION_DAYS` removes traces older than the window and
+  `POST /api/v1/traces/prune` / `shadow traces prune` delete in bulk (`--archive` exports
+  bundles first). Traces tagged `keep` are exempt; exported bundles are your responsibility.
+- Sampling (`sampleRate` in the SDK) reduces how much is recorded but is not a privacy control:
+  the traces that are recorded contain everything the agent saw.
 - Be careful when sharing traces in issues; prefer synthetic reproductions.
 
 ## Redaction and its limits
@@ -92,6 +104,8 @@ short-lived credentials, and scope tool access narrowly.
   structured errors.
 - Request bodies are bounded by `SHADOW_MAX_BODY_BYTES` (default 10 MiB); ingestion batches are
   capped at 5000 events and export bundles at 500 000 events.
+- `SHADOW_RATE_LIMIT_PER_MINUTE` caps `/api/*` requests per client IP (off by default; enable it
+  on shared deployments so one client cannot exhaust the database).
 - The engine never evaluates code from traces: replay re-runs programs that are registered in the
   API process, not code shipped inside a trace or bundle.
 - Structured logs redact known sensitive keys before writing.
@@ -106,6 +120,9 @@ If you run Shadow anywhere other than your own machine:
    header).
 1. Put an authenticating reverse proxy in front of the API and web app.
 1. Set `SHADOW_CORS_ORIGINS` to the exact origins you serve the web app from.
+1. Enable `SHADOW_RATE_LIMIT_PER_MINUTE` and scrape `/metrics` with the token from your
+   monitoring system only.
 1. Use a dedicated PostgreSQL database with least-privilege credentials and encrypted storage.
 1. Configure `SHADOW_REDACT_PATTERNS` for your domain-specific secret keys.
-1. Back up and rotate trace data according to your retention policy.
+1. Back up and rotate trace data according to your retention policy (`SHADOW_RETENTION_DAYS`
+   automates deletion; `shadow traces prune --archive` keeps bundles before deleting).
