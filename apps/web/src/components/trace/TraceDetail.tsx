@@ -13,6 +13,7 @@ import { ComparisonList } from "./ComparisonList";
 import { EventDetail } from "./EventDetail";
 import { EventTree } from "./EventTree";
 import { ForkDialog } from "./ForkDialog";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { StateInspector } from "./StateInspector";
 import { Timeline } from "./Timeline";
 import { TraceHeader } from "./TraceHeader";
@@ -96,6 +97,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
 
   const [forkOpen, setForkOpen] = useState(false);
   const [leftTab, setLeftTab] = useState<"events" | "branches" | "comparisons">("events");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const comparisons = useQuery({
     queryKey: ["comparisons", traceId],
     queryFn: () => api.comparisons(traceId),
@@ -136,7 +138,19 @@ export function TraceDetail({ traceId }: { traceId: string }) {
       )
         return;
       if (forkOpen) return;
-      if (e.key === "j" || e.key === "ArrowDown") {
+      if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+      if (shortcutsOpen) return;
+      if (e.key === "n") {
+        const input = document.querySelector<HTMLTextAreaElement>('[data-testid="note-input"]');
+        if (input) {
+          e.preventDefault();
+          input.focus();
+        }
+      } else if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
         moveSelection(1);
       } else if (e.key === "k" || e.key === "ArrowUp") {
@@ -154,7 +168,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [moveSelection, jumpTo, selected, forkOpen]);
+  }, [moveSelection, jumpTo, selected, forkOpen, shortcutsOpen]);
 
   const refreshBranches = useCallback(async () => {
     await Promise.all([
@@ -199,7 +213,9 @@ export function TraceDetail({ traceId }: { traceId: string }) {
         hasPolicy={events.some(isPolicyViolationEvent)}
         onUpdateTags={updateTags}
         replayable={replayable}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,22%)_minmax(360px,1fr)_minmax(300px,28%)] gap-px bg-border">
         <Panel
           title={

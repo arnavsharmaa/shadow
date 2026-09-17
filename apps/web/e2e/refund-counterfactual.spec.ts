@@ -339,6 +339,33 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("comparison-metrics")).toBeVisible();
   });
 
+  test("keyboard shortcuts are listed and the note box can be focused", async ({ page }) => {
+    await openRefundTrace(page);
+    await page.keyboard.press("?");
+    const dialog = page.getByTestId("shortcuts-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Fork from the selected event");
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await page.getByTestId("show-shortcuts").click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+
+    await page
+      .locator(
+        '[data-testid="event-node"][data-event-type="tool.request"][data-event-name="refund_order"]',
+      )
+      .click();
+    await page.keyboard.press("n");
+    await expect(page.getByTestId("note-input")).toBeFocused();
+    // Shortcuts stay inert while typing.
+    await page.keyboard.type("j k ?");
+    await expect(page.getByTestId("note-input")).toHaveValue("j k ?");
+    await expect(page.getByTestId("shortcuts-dialog")).not.toBeVisible();
+    await expect(page.getByTestId("event-name")).toHaveText("refund_order");
+  });
+
   test("notes can be attached to an event", async ({ page }) => {
     await openRefundTrace(page);
     const node = page.locator(

@@ -20,6 +20,7 @@ interface Props {
   onUpdateTags: (change: { addTags?: string[]; removeTags?: string[] }) => Promise<void>;
   /** Whether the trace's agent has a registered program (forks can be replayed). */
   replayable?: boolean;
+  onShowShortcuts?: () => void;
 }
 
 export function TraceHeader({
@@ -34,6 +35,7 @@ export function TraceHeader({
   hasPolicy,
   onUpdateTags,
   replayable = true,
+  onShowShortcuts,
 }: Props) {
   const metrics = branch?.metrics ?? trace.metrics;
   const outcome = branch?.outcome ?? trace.outcome;
@@ -156,6 +158,17 @@ export function TraceHeader({
         >
           First policy <Kbd>p</Kbd>
         </Button>
+        {onShowShortcuts && (
+          <Button
+            size="xs"
+            onClick={onShowShortcuts}
+            title="Keyboard shortcuts"
+            aria-label="Keyboard shortcuts"
+            data-testid="show-shortcuts"
+          >
+            <Kbd>?</Kbd>
+          </Button>
+        )}
         <a
           href={api.exportUrl(trace.id)}
           className="inline-flex h-6 items-center rounded border border-border px-2 text-[11px] text-fg-muted hover:bg-hover"

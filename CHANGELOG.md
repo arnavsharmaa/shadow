@@ -53,6 +53,8 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Keyboard shortcuts overlay (`?` or the header button) listing the trace view's shortcuts, and
+  `n` to jump to the note box.
 - Notes on events: the event inspector has an "Add a note" box (Ctrl+Enter saves) and renders
   notes as text; `shadow artifacts add <traceId> --kind note --event <id> --content ...` stores
   notes or any document from the CLI (`--file` reads content from disk).
