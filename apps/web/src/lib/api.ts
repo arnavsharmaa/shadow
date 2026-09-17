@@ -226,6 +226,17 @@ export const api = {
     request<Comparison>("GET", `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`),
   comparisons: (traceId: string) =>
     request<{ items: Comparison[] }>("GET", `/api/v1/comparisons${query({ traceId, limit: 100 })}`),
+  createArtifact: (
+    traceId: string,
+    body: {
+      branchId?: string;
+      eventId?: string;
+      kind: string;
+      name: string;
+      contentType?: string;
+      content: unknown;
+    },
+  ) => request<Artifact>("POST", `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`, body),
   artifacts: (traceId: string, filter: { branchId?: string; eventId?: string } = {}) =>
     request<{ items: Artifact[] }>(
       "GET",

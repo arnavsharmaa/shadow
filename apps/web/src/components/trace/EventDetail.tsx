@@ -2,7 +2,7 @@
 
 import { dateTime, duration, money } from "@/lib/format";
 import type { JsonValue, ShadowEvent } from "@shadow/schemas";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { JsonView } from "../json/JsonView";
@@ -21,6 +21,33 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
     queryFn: () => api.artifacts(event.traceId, { eventId: event.id }),
   });
   const [copied, setCopied] = useState(false);
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const addNote = async () => {
+    const text = note.trim();
+    if (!text) return;
+    setSavingNote(true);
+    setNoteError(null);
+    try {
+      await api.createArtifact(event.traceId, {
+        branchId: event.branchId,
+        eventId: event.id,
+        kind: "note",
+        name: `note on #${event.sequence}`,
+        contentType: "text/plain",
+        content: text,
+      });
+      setNote("");
+      await queryClient.invalidateQueries({ queryKey: ["artifacts", event.traceId, event.id] });
+    } catch (e) {
+      setNoteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingNote(false);
+    }
+  };
   const copyPermalink = async () => {
     try {
       const url = new URL(window.location.href);
@@ -175,17 +202,68 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
             Artifacts ({artifacts.data.items.length})
           </h3>
           <div className="space-y-2">
-            {artifacts.data.items.map((artifact) => (
-              <JsonView
-                key={artifact.id}
-                label={`${artifact.kind} · ${artifact.name} · ${artifact.contentType}`}
-                value={artifact.content}
-                defaultExpandDepth={2}
-              />
-            ))}
+            {artifacts.data.items.map((artifact) =>
+              artifact.kind === "note" && typeof artifact.content === "string" ? (
+                <div
+                  key={artifact.id}
+                  className="rounded border border-border bg-bg p-2 text-[12px]"
+                  data-testid="event-note"
+                >
+                  <div className="mb-1 flex items-center gap-2 text-[11px] text-fg-muted">
+                    <Badge tone="info">note</Badge>
+                    <span title={artifact.createdAt}>{dateTime(artifact.createdAt)}</span>
+                  </div>
+                  <p className="whitespace-pre-wrap">{artifact.content}</p>
+                </div>
+              ) : (
+                <JsonView
+                  key={artifact.id}
+                  label={`${artifact.kind} · ${artifact.name} · ${artifact.contentType}`}
+                  value={artifact.content}
+                  defaultExpandDepth={2}
+                />
+              ),
+            )}
           </div>
         </section>
       )}
+      <section data-testid="event-note-form">
+        <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+          Add a note
+        </h3>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void addNote();
+            }
+          }}
+          placeholder="What did you learn about this step? (Ctrl+Enter to save)"
+          rows={2}
+          maxLength={4000}
+          disabled={savingNote}
+          className="w-full rounded border border-border bg-bg p-1.5 text-[12px] placeholder:text-fg-faint focus:outline-none"
+          data-testid="note-input"
+        />
+        <div className="mt-1 flex items-center gap-2">
+          <Button
+            size="xs"
+            variant="primary"
+            disabled={savingNote || note.trim().length === 0}
+            onClick={() => void addNote()}
+            data-testid="note-submit"
+          >
+            Save note
+          </Button>
+          {noteError && (
+            <span className="text-[11px] text-err" role="alert">
+              {noteError}
+            </span>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

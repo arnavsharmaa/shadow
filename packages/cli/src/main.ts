@@ -850,6 +850,76 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   artifacts
+    .command("add")
+    .description("attach a document or note to a trace, branch or event")
+    .argument("<traceId>", "trace id")
+    .requiredOption("--kind <kind>", "artifact kind, e.g. note, report, email")
+    .option("--name <name>", "artifact name (default: the kind)")
+    .option("--event <eventId>", "link to this event")
+    .option("--branch <branchId>", "branch (default: root)")
+    .option("--content <text>", "inline content (JSON is parsed when valid)")
+    .option("--file <path>", "read the content from a file instead")
+    .option(
+      "--content-type <type>",
+      "content type (default: text/plain, or application/json for objects)",
+    )
+    .option("--json", "print the stored artifact as JSON")
+    .action(
+      async (
+        traceId: string,
+        opts: {
+          kind: string;
+          name?: string;
+          event?: string;
+          branch?: string;
+          content?: string;
+          file?: string;
+          contentType?: string;
+          json?: boolean;
+        },
+      ) => {
+        if ((opts.content === undefined) === (opts.file === undefined)) {
+          throw new CliError("pass exactly one of --content or --file", EXIT.usage);
+        }
+        let raw = opts.content ?? "";
+        if (opts.file) {
+          try {
+            raw = await readFile(opts.file, "utf8");
+          } catch (error) {
+            throw new CliError(
+              `could not read ${opts.file}: ${error instanceof Error ? error.message : String(error)}`,
+              EXIT.usage,
+            );
+          }
+        }
+        let content: unknown = raw;
+        if (/^\s*[[{]/.test(raw)) {
+          try {
+            content = JSON.parse(raw);
+          } catch {
+            content = raw;
+          }
+        }
+        const artifact = await client().post<Artifact>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`,
+          {
+            kind: opts.kind,
+            name: opts.name ?? opts.kind,
+            eventId: opts.event,
+            branchId: opts.branch,
+            contentType:
+              opts.contentType ?? (typeof content === "string" ? "text/plain" : "application/json"),
+            content,
+          },
+        );
+        if (opts.json) return json(artifact);
+        out(
+          `stored ${artifact.kind} ${artifact.id} (${artifact.contentType}) on ${artifact.eventId ? `event ${artifact.eventId}` : `branch ${artifact.branchId}`}`,
+        );
+      },
+    );
+
+  artifacts
     .command("get")
     .description("print an artifact's content, or save it to a file")
     .argument("<traceId>", "trace id")

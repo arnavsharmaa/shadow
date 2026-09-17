@@ -522,6 +522,86 @@ describe("shadow cli", () => {
     expect(await runWith(missing, ["events", "show", "trc_1", "evt_404"])).toBe(4);
   });
 
+  it("adds notes and documents as artifacts", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/trc_1/artifacts": (body) => ({
+        status: 201,
+        body: {
+          id: "art_9",
+          traceId: "trc_1",
+          branchId: "br_main",
+          eventId: (body as { eventId?: string }).eventId ?? null,
+          kind: (body as { kind: string }).kind,
+          name: (body as { name: string }).name,
+          contentType: (body as { contentType: string }).contentType,
+          content: (body as { content: unknown }).content,
+          createdAt: "2026-09-02T12:00:00.000Z",
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "artifacts",
+        "add",
+        "trc_1",
+        "--kind",
+        "note",
+        "--event",
+        "evt_7",
+        "--content",
+        "stale policy doc",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      kind: "note",
+      name: "note",
+      eventId: "evt_7",
+      contentType: "text/plain",
+      content: "stale policy doc",
+    });
+    expect(api.captured.out.at(-1)).toContain("stored note art_9 (text/plain) on event evt_7");
+
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-artifact-"));
+    const file = path.join(dir, "report.json");
+    await writeFile(file, JSON.stringify({ total: 480 }));
+    expect(
+      await runWith(api, [
+        "artifacts",
+        "add",
+        "trc_1",
+        "--kind",
+        "report",
+        "--name",
+        "totals",
+        "--file",
+        file,
+        "--json",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[1]?.body).toEqual({
+      kind: "report",
+      name: "totals",
+      contentType: "application/json",
+      content: { total: 480 },
+    });
+    expect(JSON.parse(api.captured.out.at(-1) ?? "{}").id).toBe("art_9");
+
+    expect(await runWith(fakeApi({}), ["artifacts", "add", "trc_1", "--kind", "note"])).toBe(2);
+    expect(
+      await runWith(fakeApi({}), [
+        "artifacts",
+        "add",
+        "trc_1",
+        "--kind",
+        "note",
+        "--content",
+        "a",
+        "--file",
+        file,
+      ]),
+    ).toBe(2);
+  });
+
   it("lists artifacts and downloads their content", async () => {
     const email = {
       id: "art_1",

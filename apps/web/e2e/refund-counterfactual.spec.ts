@@ -339,6 +339,30 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("comparison-metrics")).toBeVisible();
   });
 
+  test("notes can be attached to an event", async ({ page }) => {
+    await openRefundTrace(page);
+    const node = page.locator(
+      '[data-testid="event-node"][data-event-type="tool.request"][data-event-name="refund_order"]',
+    );
+    await node.click();
+    await expect(page.getByTestId("event-name")).toHaveText("refund_order");
+    await expect(page.getByTestId("note-submit")).toBeDisabled();
+    await page.getByTestId("note-input").fill("Limit came from a stale policy document.");
+    await page.getByTestId("note-submit").click();
+    const notes = page.locator('[data-testid="event-note"]');
+    await expect(notes.first()).toContainText("stale policy document");
+    await expect(page.getByTestId("note-input")).toHaveValue("");
+    const before = await notes.count();
+
+    await page.getByTestId("note-input").fill("Second note via keyboard");
+    await page.getByTestId("note-input").press("Control+Enter");
+    await expect(notes).toHaveCount(before + 1);
+
+    await page.reload();
+    await node.click();
+    await expect(page.locator('[data-testid="event-note"]')).toHaveCount(before + 1);
+  });
+
   test("the agents page summarises traces per agent", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId("nav-agents").click();
