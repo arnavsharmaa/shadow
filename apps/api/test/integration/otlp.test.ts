@@ -68,11 +68,12 @@ describe("POST /api/v1/otlp/v1/traces", () => {
       await t.app.inject({ method: "GET", url: `/api/v1/traces/${TRACE_ID}/tree` }),
     );
     const depthOf = (id: string) => tree.nodes.find((n) => n.id === id)?.depth;
-    expect(depthOf("evt_otel_a1b2c3d4e5f60001_start")).toBe(
-      (depthOf("evt_otel_00f067aa0ba902b7_start") ?? 0) + 1,
+    const T = "4bf92f3577b34da6a3ce929d0e0e4736";
+    expect(depthOf(`evt_otel_${T}_a1b2c3d4e5f60001_start`)).toBe(
+      (depthOf(`evt_otel_${T}_00f067aa0ba902b7_start`) ?? 0) + 1,
     );
-    expect(depthOf("evt_otel_a1b2c3d4e5f60004_start")).toBe(
-      (depthOf("evt_otel_a1b2c3d4e5f60002_start") ?? 0) + 1,
+    expect(depthOf(`evt_otel_${T}_a1b2c3d4e5f60004_start`)).toBe(
+      (depthOf(`evt_otel_${T}_a1b2c3d4e5f60002_start`) ?? 0) + 1,
     );
 
     // Context from the reserved span event is visible in reconstructed state.
@@ -87,6 +88,35 @@ describe("POST /api/v1/otlp/v1/traces", () => {
       selectedOrderId: "ord_5001",
       refund: { amount: 480, status: "processed" },
     });
+  });
+
+  it("keeps traces apart even when their spans reuse span ids", async () => {
+    const twin = JSON.parse(
+      JSON.stringify(refundPayload()).replace(
+        /4bf92f3577b34da6a3ce929d0e0e4736/g,
+        "00000000000000000000000000000002",
+      ),
+    ) as ReturnType<typeof refundPayload>;
+    const response = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/otlp/v1/traces",
+      payload: twin,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(
+      json<{ shadow: { traces: { traceId: string; created: boolean; accepted: number }[] } }>(
+        response,
+      ).shadow.traces[0],
+    ).toMatchObject({
+      traceId: "trc_otel_00000000000000000000000000000002",
+      created: true,
+      accepted: 16,
+    });
+    const deleted = await t.app.inject({
+      method: "DELETE",
+      url: "/api/v1/traces/trc_otel_00000000000000000000000000000002",
+    });
+    expect(deleted.statusCode).toBe(204);
   });
 
   it("ignores re-sent spans and appends late spans without a second lifecycle", async () => {

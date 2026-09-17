@@ -561,8 +561,11 @@ export function convertOtlpTraces(
     const traceId = `trc_otel_${otelTraceId}`;
 
     const emissions: Emission[] = [];
+    // Span ids are only unique within an OTel trace, so event ids carry the trace id too.
     const openerIds = new Map<string, string>();
-    for (const span of group.spans) openerIds.set(span.spanId, `evt_otel_${span.spanId}_start`);
+    for (const span of group.spans) {
+      openerIds.set(span.spanId, `evt_otel_${otelTraceId}_${span.spanId}_start`);
+    }
 
     emissions.push({
       at: rootStart,
@@ -621,13 +624,23 @@ export function convertOtlpTraces(
           ? `evt_otel_${otelTraceId}_agent_start`
           : null;
       const openerId = openerIds.get(span.spanId) as string;
+      // Token counts live in `tokenUsage`; keeping them out of the attribute bag avoids the
+      // key-based redactor blanking `*_tokens` keys in metadata.
+      const usage: JsonObject = {};
+      const storedAttrs: JsonObject = {};
+      for (const [key, value] of Object.entries(attrs)) {
+        if (key.startsWith("gen_ai.usage."))
+          usage[key.slice("gen_ai.usage.".length).replace(/_tokens$/, "")] = value;
+        else storedAttrs[key] = value;
+      }
       const otel = {
         traceId: otelTraceId,
         spanId: span.spanId,
         ...(span.parentSpanId ? { parentSpanId: span.parentSpanId } : {}),
         kind: spanKind(span.kind),
         ...(group.scope ? { scope: group.scope } : {}),
-        attributes: attrs,
+        attributes: storedAttrs,
+        ...(Object.keys(usage).length > 0 ? { usage } : {}),
         ...(span.status ? { status: span.status as unknown as JsonObject } : {}),
         ...(mapped.contentMissing ? { contentMissing: true } : {}),
         semconv: OTEL_SEMCONV,
@@ -658,7 +671,7 @@ export function convertOtlpTraces(
           phase: 4,
           key: span.spanId,
           event: {
-            id: `evt_otel_${span.spanId}_end`,
+            id: `evt_otel_${otelTraceId}_${span.spanId}_end`,
             eventType: mapped.closer.eventType,
             name: mapped.closer.name,
             output: mapped.closer.output,

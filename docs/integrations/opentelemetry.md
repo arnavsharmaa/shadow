@@ -41,10 +41,15 @@ plus a `shadow` object listing the traces it created or extended:
 }
 ```
 
+Files exported by a collector's `file` exporter (one JSON request per line) or saved by hand can
+be sent with `shadow otlp import <file...>`.
+
 Resource attribute `service.namespace` selects the project (default
 `SHADOW_OTLP_DEFAULT_PROJECT`, `otel`) and `service.name` the agent. Imported traces are tagged
 `otel`, every event has `source: "otlp"` and `metadata.otel` keeps the span id, kind, scope,
-attributes and status. Spans re-sent by a retrying exporter are ignored by id; spans that arrive
+attributes (token usage moved to `metadata.otel.usage` and the event's `tokenUsage`) and status.
+Event ids are `evt_otel_<traceId>_<spanId>_start|_end`, since span ids are unique only within a
+trace. Spans re-sent by a retrying exporter are ignored by id; spans that arrive
 after the root span was stored are appended and flagged `metadata.otel.late`.
 
 ## Goal

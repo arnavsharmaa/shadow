@@ -64,12 +64,14 @@ describe("convertOtlpTraces", () => {
     // The root invoke_agent span is the agent span: no duplicate wrapper.
     expect(events.filter((e) => e.eventType === "agent.started")).toHaveLength(1);
     const agentStart = events[1];
-    expect(agentStart?.id).toBe("evt_otel_00f067aa0ba902b7_start");
+    expect(agentStart?.id).toBe("evt_otel_4bf92f3577b34da6a3ce929d0e0e4736_00f067aa0ba902b7_start");
     expect(agentStart?.spanId).toBe("spn_00f067aa0ba902b7");
     expect(agentStart?.parentSpanId).toBeNull();
 
     const modelRequest = events[2];
-    expect(modelRequest?.parentEventId).toBe("evt_otel_00f067aa0ba902b7_start");
+    expect(modelRequest?.parentEventId).toBe(
+      "evt_otel_4bf92f3577b34da6a3ce929d0e0e4736_00f067aa0ba902b7_start",
+    );
     expect(modelRequest?.parentSpanId).toBe("spn_00f067aa0ba902b7");
     expect(modelRequest?.input).toEqual({
       provider: "shadow-sim",
@@ -143,7 +145,12 @@ describe("convertOtlpTraces", () => {
       kind: "CLIENT",
       scope: "example.instrumentation",
       semconv: "1.36.0",
+      usage: { input: 120, output: 30 },
     });
+    expect(otel.attributes as Record<string, unknown>).not.toHaveProperty(
+      "gen_ai.usage.input_tokens",
+    );
+    expect(otel.attributes as Record<string, unknown>).toHaveProperty("gen_ai.request.model");
   });
 
   it("wraps a non-agent root span, falls back to prompt events and flags missing content", () => {
