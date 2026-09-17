@@ -7,12 +7,20 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
+      # The ESLint stack moves together: a new ESLint major needs matching
+      # @eslint/js, typescript-eslint and globals releases.
+      eslint:
+        patterns: ["eslint", "@eslint/*", "typescript-eslint", "globals", "eslint-*"]
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
       production-minor:
         dependency-type: production
         update-types: [minor, patch]
+    ignore:
+      # @types/node tracks the Node.js line in .nvmrc; bump it with the runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     labels: ["type:chore", "area:ci"]
     commit-message:
       prefix: "chore(deps)"
