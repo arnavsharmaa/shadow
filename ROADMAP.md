@@ -79,7 +79,7 @@ is welcome through GitHub issues; integration proposals have their own
   for any shared deployment.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing.
 - Annotations and comments on events and branches.
-- Saved views and filters in the explorer.
+- Saved views shared across a team (per-browser saved views exist).
 
 ### Ideas / under consideration
 

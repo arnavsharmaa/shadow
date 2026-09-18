@@ -16,6 +16,7 @@ import {
   outcomeTone,
   statusTone,
 } from "../ui/primitives";
+import { SavedViews } from "./SavedViews";
 
 function readFilters(params: URLSearchParams): TraceFilters {
   const get = (k: string) => params.get(k) ?? undefined;
@@ -178,6 +179,7 @@ export function TraceExplorer() {
             Clear {activeCount} filter{activeCount === 1 ? "" : "s"}
           </Button>
         )}
+        <SavedViews />
         <span className="ml-auto text-[11px] text-fg-muted" aria-live="polite">
           {traces.data
             ? `${traces.data.total.toLocaleString()} trace${traces.data.total === 1 ? "" : "s"}`

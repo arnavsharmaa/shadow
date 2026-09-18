@@ -413,6 +413,32 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
   });
 
+  test("explorer filters can be saved as named views", async ({ page }) => {
+    await page.goto("/?status=failed&sort=totalEstimatedCost&order=desc");
+    await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();
+    await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
+    await page.getByTestId("save-view").click();
+    await page.getByTestId("view-name").fill("costly failures");
+    await page.getByTestId("confirm-save-view").click();
+    await expect(page.getByTestId("saved-view-select")).toHaveValue("costly failures");
+
+    await page.goto("/");
+    await expect(page.getByTestId("saved-view-select")).toHaveValue("");
+    await page.getByTestId("saved-view-select").selectOption("costly failures");
+    await expect(page).toHaveURL(/status=failed/);
+    await expect(page).toHaveURL(/sort=totalEstimatedCost/);
+    for (const text of await page.locator('[data-testid="trace-row"]').allInnerTexts()) {
+      expect(text).toContain("failed");
+    }
+
+    await page.reload();
+    await expect(page.getByTestId("saved-view-select")).toHaveValue("costly failures");
+    await page.getByTestId("delete-view").click();
+    await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
+  });
+
   test("explorer filters and keyboard navigation", async ({ page }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
