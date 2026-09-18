@@ -43,7 +43,7 @@ afterAll(async () => {
 
 describe("comparison pagination", () => {
   it("pages newest first with a keyset cursor and yields each comparison once", async () => {
-    const seen: string[] = [];
+    const seen: Comparison[] = [];
     let cursor: string | null = null;
     let pages = 0;
     do {
@@ -51,14 +51,24 @@ describe("comparison pagination", () => {
       const url: string = `/api/v1/comparisons?traceId=${traceId}&limit=2${suffix}`;
       const page: Page = json<Page>(await t.app.inject({ method: "GET", url }));
       expect(page.items.length).toBeLessThanOrEqual(2);
-      seen.push(...page.items.map((c) => c.id));
+      seen.push(...page.items);
       cursor = page.nextCursor;
       pages++;
     } while (cursor);
     expect(pages).toBe(3);
     expect(seen).toHaveLength(5);
-    expect(new Set(seen).size).toBe(5);
-    expect(seen).toEqual([...created].reverse());
+    expect(new Set(seen.map((c) => c.id)).size).toBe(5);
+    expect([...seen.map((c) => c.id)].sort()).toEqual([...created].sort());
+    // Strictly descending by (createdAt, id): ids break the tie for equal timestamps.
+    for (let i = 1; i < seen.length; i++) {
+      const prev = seen[i - 1] as Comparison;
+      const cur = seen[i] as Comparison;
+      const later =
+        prev.createdAt > cur.createdAt || (prev.createdAt === cur.createdAt && prev.id > cur.id);
+      expect(later).toBe(true);
+    }
+    expect(seen[0]?.id).toBe(created[4]);
+    expect(seen[4]?.id).toBe(created[0]);
   });
 
   it("returns everything in one page when it fits and rejects bad cursors", async () => {
