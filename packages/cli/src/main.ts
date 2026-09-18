@@ -1106,7 +1106,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           ]),
         ),
       );
-      out(`${page.items.length} comparison(s)`);
+      out(
+        `${page.items.length} comparison(s)${page.nextCursor ? " (more available; raise --limit)" : ""}`,
+      );
     });
 
   comparisonsCmd

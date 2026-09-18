@@ -490,7 +490,8 @@ described in [docs/integrations/opentelemetry.md](../integrations/opentelemetry.
 
 ### `GET /api/v1/comparisons?traceId=&branchId=&limit=`
 
-`{ items: Comparison[], nextCursor: null }`, newest first. `branchId` matches either side;
+`{ items: Comparison[], nextCursor }`, newest first, keyset-paginated (`limit` 1–1000, default
+200; pass `nextCursor` back as `cursor`). `branchId` matches either side;
 `traceId` matches the base trace or the target trace of a cross-trace comparison.
 
 ### `POST /api/v1/comparisons`
