@@ -13,6 +13,7 @@ import { ComparisonList } from "./ComparisonList";
 import { EventDetail } from "./EventDetail";
 import { EventTree } from "./EventTree";
 import { ForkDialog } from "./ForkDialog";
+import { MatrixDialog } from "./MatrixDialog";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { StateInspector } from "./StateInspector";
 import { Timeline } from "./Timeline";
@@ -98,6 +99,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
   const [forkOpen, setForkOpen] = useState(false);
   const [leftTab, setLeftTab] = useState<"events" | "branches" | "comparisons">("events");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [matrixOpen, setMatrixOpen] = useState(false);
   const comparisons = useQuery({
     queryKey: ["comparisons", traceId],
     queryFn: () => api.comparisons(traceId),
@@ -137,7 +139,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
           target.isContentEditable)
       )
         return;
-      if (forkOpen) return;
+      if (forkOpen || matrixOpen) return;
       if (e.key === "?") {
         e.preventDefault();
         setShortcutsOpen((open) => !open);
@@ -168,7 +170,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [moveSelection, jumpTo, selected, forkOpen, shortcutsOpen]);
+  }, [moveSelection, jumpTo, selected, forkOpen, matrixOpen, shortcutsOpen]);
 
   const refreshBranches = useCallback(async () => {
     await Promise.all([
@@ -286,14 +288,26 @@ export function TraceDetail({ traceId }: { traceId: string }) {
           className="border-0"
           actions={
             selected && isForkable(selected) ? (
-              <Button
-                variant="primary"
-                size="xs"
-                onClick={() => setForkOpen(true)}
-                data-testid="fork-from-here"
-              >
-                Fork from here <Kbd>f</Kbd>
-              </Button>
+              <>
+                {replayable && (
+                  <Button
+                    size="xs"
+                    onClick={() => setMatrixOpen(true)}
+                    title="Replay this step with several values of one context key"
+                    data-testid="open-matrix"
+                  >
+                    Matrix
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="xs"
+                  onClick={() => setForkOpen(true)}
+                  data-testid="fork-from-here"
+                >
+                  Fork from here <Kbd>f</Kbd>
+                </Button>
+              </>
             ) : undefined
           }
         >
@@ -340,6 +354,17 @@ export function TraceDetail({ traceId }: { traceId: string }) {
           />
         )}
       </div>
+      {selected && branch && (
+        <MatrixDialog
+          key={matrixOpen ? `matrix:${branch.id}:${selected.id}` : "matrix-closed"}
+          open={matrixOpen}
+          onClose={() => setMatrixOpen(false)}
+          traceId={traceId}
+          branch={branch}
+          event={selected}
+          onDone={refreshBranches}
+        />
+      )}
       {selected && branch && (
         <ForkDialog
           key={forkOpen ? `${branch.id}:${selected.id}` : "closed"}

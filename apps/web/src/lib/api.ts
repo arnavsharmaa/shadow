@@ -136,6 +136,26 @@ export type TraceFilters = Partial<Omit<TraceListQuery, "limit" | "cursor">> & {
   cursor?: string;
 };
 
+export interface MatrixVariant {
+  name: string;
+  branch: Branch;
+  replay: Replay;
+  comparisonId: string;
+  outcome: {
+    base: { kind: string; label: string } | null;
+    target: { kind: string; label: string } | null;
+    changed: boolean;
+  };
+  policyChanged: boolean;
+  firstDivergence: { sequence: number; reason: string; summary: string } | null;
+  deltas: {
+    totalEstimatedCost: number;
+    durationMs: number;
+    totalTokens: number;
+    toolCalls: number;
+  };
+}
+
 export interface AgentStatsRow {
   agentId: string;
   agentSlug: string;
@@ -208,6 +228,19 @@ export const api = {
     request<{ branch: Branch; fork: Fork }>(
       "POST",
       `/api/v1/traces/${encodeURIComponent(traceId)}/forks`,
+      body,
+    ),
+  forkMatrix: (
+    traceId: string,
+    body: {
+      forkEventId: string;
+      parentBranchId?: string;
+      variants: { name?: string; overrides: Override[] }[];
+    },
+  ) =>
+    request<{ traceId: string; parentBranchId: string; variants: MatrixVariant[] }>(
+      "POST",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/forks/matrix`,
       body,
     ),
   replay: (branchId: string) =>

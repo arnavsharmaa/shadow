@@ -97,7 +97,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **Prompt overrides**: edit system or user messages at the fork point.
 - **Tool mocks**: declarative mock definitions for tools that are not registered as programs.
 - **Scenario matrices**: fork one event with a grid of overrides and compare every branch
-  (API and CLI exist; a matrix view in the web app remains).
+  (available in the API, the CLI and the web app for context values; grids over tool results
+  and policies remain API-only).
 - **Batch counterfactuals**: apply the same override set across many traces of an agent.
 
 ### Ideas / under consideration

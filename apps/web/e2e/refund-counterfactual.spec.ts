@@ -339,6 +339,33 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("comparison-metrics")).toBeVisible();
   });
 
+  test("a scenario matrix replays one step with several values", async ({ page }) => {
+    await openRefundTrace(page);
+    await page
+      .locator(
+        '[data-testid="event-node"][data-event-type="tool.request"][data-event-name="refund_order"]',
+      )
+      .click();
+    await page.getByTestId("open-matrix").click();
+    const dialog = page.getByTestId("matrix-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("run-matrix")).toBeDisabled();
+    await dialog.getByTestId("matrix-key").fill("refundLimit");
+    await expect(dialog).toContainText("Current value: 500");
+    await dialog.getByTestId("matrix-values").fill("100, 500");
+    await expect(dialog.getByTestId("run-matrix")).toHaveText(/Run 2 variants/);
+    await dialog.getByTestId("run-matrix").click();
+    const rows = dialog.locator('[data-testid="matrix-row"]');
+    await expect(rows).toHaveCount(2, { timeout: 60_000 });
+    await expect(rows.nth(0)).toContainText("refundLimit=100");
+    await expect(rows.nth(0)).toContainText("Approval");
+    await expect(rows.nth(0)).toContainText("changed");
+    await expect(rows.nth(1)).toContainText("identical");
+    await rows.nth(0).getByRole("link", { name: "Compare" }).click();
+    await expect(page.getByTestId("comparison-view")).toBeVisible();
+    await expect(page.getByTestId("target-branch-name")).toHaveText("refundLimit=100");
+  });
+
   test("keyboard shortcuts are listed and the note box can be focused", async ({ page }) => {
     await openRefundTrace(page);
     await page.keyboard.press("?");
