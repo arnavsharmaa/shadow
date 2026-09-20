@@ -14,8 +14,10 @@ export function money(amount: number | undefined | null, currency = "USD"): stri
   if (amount === undefined || amount === null) return "-";
   const symbol = currency === "USD" ? "$" : `${currency} `;
   if (amount === 0) return `${symbol}0`;
-  if (amount < 0.01) return `${symbol}${amount.toFixed(6)}`;
-  return `${symbol}${amount.toFixed(4)}`;
+  // Deltas can be negative: keep the sign in front of the symbol and size by magnitude.
+  const sign = amount < 0 ? "-" : "";
+  const magnitude = Math.abs(amount);
+  return `${sign}${symbol}${magnitude < 0.01 ? magnitude.toFixed(6) : magnitude.toFixed(4)}`;
 }
 
 export function duration(ms: number | undefined | null): string {

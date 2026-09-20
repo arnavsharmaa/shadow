@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseCutoff } from "../src/format.js";
+import { money, parseCutoff } from "../src/format.js";
 import { CLI_VERSION, run } from "../src/index.js";
 
 interface Captured {
@@ -682,6 +682,16 @@ describe("shadow cli", () => {
 
     const missing = fakeApi({});
     expect(await runWith(missing, ["traces", "delete", "trc_missing", "--yes"])).toBe(4);
+  });
+
+  it("formats money including negative deltas and other currencies", () => {
+    expect(money(0)).toBe("$0");
+    expect(money(0.0048)).toBe("$0.004800");
+    expect(money(1.5)).toBe("$1.5000");
+    expect(money(-0.001995)).toBe("-$0.001995");
+    expect(money(-2)).toBe("-$2.0000");
+    expect(money(3, "EUR")).toBe("EUR 3.0000");
+    expect(money(null)).toBe("-");
   });
 
   it("parses absolute and relative prune cutoffs", () => {
