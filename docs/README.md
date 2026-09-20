@@ -70,7 +70,7 @@ Start with the [project README](../README.md) for installation and the demo, the
 - CLI: `shadow agents`, `shadow otlp import <file>`, `shadow traces list`, `shadow traces inspect <traceId>`, `shadow traces update <traceId>`, `shadow traces prune --before <cutoff>`, `shadow traces delete <traceId>`,
   `shadow traces export <traceId>`,
   `shadow traces import <file>`, `shadow fork <traceId> --at <eventId> --set key=value`,
-  `shadow replay <branchId>`, `shadow compare <baseBranchId> <targetBranchId>`,
+  `shadow replay <branchId>`, `shadow matrix <traceId> --at <eventId> --vary key=v1,v2`, `shadow compare <baseBranchId> <targetBranchId>`,
   `shadow comparisons list <traceId>`, `shadow comparisons show <comparisonId>`,
   `shadow events show <traceId> <eventId>`, `shadow artifacts list <traceId>`, `shadow artifacts add <traceId> --kind note`,
   `shadow artifacts get <traceId> <artifactId>`.

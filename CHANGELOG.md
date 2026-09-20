@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Scenario matrices: `POST /api/v1/traces/:traceId/forks/matrix` forks one event with up to
+  20 override sets, replays and compares each, and returns the outcomes side by side;
+  `shadow matrix <traceId> --at <eventId> --vary key=v1,v2` builds the grid from the CLI.
 - Saved views in the trace explorer: name the current filters and sort, re-apply them from a
   dropdown, and delete them; kept per browser.
 - Keyboard shortcuts overlay (`?` or the header button) listing the trace view's shortcuts, and

@@ -140,6 +140,23 @@ export const pruneTracesBodySchema = z.object({
 });
 export type PruneTracesBody = z.infer<typeof pruneTracesBodySchema>;
 
+/** Scenario matrix: fork one event once per variant, replay and compare each. */
+export const forkMatrixBodySchema = z.object({
+  forkEventId: idSchema,
+  parentBranchId: idSchema.optional(),
+  variants: z
+    .array(
+      z.object({
+        /** Branch name; defaults to the next `fork-N`. */
+        name: z.string().min(1).max(128).optional(),
+        overrides: z.array(overrideSchema).min(1).max(200),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+export type ForkMatrixBody = z.infer<typeof forkMatrixBodySchema>;
+
 export const updateBranchBodySchema = z.object({
   name: z.string().min(1).max(128).optional(),
   metadata: jsonObjectSchema.optional(),

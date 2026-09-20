@@ -4,6 +4,7 @@ import {
   createArtifactBodySchema,
   createForkBodySchema,
   createTraceBodySchema,
+  forkMatrixBodySchema,
   eventListQuerySchema,
   idSchema,
   importTraceBodySchema,
@@ -16,6 +17,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createArtifact, getArtifact, listArtifacts } from "../../services/artifacts.js";
 import { createForkForTrace, listForks, listReplays } from "../../services/branches.js";
+import { runForkMatrix } from "../../services/matrix.js";
 import {
   getBranchState,
   getEvent,
@@ -198,6 +200,16 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["forks"], params: traceParams, body: createForkBodySchema } },
     async (request, reply) => {
       const result = await createForkForTrace(app.services, request.params.traceId, request.body);
+      return reply.status(201).send(result);
+    },
+  );
+
+  /** Scenario matrix: fork the same event with several override sets, replay and compare each. */
+  app.post(
+    "/traces/:traceId/forks/matrix",
+    { schema: { tags: ["forks"], params: traceParams, body: forkMatrixBodySchema } },
+    async (request, reply) => {
+      const result = await runForkMatrix(app.services, request.params.traceId, request.body);
       return reply.status(201).send(result);
     },
   );

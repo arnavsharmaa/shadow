@@ -384,6 +384,35 @@ the guarded tool request). Up to 200 overrides; see
 `branch.status` is `pending`. Errors: `404` unknown event, `422 not_forkable`, `409` duplicate
 branch name.
 
+### `POST /api/v1/traces/:traceId/forks/matrix`
+
+Scenario matrix: fork the same event once per variant, replay each fork deterministically and
+compare it with the parent branch.
+
+```json
+{
+  "forkEventId": "evt_…",
+  "variants": [
+    {
+      "name": "limit-100",
+      "overrides": [{ "kind": "context", "op": "set", "key": "refundLimit", "value": 100 }]
+    },
+    {
+      "name": "limit-500",
+      "overrides": [{ "kind": "context", "op": "set", "key": "refundLimit", "value": 500 }]
+    }
+  ]
+}
+```
+
+1 to 20 variants, each with at least one override; names must be unique and default to the
+next `fork-N`. Returns `201 { traceId, forkEventId, parentBranchId, variants }` where every
+variant carries its `branch`, `replay`, `comparisonId`, the `outcome` pair with `changed`,
+`policyChanged`, a compact `firstDivergence` (or `null` when the run is identical) and metric
+`deltas`. Forks, replays and comparisons are stored like manually created ones. `422
+agent_not_replayable` is returned before any fork is created. CLI: `shadow matrix <traceId>
+--at <eventId> --vary refundLimit=50,100,500`.
+
 ### `GET /api/v1/traces/:traceId/replays`
 
 `{ items: Replay[] }`.

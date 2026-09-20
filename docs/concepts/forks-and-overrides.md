@@ -139,6 +139,10 @@ parent branch's events, which the nested fork inherits).
 3. `POST /comparisons` compares the fork with its parent (or any other branch of the trace).
 4. `PATCH /branches/:branchId` renames a branch; `DELETE` removes it and its descendants.
 
+To answer several what-ifs at once, `POST /api/v1/traces/:traceId/forks/matrix` (or `shadow
+matrix <traceId> --at <eventId> --vary refundLimit=50,100,500`) forks the same event once per
+variant, replays every fork and returns each outcome next to its comparison.
+
 From the CLI: `shadow fork <traceId> --at <eventId> --set key=value …` creates a fork with
 context overrides, `shadow replay <branchId>` replays it and `shadow compare <base> <target>`
 compares.

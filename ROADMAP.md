@@ -96,7 +96,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **Model substitution**: replay a branch with a different provider or model.
 - **Prompt overrides**: edit system or user messages at the fork point.
 - **Tool mocks**: declarative mock definitions for tools that are not registered as programs.
-- **Scenario matrices**: fork one event with a grid of overrides and compare every branch.
+- **Scenario matrices**: fork one event with a grid of overrides and compare every branch
+  (API and CLI exist; a matrix view in the web app remains).
 - **Batch counterfactuals**: apply the same override set across many traces of an agent.
 
 ### Ideas / under consideration

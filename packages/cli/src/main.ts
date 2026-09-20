@@ -1041,6 +1041,101 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   program
+    .command("matrix")
+    .description("fork one event with a grid of context values, replay and compare every variant")
+    .argument("<traceId>", "trace id")
+    .requiredOption("--at <eventId>", "event to rewind to")
+    .requiredOption(
+      "--vary <key=v1,v2,...>",
+      "context key and comma-separated values; repeat for a grid (max 20 variants)",
+      (value: string, previous: string[] = []) => [...previous, value],
+    )
+    .option("--branch <branchId>", "parent branch (default: the event's branch)")
+    .option("--json", "print JSON")
+    .action(
+      async (
+        traceId: string,
+        opts: { at: string; vary: string[]; branch?: string; json?: boolean },
+      ) => {
+        const axes = opts.vary.map((item) => {
+          const index = item.indexOf("=");
+          if (index <= 0)
+            throw new CliError(`--vary expects key=v1,v2 but got '${item}'`, EXIT.usage);
+          const key = item.slice(0, index).trim();
+          const values = item
+            .slice(index + 1)
+            .split(",")
+            .map((v) => v.trim())
+            .filter((v) => v.length > 0)
+            .map((v) => parseAssignment(`${key}=${v}`).value);
+          if (values.length === 0) throw new CliError(`--vary ${key} has no values`, EXIT.usage);
+          return { key, values };
+        });
+        let combos: { key: string; value: unknown }[][] = [[]];
+        for (const axis of axes) {
+          combos = combos.flatMap((combo) =>
+            axis.values.map((value) => [...combo, { key: axis.key, value }]),
+          );
+        }
+        if (combos.length > 20) {
+          throw new CliError(`${combos.length} variants requested; the limit is 20`, EXIT.usage);
+        }
+        const result = await client().post<{
+          variants: {
+            name: string;
+            branch: Branch;
+            replay: Replay;
+            comparisonId: string;
+            outcome: { target: { label: string } | null; changed: boolean };
+            firstDivergence: { sequence: number; summary: string } | null;
+            deltas: { totalEstimatedCost: number; durationMs: number };
+          }[];
+        }>(`/api/v1/traces/${encodeURIComponent(traceId)}/forks/matrix`, {
+          forkEventId: opts.at,
+          parentBranchId: opts.branch,
+          variants: combos.map((combo) => ({
+            name: truncate(combo.map((c) => `${c.key}=${JSON.stringify(c.value)}`).join(" "), 120),
+            overrides: combo.map((c) => ({
+              kind: "context",
+              op: "set",
+              key: c.key,
+              value: c.value,
+            })),
+          })),
+        });
+        if (opts.json) return json(result);
+        out(
+          table(
+            [
+              "VARIANT",
+              "BRANCH",
+              "REPLAY",
+              "OUTCOME",
+              "CHANGED",
+              "FIRST DIVERGENCE",
+              "COST Δ",
+              "COMPARISON",
+            ],
+            result.variants.map((v) => [
+              v.name,
+              v.branch.id,
+              v.replay.status,
+              v.outcome.target?.label ?? "-",
+              v.outcome.changed ? "yes" : "no",
+              v.firstDivergence
+                ? truncate(`#${v.firstDivergence.sequence} ${v.firstDivergence.summary}`, 50)
+                : "identical",
+              money(v.deltas.totalEstimatedCost),
+              v.comparisonId,
+            ]),
+          ),
+        );
+        const changed = result.variants.filter((v) => v.outcome.changed).length;
+        out(`${result.variants.length} variant(s), ${changed} changed the outcome`);
+      },
+    );
+
+  program
     .command("replay")
     .description("execute the deterministic replay of a forked branch")
     .argument("<branchId>", "branch id")

@@ -1005,6 +1005,74 @@ describe("shadow cli", () => {
     expect(failing.captured.calls.some((c) => c.method === "DELETE")).toBe(false);
   });
 
+  it("runs a scenario matrix from --vary grids", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/trc_1/forks/matrix": (body) => ({
+        status: 201,
+        body: {
+          variants: (body as { variants: { name: string }[] }).variants.map((v, i) => ({
+            name: v.name,
+            branch: { ...branch, id: `br_m${i}`, name: v.name },
+            replay: { status: "completed" },
+            comparisonId: `cmp_m${i}`,
+            outcome: {
+              target: { label: i === 0 ? "Approval requested" : "Refund issued" },
+              changed: i === 0,
+            },
+            firstDivergence: i === 0 ? { sequence: 37, summary: "policy denied the refund" } : null,
+            deltas: { totalEstimatedCost: i === 0 ? -0.002 : 0, durationMs: 0 },
+          })),
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "matrix",
+        "trc_1",
+        "--at",
+        "evt_7",
+        "--vary",
+        "refundLimit=100,500",
+        "--vary",
+        "tier=gold",
+      ]),
+    ).toBe(0);
+    const sent = api.captured.calls[0]?.body as {
+      forkEventId: string;
+      variants: { name: string; overrides: unknown[] }[];
+    };
+    expect(sent.forkEventId).toBe("evt_7");
+    expect(sent.variants).toEqual([
+      {
+        name: 'refundLimit=100 tier="gold"',
+        overrides: [
+          { kind: "context", op: "set", key: "refundLimit", value: 100 },
+          { kind: "context", op: "set", key: "tier", value: "gold" },
+        ],
+      },
+      {
+        name: 'refundLimit=500 tier="gold"',
+        overrides: [
+          { kind: "context", op: "set", key: "refundLimit", value: 500 },
+          { kind: "context", op: "set", key: "tier", value: "gold" },
+        ],
+      },
+    ]);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("Approval requested");
+    expect(text).toContain("#37 policy denied the refund");
+    expect(text).toContain("identical");
+    expect(text).toContain("2 variant(s), 1 changed the outcome");
+
+    const values = Array.from({ length: 21 }, (_, i) => i).join(",");
+    expect(
+      await runWith(fakeApi({}), ["matrix", "trc_1", "--at", "evt_7", "--vary", `n=${values}`]),
+    ).toBe(2);
+    expect(
+      await runWith(fakeApi({}), ["matrix", "trc_1", "--at", "evt_7", "--vary", "broken"]),
+    ).toBe(2);
+  });
+
   it("creates forks with typed overrides, replays and compares", async () => {
     const fork = {
       id: "frk_1",

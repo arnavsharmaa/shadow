@@ -205,6 +205,7 @@ shadow traces export trc_demo_refund_violation --out refund.json
 shadow traces import refund.json --regenerate-ids
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay
 shadow replay <branchId>
+shadow matrix trc_demo_refund_violation --at <eventId> --vary refundLimit=50,100,500
 shadow compare <baseBranchId> <targetBranchId>
 shadow comparisons list trc_demo_refund_violation
 ```
