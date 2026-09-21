@@ -21,6 +21,53 @@ export interface MatrixVariantResult {
   };
 }
 
+/** Fork an event, replay the fork deterministically and summarise its comparison with the parent. */
+export async function forkReplaySummarise(
+  ctx: ServiceContext,
+  traceId: string,
+  input: {
+    forkEventId: string;
+    parentBranchId?: string;
+    name?: string;
+    overrides: ForkMatrixBody["variants"][number]["overrides"];
+  },
+): Promise<MatrixVariantResult & { parentBranchId: string }> {
+  const { branch, fork } = await createForkForTrace(ctx, traceId, {
+    forkEventId: input.forkEventId,
+    parentBranchId: input.parentBranchId,
+    name: input.name,
+    overrides: input.overrides,
+  });
+  const replayed = await runReplay(ctx, branch.id, "deterministic");
+  const comparison = await createComparison(ctx, {
+    baseBranchId: fork.parentBranchId,
+    targetBranchId: branch.id,
+  });
+  const r = comparison.result;
+  return {
+    parentBranchId: fork.parentBranchId,
+    name: replayed.branch.name,
+    branch: replayed.branch,
+    replay: replayed.replay,
+    comparisonId: comparison.id,
+    outcome: r.outcome,
+    policyChanged: r.policy.changed,
+    firstDivergence: r.firstDivergence
+      ? {
+          sequence: r.firstDivergence.sequence,
+          reason: r.firstDivergence.reason,
+          summary: r.firstDivergence.summary,
+        }
+      : null,
+    deltas: {
+      totalEstimatedCost: r.metrics.totalEstimatedCost.delta,
+      durationMs: r.metrics.durationMs.delta,
+      totalTokens: r.metrics.totalTokens.delta,
+      toolCalls: r.metrics.toolCalls.delta,
+    },
+  };
+}
+
 export interface MatrixResult {
   traceId: string;
   forkEventId: string;
@@ -57,40 +104,14 @@ export async function runForkMatrix(
   const variants: MatrixVariantResult[] = [];
   let parentBranchId = body.parentBranchId;
   for (const variant of body.variants) {
-    const { branch, fork } = await createForkForTrace(ctx, traceId, {
+    const { parentBranchId: resolvedParent, ...summary } = await forkReplaySummarise(ctx, traceId, {
       forkEventId: body.forkEventId,
       parentBranchId,
       name: variant.name,
       overrides: variant.overrides,
     });
-    parentBranchId = fork.parentBranchId;
-    const replayed = await runReplay(ctx, branch.id, "deterministic");
-    const comparison = await createComparison(ctx, {
-      baseBranchId: fork.parentBranchId,
-      targetBranchId: branch.id,
-    });
-    const r = comparison.result;
-    variants.push({
-      name: replayed.branch.name,
-      branch: replayed.branch,
-      replay: replayed.replay,
-      comparisonId: comparison.id,
-      outcome: r.outcome,
-      policyChanged: r.policy.changed,
-      firstDivergence: r.firstDivergence
-        ? {
-            sequence: r.firstDivergence.sequence,
-            reason: r.firstDivergence.reason,
-            summary: r.firstDivergence.summary,
-          }
-        : null,
-      deltas: {
-        totalEstimatedCost: r.metrics.totalEstimatedCost.delta,
-        durationMs: r.metrics.durationMs.delta,
-        totalTokens: r.metrics.totalTokens.delta,
-        toolCalls: r.metrics.toolCalls.delta,
-      },
-    });
+    parentBranchId = resolvedParent;
+    variants.push(summary);
   }
   return {
     traceId,

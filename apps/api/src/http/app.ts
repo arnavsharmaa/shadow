@@ -16,6 +16,7 @@ import { ZodError, z } from "zod";
 import { corsOrigins, type ApiConfig } from "../config.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "../services/context.js";
+import { batchRoutes } from "./routes/batch.js";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
@@ -272,6 +273,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(traceRoutes, { prefix: "/api/v1" });
   await app.register(branchRoutes, { prefix: "/api/v1" });
   await app.register(comparisonRoutes, { prefix: "/api/v1" });
+  await app.register(batchRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

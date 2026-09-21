@@ -99,7 +99,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **Scenario matrices**: fork one event with a grid of overrides and compare every branch
   (available in the API, the CLI and the web app for context values; grids over tool results
   and policies remain API-only).
-- **Batch counterfactuals**: apply the same override set across many traces of an agent.
+- **Batch counterfactuals**: apply the same override set across many traces of an agent
+  (API and CLI exist; a web view and background execution for large batches remain).
 
 ### Ideas / under consideration
 

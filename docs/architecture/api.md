@@ -413,6 +413,32 @@ variant carries its `branch`, `replay`, `comparisonId`, the `outcome` pair with 
 agent_not_replayable` is returned before any fork is created. CLI: `shadow matrix <traceId>
 --at <eventId> --vary refundLimit=50,100,500`.
 
+### `POST /api/v1/batch/counterfactuals`
+
+Batch counterfactual: apply one override set to many recorded traces of an agent, answering
+"how many past runs would have gone differently?".
+
+```json
+{
+  "agent": "refund-agent",
+  "at": { "eventType": "tool.request", "name": "refund_order" },
+  "overrides": [{ "kind": "context", "op": "set", "key": "refundLimit", "value": 100 }],
+  "branchName": "policy-fix",
+  "from": "2026-09-01T00:00:00Z",
+  "limit": 20
+}
+```
+
+`at.eventType` defaults to `tool.request`. Optional filters: `project`, `status`, `tag`, `from`,
+`to`; `limit` is 1 to 50 (default 20), newest traces first. Each trace is forked on its root
+branch at the first matching event, replayed deterministically and compared with the original.
+Returns `201 { agent, at, matched, summary: { changed, unchanged, skipped, failed }, results }`
+where each result is `ok` (with the branch, replay, `comparisonId`, outcome pair, first
+divergence and deltas), `skipped` (no matching event) or `failed` (for example a branch-name
+conflict) with a `reason`; one trace's failure never aborts the batch. `422
+agent_not_replayable` when the agent has no registered program. CLI: `shadow batch --agent
+refund-agent --at refund_order --set refundLimit=100`.
+
 ### `GET /api/v1/traces/:traceId/replays`
 
 `{ items: Replay[] }`.

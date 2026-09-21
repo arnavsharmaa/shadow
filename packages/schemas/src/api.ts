@@ -140,6 +140,28 @@ export const pruneTracesBodySchema = z.object({
 });
 export type PruneTracesBody = z.infer<typeof pruneTracesBodySchema>;
 
+/**
+ * Batch counterfactual: apply one override set to many recorded traces of an agent,
+ * forking each at its first event matching `at`.
+ */
+export const batchCounterfactualBodySchema = z.object({
+  agent: z.string().min(1).max(64),
+  project: z.string().max(64).optional(),
+  at: z.object({
+    eventType: z.string().min(1).max(96).default("tool.request"),
+    name: z.string().min(1).max(256),
+  }),
+  overrides: z.array(overrideSchema).min(1).max(200),
+  /** Branch name given to every fork (default: the next `fork-N` of each trace). */
+  branchName: z.string().min(1).max(128).optional(),
+  status: traceStatusSchema.optional(),
+  tag: z.string().max(64).optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
+
 /** Scenario matrix: fork one event once per variant, replay and compare each. */
 export const forkMatrixBodySchema = z.object({
   forkEventId: idSchema,

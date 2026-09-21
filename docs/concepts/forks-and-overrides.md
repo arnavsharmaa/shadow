@@ -143,6 +143,10 @@ To answer several what-ifs at once, `POST /api/v1/traces/:traceId/forks/matrix` 
 matrix <traceId> --at <eventId> --vary refundLimit=50,100,500`) forks the same event once per
 variant, replays every fork and returns each outcome next to its comparison.
 
+Across traces, `POST /api/v1/batch/counterfactuals` (or `shadow batch --agent <slug> --at
+<eventName> --set key=value`) applies one override set to many recorded runs of an agent and
+reports how many outcomes change.
+
 From the CLI: `shadow fork <traceId> --at <eventId> --set key=value …` creates a fork with
 context overrides, `shadow replay <branchId>` replays it and `shadow compare <base> <target>`
 compares.

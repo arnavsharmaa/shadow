@@ -1015,6 +1015,106 @@ describe("shadow cli", () => {
     expect(failing.captured.calls.some((c) => c.method === "DELETE")).toBe(false);
   });
 
+  it("runs batch counterfactuals across an agent's traces", async () => {
+    const api = fakeApi({
+      "POST /api/v1/batch/counterfactuals": () => ({
+        status: 201,
+        body: {
+          agent: "refund-agent",
+          matched: 5,
+          summary: { changed: 1, unchanged: 1, skipped: 1, failed: 0 },
+          results: [
+            {
+              traceId: "trc_a",
+              startedAt: "2026-09-02T09:00:00.000Z",
+              status: "ok",
+              outcome: {
+                base: { label: "Policy violation" },
+                target: { label: "Approval requested" },
+                changed: true,
+              },
+              firstDivergence: { sequence: 36, summary: "policy denied the refund" },
+              comparisonId: "cmp_a",
+            },
+            {
+              traceId: "trc_b",
+              startedAt: "2026-09-01T09:00:00.000Z",
+              status: "ok",
+              outcome: {
+                base: { label: "Refund issued" },
+                target: { label: "Refund issued" },
+                changed: false,
+              },
+              firstDivergence: null,
+              comparisonId: "cmp_b",
+            },
+            {
+              traceId: "trc_c",
+              startedAt: "2026-08-31T09:00:00.000Z",
+              status: "skipped",
+              reason: "no tool.request 'refund_order' event on the root branch",
+            },
+          ],
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "batch",
+        "--agent",
+        "refund-agent",
+        "--at",
+        "refund_order",
+        "--set",
+        "refundLimit=100",
+        "--from",
+        "2026-08-01",
+        "--limit",
+        "3",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      agent: "refund-agent",
+      at: { eventType: "tool.request", name: "refund_order" },
+      overrides: [{ kind: "context", op: "set", key: "refundLimit", value: 100 }],
+      from: "2026-08-01T00:00:00.000Z",
+      limit: 3,
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("Approval requested");
+    expect(text).toContain("identical");
+    expect(text).toContain("skipped");
+    expect(text).toContain("3 of 5 matching trace(s): 1 changed, 1 unchanged, 1 skipped, 0 failed");
+
+    const typed = fakeApi({
+      "POST /api/v1/batch/counterfactuals": () => ({
+        status: 201,
+        body: {
+          matched: 0,
+          summary: { changed: 0, unchanged: 0, skipped: 0, failed: 0 },
+          results: [],
+        },
+      }),
+    });
+    expect(
+      await runWith(typed, [
+        "batch",
+        "--agent",
+        "a",
+        "--at",
+        "policy.evaluated:refund.limit",
+        "--policy",
+        'refund.limit={"max":50}',
+      ]),
+    ).toBe(0);
+    expect((typed.captured.calls[0]?.body as { at: unknown }).at).toEqual({
+      eventType: "policy.evaluated",
+      name: "refund.limit",
+    });
+    expect(typed.captured.out.join("\n")).toContain("no traces matched");
+    expect(await runWith(fakeApi({}), ["batch", "--agent", "a", "--at", "x"])).toBe(2);
+  });
+
   it("runs a scenario matrix from --vary grids", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/trc_1/forks/matrix": (body) => ({

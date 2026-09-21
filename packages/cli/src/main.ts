@@ -1136,6 +1136,122 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   program
+    .command("batch")
+    .description("apply one override set to many recorded traces of an agent and compare each")
+    .requiredOption("--agent <slug>", "agent whose traces to re-run")
+    .requiredOption(
+      "--at <[eventType:]name>",
+      "fork each trace at its first matching event, e.g. refund_order or policy.evaluated:refund.limit",
+    )
+    .option("--project <slug>", "only this project")
+    .option("--set <key=value...>", "context override, e.g. --set refundLimit=100")
+    .option("--tool-result <tool=json...>", "replace the next result of a tool")
+    .option("--policy <policy=json...>", "override a policy's configuration")
+    .option("--name <branchName>", "branch name for every fork (default: fork-N)")
+    .option("--status <status>", "running | completed | failed")
+    .option("--tag <tag>", "only traces carrying this tag")
+    .option("--from <cutoff>", "traces started at or after", cutoff)
+    .option("--to <cutoff>", "traces started at or before", cutoff)
+    .option("--limit <n>", "maximum traces (1-50)", positiveInt, 20)
+    .option("--json", "print JSON")
+    .action(
+      async (opts: {
+        agent: string;
+        at: string;
+        project?: string;
+        set?: string[];
+        toolResult?: string[];
+        policy?: string[];
+        name?: string;
+        status?: string;
+        tag?: string;
+        from?: string;
+        to?: string;
+        limit: number;
+        json?: boolean;
+      }) => {
+        const overrides: Override[] = [];
+        for (const item of opts.set ?? []) {
+          const { key, value } = parseAssignment(item);
+          overrides.push({ kind: "context", op: "set", key, value: value as never });
+        }
+        for (const item of opts.toolResult ?? []) {
+          const { key, value } = parseAssignment(item);
+          overrides.push({ kind: "tool_result", tool: key, occurrence: 1, result: value as never });
+        }
+        for (const item of opts.policy ?? []) {
+          const { key, value } = parseAssignment(item);
+          if (value === null || typeof value !== "object" || Array.isArray(value)) {
+            throw new CliError(`--policy value for ${key} must be a JSON object`, EXIT.usage);
+          }
+          overrides.push({ kind: "policy", policy: key, config: value as never });
+        }
+        if (overrides.length === 0) {
+          throw new CliError("pass at least one of --set, --tool-result or --policy", EXIT.usage);
+        }
+        const separator = opts.at.indexOf(":");
+        const at =
+          separator > 0 && opts.at.slice(0, separator).includes(".")
+            ? { eventType: opts.at.slice(0, separator), name: opts.at.slice(separator + 1) }
+            : { eventType: "tool.request", name: opts.at };
+        const result = await client().post<{
+          matched: number;
+          summary: { changed: number; unchanged: number; skipped: number; failed: number };
+          results: {
+            traceId: string;
+            startedAt: string;
+            status: "ok" | "skipped" | "failed";
+            reason?: string;
+            outcome?: {
+              base: { label: string } | null;
+              target: { label: string } | null;
+              changed: boolean;
+            };
+            firstDivergence?: { sequence: number; summary: string } | null;
+            comparisonId?: string;
+          }[];
+        }>("/api/v1/batch/counterfactuals", {
+          agent: opts.agent,
+          project: opts.project,
+          at,
+          overrides,
+          branchName: opts.name,
+          status: opts.status,
+          tag: opts.tag,
+          from: opts.from,
+          to: opts.to,
+          limit: opts.limit,
+        });
+        if (opts.json) return json(result);
+        if (result.results.length === 0) return out("no traces matched");
+        out(
+          table(
+            ["TRACE", "STARTED", "RESULT", "ORIGINAL", "COUNTERFACTUAL", "DETAIL"],
+            result.results.map((r) => [
+              r.traceId,
+              r.startedAt,
+              r.status === "ok" ? (r.outcome?.changed ? "changed" : "same") : r.status,
+              r.outcome?.base?.label ?? "-",
+              r.outcome?.target?.label ?? "-",
+              truncate(
+                r.status === "ok"
+                  ? r.firstDivergence
+                    ? `#${r.firstDivergence.sequence} ${r.firstDivergence.summary}`
+                    : "identical"
+                  : (r.reason ?? ""),
+                60,
+              ),
+            ]),
+          ),
+        );
+        const s = result.summary;
+        out(
+          `${result.results.length} of ${result.matched} matching trace(s): ${s.changed} changed, ${s.unchanged} unchanged, ${s.skipped} skipped, ${s.failed} failed`,
+        );
+      },
+    );
+
+  program
     .command("replay")
     .description("execute the deterministic replay of a forked branch")
     .argument("<branchId>", "branch id")
