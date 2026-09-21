@@ -100,7 +100,7 @@ is welcome through GitHub issues; integration proposals have their own
   (available in the API, the CLI and the web app for context values; grids over tool results
   and policies remain API-only).
 - **Batch counterfactuals**: apply the same override set across many traces of an agent
-  (API and CLI exist; a web view and background execution for large batches remain).
+  (available in the API, CLI and web app; background execution for large batches remains).
 
 ### Ideas / under consideration
 

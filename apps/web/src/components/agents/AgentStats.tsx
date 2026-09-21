@@ -5,7 +5,9 @@ import { dateTime, duration, money, percent, relativeTime } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Badge, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
+import { useState } from "react";
+import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
+import { BatchDialog } from "./BatchDialog";
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
   { key: "24h", label: "Last 24 hours", days: 1 },
@@ -35,6 +37,9 @@ export function AgentStats() {
     refetchInterval: 30_000,
   });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
+  const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
+  const replayable = new Set(health.data?.agents?.replayable ?? []);
+  const [batchAgent, setBatchAgent] = useState<AgentStatsRow | null>(null);
 
   const setParam = (key: string, value: string | undefined) => {
     const next = new URLSearchParams(params.toString());
@@ -117,21 +122,38 @@ export function AgentStats() {
                 <th className="px-3 py-1.5 text-right">Avg cost</th>
                 <th className="px-3 py-1.5 text-right">Tokens</th>
                 <th className="px-3 py-1.5">Last run</th>
+                <th className="px-3 py-1.5" />
               </tr>
             </thead>
             <tbody>
               {stats.data.items.map((a) => (
-                <AgentRow key={a.agentId} row={a} />
+                <AgentRow
+                  key={a.agentId}
+                  row={a}
+                  onWhatIf={replayable.has(a.agentSlug) ? () => setBatchAgent(a) : undefined}
+                />
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {batchAgent && (
+        <BatchDialog
+          key={batchAgent.agentId}
+          open
+          onClose={() => {
+            setBatchAgent(null);
+            void stats.refetch();
+          }}
+          agent={batchAgent}
+          tools={facets.data?.tools ?? []}
+        />
+      )}
     </div>
   );
 }
 
-function AgentRow({ row }: { row: AgentStatsRow }) {
+function AgentRow({ row, onWhatIf }: { row: AgentStatsRow; onWhatIf?: () => void }) {
   const failureRate = row.traces > 0 ? row.failed / row.traces : 0;
   return (
     <tr
@@ -184,6 +206,18 @@ function AgentRow({ row }: { row: AgentStatsRow }) {
           </>
         ) : (
           "–"
+        )}
+      </td>
+      <td className="px-3 py-1.5 text-right align-top">
+        {onWhatIf && (
+          <Button
+            size="xs"
+            onClick={onWhatIf}
+            title="Re-run this agent's recorded traces with one context value changed"
+            data-testid="what-if"
+          >
+            What if…
+          </Button>
         )}
       </td>
     </tr>

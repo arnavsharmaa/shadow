@@ -53,6 +53,8 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- "What if…" on the Agents page: run a batch counterfactual for a replayable agent from the
+  web app (tool to fork before, context key, new value) and open each changed run's comparison.
 - Batch counterfactuals: `POST /api/v1/batch/counterfactuals` and `shadow batch --agent <slug>
   --at <eventName> --set key=value` apply one override set to up to 50 recorded traces of an
   agent, fork each at its first matching event, replay, compare and summarise how many

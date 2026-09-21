@@ -440,6 +440,30 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
   });
 
+  test("a what-if runs across an agent's recorded traces", async ({ page }) => {
+    await page.goto("/agents");
+    const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
+    await expect(refund).toBeVisible();
+    await refund.getByTestId("what-if").click();
+    const dialog = page.getByTestId("batch-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("run-batch")).toBeDisabled();
+    await dialog.getByTestId("batch-tool").fill("refund_order");
+    await dialog.getByTestId("batch-key").fill("refundLimit");
+    await dialog.getByTestId("batch-value").fill("100");
+    await dialog.getByTestId("run-batch").click();
+    await expect(dialog.getByTestId("batch-summary")).toContainText("changed", { timeout: 60_000 });
+    const rows = dialog.locator('[data-testid="batch-row"]');
+    expect(await rows.count()).toBeGreaterThanOrEqual(2);
+    await expect(dialog.getByTestId("batch-results")).toContainText("Approval");
+    await rows
+      .filter({ hasText: "changed" })
+      .first()
+      .getByRole("link", { name: "Compare" })
+      .click();
+    await expect(page.getByTestId("comparison-view")).toBeVisible();
+  });
+
   test("explorer filters can be saved as named views", async ({ page }) => {
     await page.goto("/?status=failed&sort=totalEstimatedCost&order=desc");
     await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();

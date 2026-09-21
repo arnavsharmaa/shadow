@@ -156,6 +156,29 @@ export interface MatrixVariant {
   };
 }
 
+export type BatchItem =
+  | ({
+      traceId: string;
+      traceName: string;
+      startedAt: string;
+      status: "ok";
+      forkEventId: string;
+    } & MatrixVariant)
+  | {
+      traceId: string;
+      traceName: string;
+      startedAt: string;
+      status: "skipped" | "failed";
+      reason: string;
+    };
+
+export interface BatchResult {
+  agent: string;
+  matched: number;
+  summary: { changed: number; unchanged: number; skipped: number; failed: number };
+  results: BatchItem[];
+}
+
 export interface AgentStatsRow {
   agentId: string;
   agentSlug: string;
@@ -230,6 +253,14 @@ export const api = {
       `/api/v1/traces/${encodeURIComponent(traceId)}/forks`,
       body,
     ),
+  batchCounterfactual: (body: {
+    agent: string;
+    project?: string;
+    at: { eventType?: string; name: string };
+    overrides: Override[];
+    branchName?: string;
+    limit?: number;
+  }) => request<BatchResult>("POST", "/api/v1/batch/counterfactuals", body),
   forkMatrix: (
     traceId: string,
     body: {
