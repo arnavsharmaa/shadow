@@ -20,10 +20,10 @@ FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
-RUN addgroup -S shadow && adduser -S shadow -G shadow
+RUN addgroup -S shadowapp && adduser -S shadowapp -G shadowapp
 COPY --from=build /repo/apps/web/.next/standalone ./
 COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /repo/apps/web/public ./apps/web/public
-USER shadow
+USER shadowapp
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]

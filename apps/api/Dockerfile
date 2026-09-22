@@ -17,11 +17,11 @@ RUN pnpm --filter @shadow/api --prod deploy /out --legacy
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-RUN addgroup -S shadow && adduser -S shadow -G shadow
+RUN addgroup -S shadowapp && adduser -S shadowapp -G shadowapp
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /repo/apps/api/dist ./dist
 COPY --from=build /repo/apps/api/drizzle ./drizzle
 COPY --from=build /repo/apps/api/package.json ./package.json
-USER shadow
+USER shadowapp
 EXPOSE 4000
 CMD ["node", "dist/main.js"]
