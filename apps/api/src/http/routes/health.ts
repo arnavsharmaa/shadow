@@ -20,6 +20,7 @@ const healthSchema = z.object({
       keepTag: z.string().optional(),
     }),
     otlp: z.object({ path: z.string(), defaultProject: z.string() }),
+    webhook: z.object({ enabled: z.boolean(), events: z.string().optional() }),
   }),
 });
 
@@ -31,6 +32,8 @@ export interface HealthRouteOptions {
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
+    | "SHADOW_WEBHOOK_URL"
+    | "SHADOW_WEBHOOK_EVENTS"
   >;
 }
 
@@ -75,6 +78,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
             path: "/api/v1/otlp/v1/traces",
             defaultProject: config.SHADOW_OTLP_DEFAULT_PROJECT,
           },
+          webhook: config.SHADOW_WEBHOOK_URL
+            ? { enabled: true, events: config.SHADOW_WEBHOOK_EVENTS }
+            : { enabled: false },
         },
       };
       return reply.status(healthy ? 200 : 503).send(body);

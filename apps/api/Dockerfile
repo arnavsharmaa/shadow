@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 FROM node:24-alpine AS base
-RUN corepack enable
+# Pin the same pnpm as package.json's packageManager without corepack (deprecated in Node 25).
+RUN npm install --global pnpm@10.34.5
 WORKDIR /repo
 
 FROM base AS build

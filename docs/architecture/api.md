@@ -590,12 +590,46 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction          |
 | `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                          |
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`      |
+| `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                   |
+| `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`             |
+| `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`               |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)              |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                       |
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables) |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set               |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                     |
 | `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                      |
+
+### Webhooks
+
+With `SHADOW_WEBHOOK_URL` set, the API posts a JSON notification when a trace's root branch
+finishes. `SHADOW_WEBHOOK_EVENTS` selects which: `failures` (default: failed traces, which
+includes policy violations), `policy_violations` only, or `all`. The body is:
+
+```json
+{
+  "type": "trace.finished",
+  "sentAt": "2026-09-01T09:12:09.100Z",
+  "reason": "policy_violation",
+  "trace": {
+    "id": "trc_…",
+    "name": "refund-request: defective headphones",
+    "projectSlug": "support-agent",
+    "agentSlug": "refund-agent",
+    "status": "failed",
+    "outcome": { "kind": "policy_violation", "label": "Policy violation" },
+    "startedAt": "…",
+    "completedAt": "…",
+    "tags": ["refund"]
+  }
+}
+```
+
+Headers: `x-shadow-event: trace.finished`, `x-shadow-delivery: <traceId>:<sentAt>` and, when
+`SHADOW_WEBHOOK_SECRET` is set, `x-shadow-signature-256: sha256=<HMAC-SHA256 hex of the body>`
+so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
+are retried three times with backoff, other rejections are logged once. `/health` reports
+whether the webhook is enabled.
 
 ### Retention
 

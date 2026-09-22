@@ -159,9 +159,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build API image
-        run: docker build --file apps/api/Dockerfile --tag shadow-api:ci .
+        run: scripts/ci/docker-build.sh apps/api/Dockerfile shadow-api:ci
       - name: Build web image
-        run: docker build --file apps/web/Dockerfile --tag shadow-web:ci .
+        run: scripts/ci/docker-build.sh apps/web/Dockerfile shadow-web:ci
       - name: Smoke-test the API image
         run: |
           docker run --detach --name shadow-api --publish 4000:4000 \

@@ -32,6 +32,24 @@ describe("loadConfig", () => {
     expect(config.SHADOW_MAX_BODY_BYTES).toBe(2048);
   });
 
+  it("parses webhook settings", () => {
+    const off = loadConfig({});
+    expect(off.SHADOW_WEBHOOK_URL).toBeUndefined();
+    expect(off.SHADOW_WEBHOOK_EVENTS).toBe("failures");
+    const on = loadConfig({
+      SHADOW_WEBHOOK_URL: " https://hooks.example.com/shadow?x=1 ",
+      SHADOW_WEBHOOK_SECRET: " s3cret ",
+      SHADOW_WEBHOOK_EVENTS: "policy_violations",
+    });
+    expect(on.SHADOW_WEBHOOK_URL).toBe("https://hooks.example.com/shadow?x=1");
+    expect(on.SHADOW_WEBHOOK_SECRET).toBe("s3cret");
+    expect(on.SHADOW_WEBHOOK_EVENTS).toBe("policy_violations");
+    expect(loadConfig({ SHADOW_WEBHOOK_URL: "" }).SHADOW_WEBHOOK_URL).toBeUndefined();
+    expect(() => loadConfig({ SHADOW_WEBHOOK_URL: "ftp://x" })).toThrow(/http/);
+    expect(() => loadConfig({ SHADOW_WEBHOOK_URL: "not a url" })).toThrow(/http/);
+    expect(() => loadConfig({ SHADOW_WEBHOOK_EVENTS: "everything" })).toThrow();
+  });
+
   it("parses the rate limit and keeps it off by default", () => {
     expect(loadConfig({}).SHADOW_RATE_LIMIT_PER_MINUTE).toBe(0);
     expect(loadConfig({ SHADOW_RATE_LIMIT_PER_MINUTE: "600" }).SHADOW_RATE_LIMIT_PER_MINUTE).toBe(

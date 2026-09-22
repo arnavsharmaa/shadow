@@ -43,6 +43,7 @@ describe("health and error envelope", () => {
       auth: false,
       retention: { enabled: false },
       otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+      webhook: { enabled: false },
     });
 
     const configured = await createTestApp({
@@ -51,6 +52,8 @@ describe("health and error envelope", () => {
         SHADOW_RETENTION_DAYS: "30",
         SHADOW_RETENTION_INTERVAL_MINUTES: "15",
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
+        SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+        SHADOW_WEBHOOK_EVENTS: "all",
       },
     });
     try {
@@ -61,6 +64,7 @@ describe("health and error envelope", () => {
         auth: true,
         retention: { enabled: true, days: 30, intervalMinutes: 15, keepTag: "keep" },
         otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "ingest" },
+        webhook: { enabled: true, events: "all" },
       });
     } finally {
       await configured.close();

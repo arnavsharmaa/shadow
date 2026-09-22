@@ -32,7 +32,7 @@ import {
   type TraceRow,
 } from "./mappers.js";
 import { likeSearchProvider } from "./search.js";
-import { getTraceRow } from "./traces.js";
+import { getTraceRow, getTraceSummary } from "./traces.js";
 
 export async function getBranchRow(ctx: ServiceContext, branchId: string): Promise<BranchRow> {
   const [row] = await ctx.handle.db
@@ -265,6 +265,28 @@ export async function ingestEvents(
     await applyLifecycle(tx, trace, branchRow, prepared);
     return prepared;
   });
+  if (branchId === trace.rootBranchId && ctx.webhook.enabled) {
+    const end = [...inserted]
+      .reverse()
+      .find((e) => e.eventType === "trace.completed" || e.eventType === "trace.failed");
+    if (end) {
+      const summary = await getTraceSummary(ctx, traceId);
+      // Delivery happens off the ingestion path; the client never waits for it.
+      void ctx.webhook.traceFinished({
+        trace: {
+          id: summary.id,
+          name: summary.name,
+          projectSlug: summary.projectSlug,
+          agentSlug: summary.agentSlug,
+          status: end.eventType === "trace.failed" ? "failed" : "completed",
+          outcome: summary.outcome,
+          startedAt: summary.startedAt,
+          completedAt: end.timestamp,
+          tags: summary.tags,
+        },
+      });
+    }
+  }
   const branch = await writeBranchMetrics(
     ctx,
     branchId,

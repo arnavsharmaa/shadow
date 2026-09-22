@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- Outgoing webhooks: `SHADOW_WEBHOOK_URL` receives a signed JSON notification when a trace
+  finishes with a failure or policy violation (or every trace with
+  `SHADOW_WEBHOOK_EVENTS=all`), with retries and without blocking ingestion.
 - "What if…" on the Agents page: run a batch counterfactual for a replayable agent from the
   web app (tool to fork before, context key, new value) and open each changed run's comparison.
 - Batch counterfactuals: `POST /api/v1/batch/counterfactuals` and `shadow batch --agent <slug>

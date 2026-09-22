@@ -34,6 +34,28 @@ const configSchema = z.object({
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   /** Requests per client IP per minute on /api/* (0 disables rate limiting). */
   SHADOW_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  /** Outgoing webhook for finished traces (unset disables notifications). */
+  SHADOW_WEBHOOK_URL: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined || v.trim() === "") return undefined;
+      try {
+        const parsed = new URL(v.trim());
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("scheme");
+        return parsed.toString();
+      } catch {
+        ctx.addIssue({ code: "custom", message: "must be an http(s) URL" });
+        return z.NEVER;
+      }
+    }),
+  /** HMAC-SHA256 secret used to sign webhook bodies (`x-shadow-signature-256`). */
+  SHADOW_WEBHOOK_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Which finished traces to notify about. */
+  SHADOW_WEBHOOK_EVENTS: z.enum(["policy_violations", "failures", "all"]).default("failures"),
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */
   SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
   /** Delete traces older than this many days (unset disables retention). */

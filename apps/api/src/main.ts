@@ -4,6 +4,7 @@ import { createDatabase } from "./db/client.js";
 import { buildApp } from "./http/app.js";
 import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
+import { createWebhook } from "./notify/webhook.js";
 import { createRetention } from "./retention.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
@@ -35,6 +36,17 @@ async function main(): Promise<void> {
     logger.info({ module: loaded.modulePath, agents: loaded.slugs }, "replay module loaded");
   }
 
+  const webhook = createWebhook({ config, logger });
+  if (webhook.enabled) {
+    logger.info(
+      {
+        url: config.SHADOW_WEBHOOK_URL,
+        events: config.SHADOW_WEBHOOK_EVENTS,
+        signed: Boolean(config.SHADOW_WEBHOOK_SECRET),
+      },
+      "webhook enabled",
+    );
+  }
   const services = createServiceContext({
     handle,
     logger,
@@ -42,6 +54,7 @@ async function main(): Promise<void> {
     redactor: createRedactor({
       additionalKeyPatterns: parsePatternList(config.SHADOW_REDACT_PATTERNS),
     }),
+    webhook,
   });
 
   if (config.SHADOW_AUTO_SEED && (await isDatabaseEmpty(services))) {
@@ -65,6 +78,7 @@ async function main(): Promise<void> {
     try {
       retention.stop();
       await app.close();
+      await webhook.settle();
       await handle.close();
       logger.info("shutdown complete");
       process.exit(0);

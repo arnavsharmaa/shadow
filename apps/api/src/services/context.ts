@@ -8,6 +8,7 @@ import {
 import type { Logger } from "pino";
 import type { DatabaseHandle } from "../db/client.js";
 import { ShadowMetrics } from "../metrics/registry.js";
+import { noopWebhook, type Webhook } from "../notify/webhook.js";
 import type { AgentRegistry } from "../replay/registry.js";
 
 /** Dependencies shared by every service function. */
@@ -20,17 +21,20 @@ export interface ServiceContext {
   redactor: Redactor;
   /** Process-wide counters rendered by GET /metrics. */
   metrics: ShadowMetrics;
+  /** Outgoing notifications for finished traces. */
+  webhook: Webhook;
 }
 
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
-    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics">>,
+    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook">>,
 ): ServiceContext {
   return {
     ...input,
     ids: input.ids ?? randomIdGenerator(),
     clock: input.clock ?? systemClock,
     metrics: input.metrics ?? new ShadowMetrics(),
+    webhook: input.webhook ?? noopWebhook,
   };
 }
 

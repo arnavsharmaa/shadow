@@ -45,6 +45,10 @@ machine or inside a trusted network:
   OTLP JSON export into traces under the project named by its resource attributes. It is
   covered by the same token, body limit and redaction as ingestion, but with the token unset
   anyone who can reach the API can create traces.
+- **Webhooks send trace summaries out.** With `SHADOW_WEBHOOK_URL` set, the API posts the id,
+  name, project, agent, status, outcome, timestamps and tags of finished traces (never event
+  payloads) to that URL. Set `SHADOW_WEBHOOK_SECRET` so receivers can verify the HMAC signature,
+  and use HTTPS.
 - **Metrics reveal usage.** `GET /metrics` exposes request, ingestion and storage counts (never
   payloads). Protect it with the token or keep it on a private interface.
 - **No encryption at rest.** Events are stored as plain JSON in PGlite (`.shadow/data`) or in the
