@@ -150,3 +150,37 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build API image
+        run: docker build --file apps/api/Dockerfile --tag shadow-api:ci .
+      - name: Build web image
+        run: docker build --file apps/web/Dockerfile --tag shadow-web:ci .
+      - name: Smoke-test the API image
+        run: |
+          docker run --detach --name shadow-api --publish 4000:4000 \
+            --env DATABASE_URL=memory:// --env SHADOW_API_HOST=0.0.0.0 shadow-api:ci
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4000/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl --silent --fail http://127.0.0.1:4000/health
+          echo
+          test "$(curl --silent http://127.0.0.1:4000/api/v1/traces?limit=1 | python3 -c 'import sys,json; print(json.load(sys.stdin)["total"])')" -gt 0
+          docker logs shadow-api | tail -20
+          docker stop shadow-api > /dev/null
+      - name: Smoke-test the web image
+        run: |
+          docker run --detach --name shadow-web --publish 3000:3000 shadow-web:ci
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:3000/ > /dev/null; then break; fi
+            sleep 2
+          done
+          curl --silent --fail http://127.0.0.1:3000/ | grep --quiet "Shadow"
+          docker stop shadow-web > /dev/null
