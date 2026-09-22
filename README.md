@@ -45,7 +45,9 @@ Shadow records every model call, tool call, policy evaluation and state change a
 - **Deterministic counterfactual replay.** The recorded prefix is replayed from history; the fork continues against deterministic adapters. Same inputs, byte-identical output.
 - **Branch comparison.** First divergence, added/removed/modified events, tool argument and result diffs, context/state diffs, token/cost/latency deltas, outcome and policy deltas.
 - **Debugging UI.** Trace explorer with filters and search, trace detail with execution tree, event inspector, state inspector and timeline, fork editor, branch graph and comparison view.
-- **SDK, CLI and HTTP API.** Instrument any TypeScript agent, import/export traces as JSON, drive everything from the terminal.
+- **Scenario matrices and batch counterfactuals.** Replay one step with a grid of values, or apply one override set across an agent's recorded traces, and see every outcome side by side.
+- **SDK, CLI and HTTP API.** Instrument any TypeScript agent (with sampling and environment-only configuration), import/export traces as JSON, ingest OpenTelemetry exports, drive everything from the terminal.
+- **Operations built in.** Optional bearer-token auth, per-client rate limiting, Prometheus metrics, retention with a `keep` exemption, per-agent statistics, and an outgoing webhook for failed or policy-violating traces.
 - **Zero-infrastructure local mode.** PostgreSQL schema on an embedded database for `pnpm dev`; real PostgreSQL via `DATABASE_URL` or `docker compose up`.
 
 ## Demo
@@ -218,21 +220,26 @@ In this repository run it with `pnpm --filter @shadow/cli exec tsx src/cli.ts â€
 Versioned REST API with OpenAPI documentation at `/docs` (`/openapi.json`).
 
 ```text
-GET  /health
+GET  /health                              GET  /metrics
 GET  /api/v1/projects                     POST /api/v1/projects
+GET  /api/v1/agents                       GET  /api/v1/stats/agents
 GET  /api/v1/traces                       POST /api/v1/traces
-GET  /api/v1/traces/:traceId              DELETE /api/v1/traces/:traceId
+GET  /api/v1/traces/:traceId              PATCH/DELETE /api/v1/traces/:traceId
+POST /api/v1/traces/prune                 POST /api/v1/traces/import
 GET  /api/v1/traces/:traceId/events       POST /api/v1/traces/:traceId/events
 GET  /api/v1/traces/:traceId/events/:eventId/state
-GET  /api/v1/traces/:traceId/tree
-GET  /api/v1/traces/:traceId/branches
+GET  /api/v1/traces/:traceId/tree         GET  /api/v1/traces/:traceId/export
+GET  /api/v1/traces/:traceId/branches     GET  /api/v1/traces/:traceId/replays
 GET  /api/v1/traces/:traceId/forks        POST /api/v1/traces/:traceId/forks
-GET  /api/v1/traces/:traceId/export       POST /api/v1/traces/import
+POST /api/v1/traces/:traceId/forks/matrix POST /api/v1/batch/counterfactuals
+GET  /api/v1/traces/:traceId/artifacts    POST /api/v1/traces/:traceId/artifacts
 GET  /api/v1/branches/:branchId           PATCH/DELETE /api/v1/branches/:branchId
 GET  /api/v1/branches/:branchId/state     POST /api/v1/branches/:branchId/replay
 GET  /api/v1/comparisons                  POST /api/v1/comparisons
-GET  /api/v1/comparisons/:comparisonId
+GET  /api/v1/comparisons/:comparisonId    POST /api/v1/otlp/v1/traces
 ```
+
+Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces.
 
 Events are cursor-paginated; every error is `{ "error": { "code", "message", "details?", "requestId" } }`. Reference: [docs/architecture/api.md](docs/architecture/api.md).
 
@@ -291,7 +298,7 @@ v0.1 (this release) delivers local time travel: schema, ingestion, explorer, sta
 
 ## Security
 
-Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. Authentication is a single optional bearer token (`SHADOW_API_TOKEN`, forwarded by the SDK, CLI and web app, and required for `/metrics` when set); an optional per-client rate limit (`SHADOW_RATE_LIMIT_PER_MINUTE`) and retention (`SHADOW_RETENTION_DAYS`, with a `keep` tag exemption) round out the operational controls. There is no per-user authorisation, so run Shadow locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. Authentication is a single optional bearer token (`SHADOW_API_TOKEN`, forwarded by the SDK, CLI and web app, and required for `/metrics` when set); an optional per-client rate limit (`SHADOW_RATE_LIMIT_PER_MINUTE`), retention (`SHADOW_RETENTION_DAYS`, with a `keep` tag exemption) and a signed outgoing webhook (`SHADOW_WEBHOOK_URL`) round out the operational controls. There is no per-user authorisation, so run Shadow locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
