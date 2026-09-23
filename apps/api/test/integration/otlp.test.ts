@@ -1,5 +1,6 @@
 import type { Branch, ShadowEvent, TraceSummary } from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { encodeOtlpProtobuf } from "../../src/otlp/protobuf.js";
 import { createTestApp, json, listAllEvents, type TestApp } from "../helpers.js";
 import { refundPayload } from "../fixtures/otlp.js";
 
@@ -169,14 +170,42 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     expect(detail.trace.metrics.toolCalls).toBe(3);
   });
 
-  it("rejects protobuf and malformed bodies", async () => {
+  it("accepts the protobuf encoding and rejects malformed bodies", async () => {
+    const twin = JSON.parse(
+      JSON.stringify(refundPayload()).replace(
+        /4bf92f3577b34da6a3ce929d0e0e4736/g,
+        "0000000000000000000000000000abcd",
+      ),
+    ) as ReturnType<typeof refundPayload>;
     const proto = await t.app.inject({
       method: "POST",
       url: "/api/v1/otlp/v1/traces",
       headers: { "content-type": "application/x-protobuf" },
+      payload: Buffer.from(encodeOtlpProtobuf(twin)),
+    });
+    expect(proto.statusCode).toBe(200);
+    expect(
+      json<{ shadow: { traces: { traceId: string; accepted: number }[] } }>(proto).shadow.traces[0],
+    ).toMatchObject({
+      traceId: "trc_otel_0000000000000000000000000000abcd",
+      accepted: 16,
+    });
+    const garbage = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/otlp/v1/traces",
+      headers: { "content-type": "application/x-protobuf" },
+      payload: Buffer.from([0xff, 0xff, 0xff, 0xff]),
+    });
+    expect(garbage.statusCode).toBe(400);
+    expect(json<{ error: { code: string } }>(garbage).error.code).toBe("bad_request");
+    // Other routes still refuse the protobuf content type.
+    const elsewhere = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      headers: { "content-type": "application/x-protobuf" },
       payload: Buffer.from([0x0a, 0x00]),
     });
-    expect(proto.statusCode).toBe(415);
+    expect(elsewhere.statusCode).toBe(415);
     const bad = await t.app.inject({
       method: "POST",
       url: "/api/v1/otlp/v1/traces",

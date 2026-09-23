@@ -217,6 +217,12 @@ export async function buildApp(options: BuildAppOptions) {
       max?: number;
       retryAfterMs?: number;
     };
+    if (fastifyError.statusCode === 400) {
+      reply.status(400).send({
+        error: { code: "bad_request", message: fastifyError.message ?? "bad request", requestId },
+      });
+      return;
+    }
     if (fastifyError.statusCode === 429) {
       reply.status(429).send({
         error: {

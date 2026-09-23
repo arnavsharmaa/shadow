@@ -522,8 +522,8 @@ Returns one `Artifact` or `404`.
 
 ### `POST /api/v1/otlp/v1/traces`
 
-Accepts an OTLP/HTTP `ExportTraceServiceRequest` in the JSON encoding (`application/json`;
-protobuf bodies answer `415`). Every OpenTelemetry trace in the payload becomes, or extends, the
+Accepts an OTLP/HTTP `ExportTraceServiceRequest` as `application/x-protobuf` (the exporters'
+default) or `application/json`; malformed protobuf answers `400 bad_request`. Every OpenTelemetry trace in the payload becomes, or extends, the
 Shadow trace `trc_otel_<traceId>`; spans are mapped following the GenAI semantic conventions as
 described in [docs/integrations/opentelemetry.md](../integrations/opentelemetry.md). Response:
 

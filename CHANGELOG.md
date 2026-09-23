@@ -53,6 +53,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   attach documents (email bodies, retrieved pages, reports) to a trace, branch or event; they
   are redacted, exported and imported with the trace. The event inspector lists artifacts
   linked to the selected event, and the demo seeds each sent email as one.
+- OTLP protobuf: `POST /api/v1/otlp/v1/traces` now accepts `application/x-protobuf`, the default
+  encoding of OpenTelemetry exporters and the Collector, decoded with a vendored
+  opentelemetry-proto v1.5.0 descriptor (`scripts/otlp-descriptor.mjs` regenerates it).
 - Outgoing webhooks: `SHADOW_WEBHOOK_URL` receives a signed JSON notification when a trace
   finishes with a failure or policy violation (or every trace with
   `SHADOW_WEBHOOK_EVENTS=all`), with retries and without blocking ingestion.

@@ -51,7 +51,7 @@ is welcome through GitHub issues; integration proposals have their own
 
 - **OpenTelemetry / OTLP ingestion**: JSON-encoded OTLP/HTTP is accepted and mapped from GenAI
   semantic-convention spans ([details](./docs/integrations/opentelemetry.md)); remaining:
-  protobuf/gRPC encodings and cross-batch buffering.
+  OTLP/gRPC and cross-batch buffering.
 - **OpenAI Agents SDK adapter**: record runs, handoffs, tool calls and guardrails
   ([proposal](./docs/integrations/openai-agents-sdk.md)).
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state

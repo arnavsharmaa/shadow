@@ -1,15 +1,15 @@
 # OpenTelemetry (OTLP) integration
 
-> **Status: OTLP/HTTP JSON ingestion is implemented** (`POST /api/v1/otlp/v1/traces`); the
-> mapping below is what the importer does today. Not yet implemented: the protobuf encoding,
+> **Status: OTLP/HTTP ingestion is implemented** (`POST /api/v1/otlp/v1/traces`, JSON and
+> protobuf encodings); the mapping below is what the importer does today. Not yet implemented:
 > OTLP/gRPC and the reverse exporter. Traces imported this way
 > can be inspected, searched, exported and compared, but not forked and replayed (there is no
 > program to re-run).
 
 ## Using it
 
-Point an OTLP/HTTP exporter at the API with the JSON encoding, for example with the
-OpenTelemetry JavaScript SDK:
+Point an OTLP/HTTP exporter at the API (protobuf, the exporters' default, or JSON), for example
+with the OpenTelemetry JavaScript SDK:
 
 ```ts
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -21,7 +21,8 @@ const exporter = new OTLPTraceExporter({
 ```
 
 Environment-based configuration works too: `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4000/api/v1/otlp/v1/traces`
-with `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`. Each request returns the OTLP success envelope
+with `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` (or `http/json`). The OpenTelemetry Collector's
+`otlphttp` exporter works with its defaults. Each request returns the OTLP success envelope
 plus a `shadow` object listing the traces it created or extended:
 
 ```json
@@ -62,9 +63,10 @@ events to OTLP) is part of the same milestone so Shadow can sit alongside existi
 
 ## Surface
 
-- `POST /api/v1/otlp/v1/traces` accepting OTLP/HTTP with the JSON encoding (implemented); the
-  protobuf encoding answers `415` for now. The standard path suffix means an exporter can be
-  pointed at Shadow with a base URL of `http://localhost:4000/api/v1/otlp`.
+- `POST /api/v1/otlp/v1/traces` accepting OTLP/HTTP in the protobuf and JSON encodings
+  (implemented; the protobuf schema is the vendored opentelemetry-proto v1.5.0 descriptor). The
+  standard path suffix means an exporter can be pointed at Shadow with a base URL of
+  `http://localhost:4000/api/v1/otlp`.
 - Resource attributes `service.namespace` / `service.name` identify project and agent, with
   `SHADOW_OTLP_DEFAULT_PROJECT` as the project fallback (implemented).
 - An `exporters` configuration to forward Shadow events to an OTLP endpoint (planned).
@@ -157,8 +159,8 @@ a span link, since OTLP has no branch concept.
   recover truncated content.
 - Semantic conventions for GenAI are still evolving; the importer will version its mapping and
   record the convention version it assumed in `metadata.otel.semconv` (currently `1.36.0`).
-- Only the JSON encoding of OTLP/HTTP is accepted; protobuf and gRPC exporters need a collector
-  in between, configured with the `otlphttp` exporter and `encoding: json`.
+- OTLP/gRPC is not accepted; gRPC exporters need a collector in between with the `otlphttp`
+  exporter.
 
 ## Open questions
 

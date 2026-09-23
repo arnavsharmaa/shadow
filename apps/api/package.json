@@ -43,6 +43,7 @@
     "fastify-type-provider-zod": "7.0.0",
     "pg": "8.23.0",
     "pino": "9.14.0",
+    "protobufjs": "8.8.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

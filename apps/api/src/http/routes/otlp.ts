@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { importOtlpTraces } from "../../otlp/import.js";
 import type { OtlpTracesPayload } from "../../otlp/convert.js";
+import { decodeOtlpProtobuf, OtlpDecodeError } from "../../otlp/protobuf.js";
 
 /** OTLP/HTTP JSON `ExportTraceServiceRequest`; validated structurally during conversion. */
 const otlpTracesBodySchema = z.looseObject({
@@ -17,6 +18,22 @@ export interface OtlpRouteOptions {
  * `<api>/api/v1/otlp` (JSON encoding); the standard `/v1/traces` suffix lands here.
  */
 export const otlpRoutes: FastifyPluginAsyncZod<OtlpRouteOptions> = async (app, options) => {
+  // The protobuf encoding (the exporters' default) is decoded into the JSON shape up front,
+  // so the route's schema and converter see one representation. Scoped to this plugin.
+  app.addContentTypeParser(
+    "application/x-protobuf",
+    { parseAs: "buffer" },
+    (_request, body, done) => {
+      try {
+        done(null, decodeOtlpProtobuf(body as Buffer));
+      } catch (error) {
+        const failure =
+          error instanceof OtlpDecodeError ? error : new Error("invalid OTLP protobuf body");
+        done(Object.assign(failure, { statusCode: 400 }), undefined);
+      }
+    },
+  );
+
   app.post(
     "/otlp/v1/traces",
     { schema: { tags: ["otlp"], body: otlpTracesBodySchema } },
