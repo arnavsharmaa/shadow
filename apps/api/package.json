@@ -30,7 +30,7 @@
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
-    "@electric-sql/pglite": "0.3.16",
+    "@electric-sql/pglite": "0.5.8",
     "@fastify/cors": "11.3.0",
     "@fastify/rate-limit": "11.2.0",
     "@fastify/swagger": "9.8.1",
@@ -38,7 +38,7 @@
     "@shadow/core": "workspace:*",
     "@shadow/schemas": "workspace:*",
     "@shadow/testkit": "workspace:*",
-    "drizzle-orm": "0.44.7",
+    "drizzle-orm": "0.45.2",
     "fastify": "5.12.5",
     "fastify-type-provider-zod": "7.0.0",
     "pg": "8.23.0",
