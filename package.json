@@ -40,7 +40,7 @@
   "devDependencies": {
     "@shadow/config": "workspace:*",
     "eslint": "10.10.0",
-    "prettier": "3.9.7",
+    "prettier": "3.9.8",
     "turbo": "2.10.13",
     "typescript": "5.9.3"
   },
