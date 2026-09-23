@@ -184,3 +184,13 @@ jobs:
           done
           curl --silent --fail http://127.0.0.1:3000/ | grep --quiet "Shadow"
           docker stop shadow-web > /dev/null
+      - name: Smoke-test docker compose (PostgreSQL + API + web)
+        run: |
+          docker compose up --build --wait --wait-timeout 300
+          curl --silent --fail http://127.0.0.1:4000/health | grep --quiet '"kind":"postgres"'
+          test "$(curl --silent http://127.0.0.1:4000/api/v1/traces?limit=1 | python3 -c 'import sys,json; print(json.load(sys.stdin)["total"])')" -gt 0
+          curl --silent --fail http://127.0.0.1:3000/ | grep --quiet "Shadow"
+          docker compose logs --tail 20 api
+      - name: Tear down docker compose
+        if: always()
+        run: docker compose down --volumes --remove-orphans || true

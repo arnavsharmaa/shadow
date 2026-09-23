@@ -119,7 +119,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Changed
 
-- CI builds both Docker images and smoke-tests the API and web containers on every push.
+- CI builds both Docker images, smoke-tests the API and web containers, and brings the full
+  `docker compose` stack (PostgreSQL, API, web) up on every push.
 - `GET /api/v1/comparisons` is now keyset-paginated (`nextCursor` was always `null` before).
 - The execution tree renders only the rows near the viewport when a trace has more than 500
   visible events, keeping large traces responsive.
