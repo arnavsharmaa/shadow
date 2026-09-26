@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OTLP export: `GET /api/v1/traces/:traceId/export?format=otlp` returns a trace as an
+  OpenTelemetry `ExportTraceServiceRequest` (JSON, or protobuf via `encoding=protobuf` /
+  `Accept: application/x-protobuf`), one OTel trace per branch with GenAI attributes, reserved
+  `shadow.*` span events and fork links; `shadow otlp export <traceId>` saves it or pushes it
+  to any OTLP/HTTP collector with `--collector <url>`. Exported traces round-trip through the
+  importer, which now keeps step names from `shadow.event.name`.
 - OpenTelemetry ingestion: `POST /api/v1/otlp/v1/traces` accepts OTLP/HTTP JSON exports and
   maps GenAI semantic-convention spans (chat, execute_tool, invoke_agent), HTTP/DB client spans
   and generic spans to Shadow events, with token usage, status, ordering, parent links, reserved

@@ -59,6 +59,44 @@ export class ApiClient {
     return this.request<T>("DELETE", `${this.endpoint}${path}`);
   }
 
+  /** Fetch a response body as bytes (for binary exports such as OTLP protobuf). */
+  async download(
+    path: string,
+    query: Record<string, string | number | undefined>,
+    accept: string,
+  ): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string }> {
+    const url = new URL(`${this.endpoint}${path}`);
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+    }
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url.toString(), {
+        method: "GET",
+        headers: { accept, ...(this.token ? { authorization: `Bearer ${this.token}` } : {}) },
+      });
+    } catch (error) {
+      throw new CliError(
+        `could not reach the Shadow API at ${this.endpoint} (${error instanceof Error ? error.message : String(error)}). Is it running? Try \`pnpm dev\` or set --endpoint.`,
+        EXIT.connection,
+      );
+    }
+    if (!response.ok) {
+      let message = `request failed with status ${response.status}`;
+      try {
+        const envelope = JSON.parse(await response.text()) as ErrorEnvelope;
+        message = envelope.error?.message ?? message;
+      } catch {
+        // not a JSON error envelope
+      }
+      throw new CliError(message, response.status === 404 ? EXIT.notFound : EXIT.error);
+    }
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") ?? "application/octet-stream",
+    };
+  }
+
   private async request<T>(method: string, url: string, body?: unknown): Promise<T> {
     let response: Response;
     try {

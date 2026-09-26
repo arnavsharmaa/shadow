@@ -194,6 +194,7 @@ shadow traces list --project support-agent --status failed
 shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow agents --from 7d
 shadow otlp import ./collector-export.json
+shadow otlp export trc_demo_refund_violation --collector http://localhost:4318/v1/traces
 shadow traces inspect trc_demo_refund_violation
 shadow traces inspect trc_demo_refund_violation --grep refund_order
 shadow events show trc_demo_refund_violation <eventId>
@@ -295,7 +296,7 @@ CI runs lint, formatting, typecheck, unit and integration tests (embedded and Po
 
 ## Roadmap
 
-v0.1 (this release) delivers local time travel: schema, ingestion, explorer, state reconstruction, deterministic replay, forks, comparison, SDK, CLI, examples, Docker and CI. OpenTelemetry traces (OTLP/HTTP JSON, GenAI semantic conventions) can be ingested at `/api/v1/otlp/v1/traces`. Next: further framework integrations (OpenAI Agents SDK, LangGraph, MCP), team workflows, live re-execution and production observability. See [ROADMAP.md](ROADMAP.md).
+v0.1 (this release) delivers local time travel: schema, ingestion, explorer, state reconstruction, deterministic replay, forks, comparison, SDK, CLI, examples, Docker and CI. OpenTelemetry traces (OTLP/HTTP, GenAI semantic conventions) can be ingested at `/api/v1/otlp/v1/traces` and any trace can be exported back to OTLP. Next: further framework integrations (OpenAI Agents SDK, LangGraph, MCP), team workflows, live re-execution and production observability. See [ROADMAP.md](ROADMAP.md).
 
 ## Security
 

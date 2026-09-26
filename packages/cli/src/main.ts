@@ -751,6 +751,82 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       );
     });
 
+  otlp
+    .command("export")
+    .description("export a trace as OTLP (every branch becomes an OpenTelemetry trace)")
+    .argument("<traceId>", "trace id")
+    .option("-o, --out <file>", "write the payload to a file instead of stdout")
+    .option("--protobuf", "use the protobuf encoding (requires --out or --collector)")
+    .option(
+      "--collector <url>",
+      "also POST the payload to an OTLP/HTTP traces endpoint, e.g. http://localhost:4318/v1/traces",
+    )
+    .option("--header <name:value...>", "extra request header(s) for the collector")
+    .action(
+      async (
+        traceId: string,
+        opts: { out?: string; protobuf?: boolean; collector?: string; header?: string[] },
+      ) => {
+        if (opts.protobuf && !opts.out && !opts.collector) {
+          throw new CliError("--protobuf needs --out <file> or --collector <url>", EXIT.usage);
+        }
+        const api = client();
+        const path = `/api/v1/traces/${encodeURIComponent(traceId)}/export`;
+        const contentType = opts.protobuf ? "application/x-protobuf" : "application/json";
+        let bytes: Uint8Array<ArrayBuffer>;
+        let spans = 0;
+        if (opts.protobuf) {
+          bytes = (await api.download(path, { format: "otlp", encoding: "protobuf" }, contentType))
+            .bytes;
+        } else {
+          const payload = await api.get<{
+            resourceSpans?: { scopeSpans?: { spans?: unknown[] }[] }[];
+          }>(path, { format: "otlp" });
+          for (const r of payload.resourceSpans ?? [])
+            for (const s of r.scopeSpans ?? []) spans += s.spans?.length ?? 0;
+          bytes = new TextEncoder().encode(JSON.stringify(payload, null, opts.out ? 2 : 0));
+        }
+        if (opts.out) {
+          await writeFile(opts.out, bytes);
+          out(
+            `wrote ${opts.protobuf ? `${bytes.length} bytes` : `${spans} span(s)`} to ${opts.out}`,
+          );
+        }
+        if (opts.collector) {
+          const headers: Record<string, string> = { "content-type": contentType };
+          for (const item of opts.header ?? []) {
+            const index = item.indexOf(":");
+            if (index <= 0)
+              throw new CliError(`--header expects name:value, got '${item}'`, EXIT.usage);
+            headers[item.slice(0, index).trim()] = item.slice(index + 1).trim();
+          }
+          let response: Response;
+          try {
+            response = await (options.fetch ?? globalThis.fetch)(opts.collector, {
+              method: "POST",
+              headers,
+              body: bytes,
+            });
+          } catch (error) {
+            throw new CliError(
+              `could not reach the collector at ${opts.collector} (${error instanceof Error ? error.message : String(error)})`,
+              EXIT.connection,
+            );
+          }
+          if (!response.ok) {
+            throw new CliError(
+              `collector rejected the export with status ${response.status}: ${truncate(await response.text(), 300)}`,
+              EXIT.error,
+            );
+          }
+          out(
+            `sent ${opts.protobuf ? `${bytes.length} bytes` : `${spans} span(s)`} to ${opts.collector}`,
+          );
+        }
+        if (!opts.out && !opts.collector) out(new TextDecoder().decode(bytes));
+      },
+    );
+
   const eventsCmd = program.command("events").description("inspect single events");
 
   eventsCmd

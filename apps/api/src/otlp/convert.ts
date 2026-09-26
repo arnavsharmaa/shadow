@@ -35,6 +35,11 @@ export interface OtlpStatus {
   code?: number | string;
   message?: string;
 }
+export interface OtlpSpanLink {
+  traceId: string;
+  spanId: string;
+  attributes?: OtlpKeyValue[];
+}
 export interface OtlpSpan {
   traceId: string;
   spanId: string;
@@ -45,6 +50,7 @@ export interface OtlpSpan {
   endTimeUnixNano?: string | number;
   attributes?: OtlpKeyValue[];
   events?: OtlpSpanEvent[];
+  links?: OtlpSpanLink[];
   status?: OtlpStatus;
 }
 export interface OtlpScopeSpans {
@@ -230,7 +236,8 @@ interface Mapped {
 }
 
 function mapSpan(span: OtlpSpan, attrs: JsonObject, agentSlug: string): Mapped {
-  const name = span.name ?? "span";
+  // Spans exported by Shadow carry the original event name (a model step name, for example).
+  const name = asString(attrs["shadow.event.name"]) ?? span.name ?? "span";
   const failed = isError(span.status);
   const operation = asString(attrs["gen_ai.operation.name"]);
 
@@ -265,10 +272,11 @@ function mapSpan(span: OtlpSpan, attrs: JsonObject, agentSlug: string): Mapped {
     const finishReason = Array.isArray(finish) ? asString(finish[0] ?? null) : asString(finish);
     const calls = toolCalls(attrs["gen_ai.output.messages"]);
     const message: ModelMessage = outputMessages?.[0] ?? { role: "assistant", content: null };
+    const stepName = asString(attrs["shadow.event.name"]) ?? model ?? name;
     return {
       opener: {
         eventType: "model.request",
-        name: model ?? name,
+        name: stepName,
         input: {
           provider: provider ?? "unknown",
           model: model ?? "unknown",
@@ -278,7 +286,7 @@ function mapSpan(span: OtlpSpan, attrs: JsonObject, agentSlug: string): Mapped {
       },
       closer: {
         eventType: "model.response",
-        name: model ?? name,
+        name: stepName,
         output: {
           message,
           ...(finishReason ? { finishReason } : {}),

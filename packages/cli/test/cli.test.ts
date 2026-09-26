@@ -20,7 +20,9 @@ function fakeApi(routes: Record<string, (body: unknown) => { status?: number; bo
     const url =
       typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    const rawBody =
+      init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : init?.body;
+    const body = rawBody ? JSON.parse(String(rawBody)) : undefined;
     captured.calls.push({
       method,
       url,
@@ -822,6 +824,92 @@ describe("shadow cli", () => {
     );
 
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
+  });
+
+  it("exports a trace as OTLP and can push it to a collector", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-otlp-export-"));
+    const payload = {
+      resourceSpans: [
+        {
+          resource: {
+            attributes: [{ key: "service.name", value: { stringValue: "refund-agent" } }],
+          },
+          scopeSpans: [
+            {
+              scope: { name: "@shadow/api" },
+              spans: [
+                {
+                  traceId: "a".repeat(32),
+                  spanId: "b".repeat(16),
+                  name: "invoke_agent refund-agent",
+                },
+                {
+                  traceId: "a".repeat(32),
+                  spanId: "c".repeat(16),
+                  name: "execute_tool refund_order",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1/export": () => ({ body: payload }),
+      "POST /v1/traces": () => ({ body: { partialSuccess: {} } }),
+    });
+    const file = path.join(dir, "trace.otlp.json");
+    expect(
+      await runWith(api, [
+        "otlp",
+        "export",
+        "trc_1",
+        "--out",
+        file,
+        "--collector",
+        "http://collector.test:4318/v1/traces",
+        "--header",
+        "x-api-key: secret",
+      ]),
+    ).toBe(0);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual(payload);
+    const exportCall = api.captured.calls[0];
+    expect(exportCall?.url).toContain("/api/v1/traces/trc_1/export?format=otlp");
+    const push = api.captured.calls[1];
+    expect(push?.method).toBe("POST");
+    expect(push?.url).toBe("http://collector.test:4318/v1/traces");
+    expect(push?.headers).toMatchObject({
+      "content-type": "application/json",
+      "x-api-key": "secret",
+    });
+    expect(push?.body).toEqual(payload);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("wrote 2 span(s) to");
+    expect(text).toContain("sent 2 span(s) to http://collector.test:4318/v1/traces");
+
+    // Without --out or --collector the payload goes to stdout.
+    const stdout = fakeApi({ "GET /api/v1/traces/trc_1/export": () => ({ body: payload }) });
+    expect(await runWith(stdout, ["otlp", "export", "trc_1"])).toBe(0);
+    expect(JSON.parse(stdout.captured.out.join("\n"))).toEqual(payload);
+
+    // protobuf needs somewhere to go; a rejecting collector fails the command
+    expect(await runWith(fakeApi({}), ["otlp", "export", "trc_1", "--protobuf"])).toBe(2);
+    const rejecting = fakeApi({
+      "GET /api/v1/traces/trc_1/export": () => ({ body: payload }),
+      "POST /v1/traces": () => ({ status: 400, body: { error: "bad" } }),
+    });
+    expect(
+      await runWith(rejecting, [
+        "otlp",
+        "export",
+        "trc_1",
+        "--collector",
+        "http://c.test/v1/traces",
+      ]),
+    ).toBe(1);
+    expect(
+      await runWith(api, ["otlp", "export", "trc_1", "--collector", "c", "--header", "x"]),
+    ).toBe(2);
     expect(await runWith(fakeApi({}), ["otlp", "import", path.join(dir, "missing.json")])).toBe(2);
   });
 

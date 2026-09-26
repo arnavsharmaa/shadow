@@ -36,8 +36,15 @@ import {
   updateTrace,
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
+import { exportTraceToOtlp } from "../../otlp/export.js";
+import { encodeOtlpProtobuf } from "../../otlp/protobuf.js";
 
 const traceParams = z.object({ traceId: idSchema });
+/** `shadow` is the self-contained bundle; `otlp` is an OTLP ExportTraceServiceRequest. */
+const exportQuerySchema = z.object({
+  format: z.enum(["shadow", "otlp"]).default("shadow"),
+  encoding: z.enum(["json", "protobuf"]).optional(),
+});
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
 
 export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -253,9 +260,23 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.get(
     "/traces/:traceId/export",
-    { schema: { tags: ["transfer"], params: traceParams } },
+    { schema: { tags: ["transfer"], params: traceParams, querystring: exportQuerySchema } },
     async (request, reply) => {
       const bundle = await exportTrace(app.services, request.params.traceId);
+      if (request.query.format === "otlp") {
+        const payload = exportTraceToOtlp(bundle);
+        const protobuf =
+          request.query.encoding === "protobuf" ||
+          (request.query.encoding === undefined &&
+            (request.headers.accept ?? "").includes("application/x-protobuf"));
+        if (protobuf) {
+          reply.header("content-type", "application/x-protobuf");
+          reply.header("content-disposition", `attachment; filename="${bundle.trace.id}.otlp.bin"`);
+          return reply.send(Buffer.from(encodeOtlpProtobuf(payload)));
+        }
+        reply.header("content-disposition", `attachment; filename="${bundle.trace.id}.otlp.json"`);
+        return payload;
+      }
       reply.header("content-disposition", `attachment; filename="${bundle.trace.id}.shadow.json"`);
       return bundle;
     },

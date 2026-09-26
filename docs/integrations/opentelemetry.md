@@ -1,10 +1,10 @@
 # OpenTelemetry (OTLP) integration
 
-> **Status: OTLP/HTTP ingestion is implemented** (`POST /api/v1/otlp/v1/traces`, JSON and
-> protobuf encodings); the mapping below is what the importer does today. Not yet implemented:
-> OTLP/gRPC and the reverse exporter. Traces imported this way
-> can be inspected, searched, exported and compared, but not forked and replayed (there is no
-> program to re-run).
+> **Status: OTLP/HTTP ingestion and the reverse exporter are implemented**
+> (`POST /api/v1/otlp/v1/traces` and `GET /api/v1/traces/:traceId/export?format=otlp`, JSON and
+> protobuf encodings); the mapping below is what the importer and exporter do today. Not yet
+> implemented: OTLP/gRPC. Traces imported this way can be inspected, searched, exported and
+> compared, but not forked and replayed (there is no program to re-run).
 
 ## Using it
 
@@ -69,7 +69,11 @@ events to OTLP) is part of the same milestone so Shadow can sit alongside existi
   `http://localhost:4000/api/v1/otlp`.
 - Resource attributes `service.namespace` / `service.name` identify project and agent, with
   `SHADOW_OTLP_DEFAULT_PROJECT` as the project fallback (implemented).
-- An `exporters` configuration to forward Shadow events to an OTLP endpoint (planned).
+- `GET /api/v1/traces/:traceId/export?format=otlp` returning the trace as an OTLP
+  `ExportTraceServiceRequest` (JSON, or protobuf with `encoding=protobuf` or
+  `Accept: application/x-protobuf`), and `shadow otlp export <traceId> [--collector <url>]` to
+  save it or push it to any OTLP/HTTP endpoint (implemented). A server-side push on trace
+  completion is planned.
 
 ## Mapping
 
@@ -146,10 +150,40 @@ batches gets one consistent ordering, is not implemented yet.
 
 ## Export (Shadow to OTLP)
 
-The reverse mapping turns each opener/closer pair into one span with the GenAI attributes above,
-puts `metadata` into span attributes (flattened, size-capped), and emits state and policy events
-as span events. Replayed branches are exported as separate OTel traces linked to the original with
-a span link, since OTLP has no branch concept.
+`GET /api/v1/traces/:traceId/export?format=otlp` (and `shadow otlp export`) turns a trace into
+one OTLP request:
+
+- Every branch becomes its own OpenTelemetry trace (OTLP has no branch concept). Trace and span
+  ids are derived from the Shadow ids with SHA-256, so repeated exports produce the same ids.
+  A forked branch's root span links to the parent branch's root with `shadow.link = forked_from`,
+  `shadow.fork.event_id`, `shadow.fork.sequence` and the fork's overrides as JSON.
+- Each branch gets a synthetic root span (`invoke_agent <agent>`) carrying `shadow.trace.id`,
+  `shadow.branch.*` (name, status, depth, outcome, cost) and the branch metadata; the resource
+  carries `service.namespace` / `service.name` (project and agent slugs) plus the trace id,
+  name, status and tags.
+- Every Shadow span (opener + closer) becomes one span: `model.request/response` → `chat <model>`
+  with `gen_ai.operation.name = chat`, provider, model, `gen_ai.input.messages`,
+  `gen_ai.output.messages`, `gen_ai.request.<parameter>`, token usage and
+  `gen_ai.response.finish_reasons`; `tool.request/response|error` → `execute_tool <tool>` with
+  `gen_ai.tool.name`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` and, for
+  failures, `error.type` and an `ERROR` status; `agent.started/completed` → `invoke_agent`.
+  Every span and span event also carries `shadow.event.id`, `shadow.event.type`,
+  `shadow.event.name`, `shadow.event.sequence`, `shadow.event.severity`, `shadow.event.source`
+  and flattened `shadow.metadata.<key>` attributes (strings capped at 32 KiB).
+- Events inside a span that are neither its opener nor its closer become span events. Context,
+  state and policy events use the reserved names above (`shadow.context.set`,
+  `shadow.state.patch`, `shadow.state.snapshot`, `shadow.policy.evaluated`), so the importer
+  maps them back; other events keep their Shadow type as the span-event name with their
+  payloads as JSON attributes. Events outside any span (lifecycle, forks, replays) attach to the
+  branch root span.
+- Timestamps are millisecond precise in Shadow, so the event sequence is carried in the
+  nanosecond digits of each span's start and end; sorting by time reproduces the recorded order.
+
+Exporting and re-importing a trace reproduces its model and tool spans, names, context, state
+and policy decisions (the round trip is covered by an integration test); step names survive
+because the importer prefers `shadow.event.name` over the span name when it is present.
+Replay-only detail (fork overrides, comparisons, artifacts) is not part of the OTLP model beyond
+the link attributes.
 
 ## Limitations
 
@@ -160,7 +194,7 @@ a span link, since OTLP has no branch concept.
 - Semantic conventions for GenAI are still evolving; the importer will version its mapping and
   record the convention version it assumed in `metadata.otel.semconv` (currently `1.36.0`).
 - OTLP/gRPC is not accepted; gRPC exporters need a collector in between with the `otlphttp`
-  exporter.
+  exporter. The reverse exporter speaks OTLP/HTTP only as well.
 
 ## Open questions
 

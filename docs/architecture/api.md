@@ -448,8 +448,8 @@ refund-agent --at refund_order --set refundLimit=100`.
 
 ### `GET /api/v1/traces/:traceId/export`
 
-The `shadow.trace` bundle for the trace, with a `content-disposition` attachment header
-(`<traceId>.shadow.json`):
+Query `format=shadow` (default) or `format=otlp`. The default is the `shadow.trace` bundle for
+the trace, with a `content-disposition` attachment header (`<traceId>.shadow.json`):
 
 ```json
 {
@@ -466,6 +466,13 @@ The `shadow.trace` bundle for the trace, with a `content-disposition` attachment
   "comparisons": [Comparison]
 }
 ```
+
+With `format=otlp` the response is an OpenTelemetry `ExportTraceServiceRequest` (every branch as
+one OTel trace; see [the OTLP integration](../integrations/opentelemetry.md#export-shadow-to-otlp)),
+as JSON (`<traceId>.otlp.json`) or, with `encoding=protobuf` or `Accept: application/x-protobuf`,
+as `application/x-protobuf` (`<traceId>.otlp.bin`). Unknown formats or encodings are
+`400 bad_request`. CLI: `shadow otlp export <traceId> [--out file] [--protobuf] [--collector
+<url>]`.
 
 ### `GET /api/v1/branches/:branchId`
 

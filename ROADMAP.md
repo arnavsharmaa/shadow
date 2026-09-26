@@ -49,9 +49,9 @@ is welcome through GitHub issues; integration proposals have their own
 
 ### Committed
 
-- **OpenTelemetry / OTLP ingestion**: JSON-encoded OTLP/HTTP is accepted and mapped from GenAI
-  semantic-convention spans ([details](./docs/integrations/opentelemetry.md)); remaining:
-  OTLP/gRPC and cross-batch buffering.
+- **OpenTelemetry / OTLP ingestion**: OTLP/HTTP (protobuf and JSON) is accepted and mapped
+  from GenAI semantic-convention spans ([details](./docs/integrations/opentelemetry.md));
+  remaining: OTLP/gRPC and cross-batch buffering.
 - **OpenAI Agents SDK adapter**: record runs, handoffs, tool calls and guardrails
   ([proposal](./docs/integrations/openai-agents-sdk.md)).
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state
@@ -60,8 +60,9 @@ is welcome through GitHub issues; integration proposals have their own
   ([proposal](./docs/integrations/mcp.md)).
 - **Anthropic tool-use traces**: import Messages API tool-use loops as model and tool spans
   ([proposal](./docs/integrations/anthropic.md)).
-- **Exporters**: push traces to external destinations (OTLP, files) in addition to the existing
-  bundle export.
+- **Exporters**: push traces to external destinations in addition to the existing bundle export
+  (OTLP export exists: `GET /traces/:id/export?format=otlp` and `shadow otlp export
+--collector <url>`; a server-side push on trace completion remains).
 - A published integration guide for custom runtimes with conformance tests for adapters.
 
 ### Ideas / under consideration
