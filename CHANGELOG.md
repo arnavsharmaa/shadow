@@ -66,7 +66,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   agent, fork each at its first matching event, replay, compare and summarise how many
   outcomes change; traces without the event are skipped and per-trace errors are reported.
 - Matrix dialog in the web app: from a forkable event, pick a context key and several values,
-  replay them all and open any variant's comparison.
+  replay them all and open any variant's comparison. The dialog can also vary a tool's next
+  result or a policy's configuration (pre-filled from the selected event), and `shadow matrix`
+  grows `--vary-tool tool=json` and `--vary-policy policy=json` axes.
 - Scenario matrices: `POST /api/v1/traces/:traceId/forks/matrix` forks one event with up to
   20 override sets, replays and compares each, and returns the outcomes side by side;
   `shadow matrix <traceId> --at <eventId> --vary key=v1,v2` builds the grid from the CLI.

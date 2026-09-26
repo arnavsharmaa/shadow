@@ -411,7 +411,10 @@ variant carries its `branch`, `replay`, `comparisonId`, the `outcome` pair with 
 `policyChanged`, a compact `firstDivergence` (or `null` when the run is identical) and metric
 `deltas`. Forks, replays and comparisons are stored like manually created ones. `422
 agent_not_replayable` is returned before any fork is created. CLI: `shadow matrix <traceId>
---at <eventId> --vary refundLimit=50,100,500`.
+--at <eventId> --vary refundLimit=50,100,500`; `--vary-tool tool=json` and `--vary-policy
+policy=json` add tool-result and policy-configuration axes (repeat the same name to add values
+to an axis; every axis multiplies the grid). The web app's matrix dialog offers the same three
+axes.
 
 ### `POST /api/v1/batch/counterfactuals`
 

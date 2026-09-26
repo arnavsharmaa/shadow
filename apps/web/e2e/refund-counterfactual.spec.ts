@@ -350,6 +350,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     const dialog = page.getByTestId("matrix-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("run-matrix")).toBeDisabled();
+    // a tool event defaults to varying its result; switch to a context value
+    await expect(dialog.getByTestId("matrix-axis")).toHaveValue("tool_result");
+    await expect(dialog.getByTestId("matrix-key")).toHaveValue("refund_order");
+    await dialog.getByTestId("matrix-axis").selectOption("context");
     await dialog.getByTestId("matrix-key").fill("refundLimit");
     await expect(dialog).toContainText("Current value: 500");
     await dialog.getByTestId("matrix-values").fill("100, 500");
@@ -364,6 +368,34 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await rows.nth(0).getByRole("link", { name: "Compare" }).click();
     await expect(page.getByTestId("comparison-view")).toBeVisible();
     await expect(page.getByTestId("target-branch-name")).toHaveText("refundLimit=100");
+  });
+
+  test("a scenario matrix can vary a policy configuration", async ({ page }) => {
+    await openRefundTrace(page);
+    await page
+      .locator(
+        '[data-testid="event-node"][data-event-type="tool.request"][data-event-name="refund_order"]',
+      )
+      .click();
+    await page.getByTestId("open-matrix").click();
+    const dialog = page.getByTestId("matrix-dialog");
+    await dialog.getByTestId("matrix-axis").selectOption("policy");
+    await dialog.getByTestId("matrix-key").fill("refund.autonomous_limit");
+    await dialog.getByTestId("matrix-values").fill("100");
+    await expect(dialog.getByTestId("matrix-problem")).toHaveText(
+      "policy configurations must be JSON objects",
+    );
+    await expect(dialog.getByTestId("run-matrix")).toBeDisabled();
+    await dialog.getByTestId("matrix-values").fill('{"limit": 100}\n{"limit": 1000}');
+    await expect(dialog.getByTestId("matrix-problem")).toHaveCount(0);
+    await expect(dialog.getByTestId("run-matrix")).toHaveText(/Run 2 variants/);
+    await dialog.getByTestId("run-matrix").click();
+    const rows = dialog.locator('[data-testid="matrix-row"]');
+    await expect(rows).toHaveCount(2, { timeout: 60_000 });
+    await expect(rows.nth(0)).toContainText('refund.autonomous_limit={"limit":100}');
+    await expect(rows.nth(0)).toContainText("Approval");
+    await expect(rows.nth(0)).toContainText("changed");
+    await expect(rows.nth(1)).toContainText("same");
   });
 
   test("keyboard shortcuts are listed and the note box can be focused", async ({ page }) => {

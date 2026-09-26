@@ -208,6 +208,7 @@ shadow traces import refund.json --regenerate-ids
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay
 shadow replay <branchId>
 shadow matrix trc_demo_refund_violation --at <eventId> --vary refundLimit=50,100,500
+shadow matrix trc_demo_refund_violation --at <eventId> --vary-policy 'refund.autonomous_limit={"limit":100}' --vary-policy 'refund.autonomous_limit={"limit":1000}'
 shadow batch --agent refund-agent --at refund_order --set refundLimit=100
 shadow compare <baseBranchId> <targetBranchId>
 shadow comparisons list trc_demo_refund_violation

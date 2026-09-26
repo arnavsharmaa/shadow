@@ -1042,12 +1042,24 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   program
     .command("matrix")
-    .description("fork one event with a grid of context values, replay and compare every variant")
+    .description(
+      "fork one event with a grid of context values, tool results or policy configs, replay and compare every variant",
+    )
     .argument("<traceId>", "trace id")
     .requiredOption("--at <eventId>", "event to rewind to")
-    .requiredOption(
+    .option(
       "--vary <key=v1,v2,...>",
       "context key and comma-separated values; repeat for a grid (max 20 variants)",
+      (value: string, previous: string[] = []) => [...previous, value],
+    )
+    .option(
+      "--vary-tool <tool=json>",
+      "replace the tool's next result; repeat the same tool to add values to its axis",
+      (value: string, previous: string[] = []) => [...previous, value],
+    )
+    .option(
+      "--vary-policy <policy=json>",
+      "policy configuration object; repeat the same policy to add values to its axis",
       (value: string, previous: string[] = []) => [...previous, value],
     )
     .option("--branch <branchId>", "parent branch (default: the event's branch)")
@@ -1055,26 +1067,26 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .action(
       async (
         traceId: string,
-        opts: { at: string; vary: string[]; branch?: string; json?: boolean },
+        opts: {
+          at: string;
+          vary?: string[];
+          varyTool?: string[];
+          varyPolicy?: string[];
+          branch?: string;
+          json?: boolean;
+        },
       ) => {
-        const axes = opts.vary.map((item) => {
-          const index = item.indexOf("=");
-          if (index <= 0)
-            throw new CliError(`--vary expects key=v1,v2 but got '${item}'`, EXIT.usage);
-          const key = item.slice(0, index).trim();
-          const values = item
-            .slice(index + 1)
-            .split(",")
-            .map((v) => v.trim())
-            .filter((v) => v.length > 0)
-            .map((v) => parseAssignment(`${key}=${v}`).value);
-          if (values.length === 0) throw new CliError(`--vary ${key} has no values`, EXIT.usage);
-          return { key, values };
-        });
-        let combos: { key: string; value: unknown }[][] = [[]];
+        const axes = matrixAxes(opts.vary ?? [], opts.varyTool ?? [], opts.varyPolicy ?? []);
+        if (axes.length === 0) {
+          throw new CliError(
+            "pass at least one of --vary, --vary-tool or --vary-policy",
+            EXIT.usage,
+          );
+        }
+        let combos: MatrixCell[][] = [[]];
         for (const axis of axes) {
           combos = combos.flatMap((combo) =>
-            axis.values.map((value) => [...combo, { key: axis.key, value }]),
+            axis.values.map((value) => [...combo, { axis, value }]),
           );
         }
         if (combos.length > 20) {
@@ -1094,13 +1106,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           forkEventId: opts.at,
           parentBranchId: opts.branch,
           variants: combos.map((combo) => ({
-            name: truncate(combo.map((c) => `${c.key}=${JSON.stringify(c.value)}`).join(" "), 120),
-            overrides: combo.map((c) => ({
-              kind: "context",
-              op: "set",
-              key: c.key,
-              value: c.value,
-            })),
+            name: truncate(
+              combo.map((c) => `${c.axis.name}=${JSON.stringify(c.value)}`).join(" "),
+              120,
+            ),
+            overrides: combo.map((c) => matrixOverride(c)),
           })),
         });
         if (opts.json) return json(result);
@@ -1377,6 +1387,78 @@ async function allEvents(
 }
 
 /** Text form of an artifact: strings verbatim, everything else pretty-printed JSON. */
+interface MatrixAxis {
+  kind: "context" | "tool_result" | "policy";
+  name: string;
+  values: unknown[];
+}
+interface MatrixCell {
+  axis: MatrixAxis;
+  value: unknown;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Build the axes of a scenario matrix. `--vary key=v1,v2` is one context axis per option;
+ * `--vary-tool` and `--vary-policy` take one `name=json` value per option and group repeated
+ * names into a single axis, because JSON values may themselves contain commas.
+ */
+export function matrixAxes(vary: string[], varyTool: string[], varyPolicy: string[]): MatrixAxis[] {
+  const axes: MatrixAxis[] = vary.map((item) => {
+    const index = item.indexOf("=");
+    if (index <= 0) throw new CliError(`--vary expects key=v1,v2 but got '${item}'`, EXIT.usage);
+    const key = item.slice(0, index).trim();
+    const values = item
+      .slice(index + 1)
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0)
+      .map((v) => parseAssignment(`${key}=${v}`).value);
+    if (values.length === 0) throw new CliError(`--vary ${key} has no values`, EXIT.usage);
+    return { kind: "context", name: key, values };
+  });
+  const grouped = (items: string[], kind: "tool_result" | "policy", flag: string): MatrixAxis[] => {
+    const byName = new Map<string, MatrixAxis>();
+    for (const item of items) {
+      let parsed: { key: string; value: unknown };
+      try {
+        parsed = parseAssignment(item);
+      } catch (error) {
+        throw new CliError(
+          `${flag}: ${error instanceof Error ? error.message : String(error)}`,
+          EXIT.usage,
+        );
+      }
+      if (kind === "policy" && !isPlainObject(parsed.value)) {
+        throw new CliError(`${flag} value for ${parsed.key} must be a JSON object`, EXIT.usage);
+      }
+      const axis = byName.get(parsed.key) ?? { kind, name: parsed.key, values: [] };
+      axis.values.push(parsed.value);
+      byName.set(parsed.key, axis);
+    }
+    return [...byName.values()];
+  };
+  return [
+    ...axes,
+    ...grouped(varyTool, "tool_result", "--vary-tool"),
+    ...grouped(varyPolicy, "policy", "--vary-policy"),
+  ];
+}
+
+function matrixOverride(cell: MatrixCell): Record<string, unknown> {
+  switch (cell.axis.kind) {
+    case "context":
+      return { kind: "context", op: "set", key: cell.axis.name, value: cell.value };
+    case "tool_result":
+      return { kind: "tool_result", tool: cell.axis.name, occurrence: 1, result: cell.value };
+    case "policy":
+      return { kind: "policy", policy: cell.axis.name, config: cell.value };
+  }
+}
+
 function artifactText(artifact: Artifact): string {
   return typeof artifact.content === "string"
     ? artifact.content

@@ -141,7 +141,11 @@ parent branch's events, which the nested fork inherits).
 
 To answer several what-ifs at once, `POST /api/v1/traces/:traceId/forks/matrix` (or `shadow
 matrix <traceId> --at <eventId> --vary refundLimit=50,100,500`) forks the same event once per
-variant, replays every fork and returns each outcome next to its comparison.
+variant, replays every fork and returns each outcome next to its comparison. A matrix can vary
+a context value, a tool's next result (`--vary-tool refund_order='{"status":"failed"}'`) or a
+policy's configuration (`--vary-policy refund.autonomous_limit='{"limit":100}'`); the web
+app's matrix dialog offers the same three axes and pre-fills the tool or policy of the selected
+event.
 
 Across traces, `POST /api/v1/batch/counterfactuals` (or `shadow batch --agent <slug> --at
 <eventName> --set key=value`) applies one override set to many recorded runs of an agent and

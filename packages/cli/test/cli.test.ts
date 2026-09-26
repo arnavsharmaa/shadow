@@ -1183,6 +1183,86 @@ describe("shadow cli", () => {
     ).toBe(2);
   });
 
+  it("builds matrix axes over tool results and policy configurations", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/trc_1/forks/matrix": (body) => ({
+        status: 201,
+        body: {
+          variants: (body as { variants: { name: string }[] }).variants.map((v, i) => ({
+            name: v.name,
+            branch: { ...branch, id: `br_m${i}`, name: v.name },
+            replay: { status: "completed" },
+            comparisonId: `cmp_m${i}`,
+            outcome: { target: { label: "Refund issued" }, changed: false },
+            firstDivergence: null,
+            deltas: { totalEstimatedCost: 0, durationMs: 0 },
+          })),
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "matrix",
+        "trc_1",
+        "--at",
+        "evt_7",
+        "--vary-tool",
+        'refund_order={"status":"failed","code":"card_declined"}',
+        "--vary-tool",
+        'refund_order={"status":"processed"}',
+        "--vary-policy",
+        'refund.autonomous_limit={"limit":100}',
+        "--json",
+      ]),
+    ).toBe(0);
+    const sent = api.captured.calls[0]?.body as {
+      variants: { name: string; overrides: unknown[] }[];
+    };
+    expect(sent.variants).toEqual([
+      {
+        name: 'refund_order={"status":"failed","code":"card_declined"} refund.autonomous_limit={"limit":100}',
+        overrides: [
+          {
+            kind: "tool_result",
+            tool: "refund_order",
+            occurrence: 1,
+            result: { status: "failed", code: "card_declined" },
+          },
+          { kind: "policy", policy: "refund.autonomous_limit", config: { limit: 100 } },
+        ],
+      },
+      {
+        name: 'refund_order={"status":"processed"} refund.autonomous_limit={"limit":100}',
+        overrides: [
+          {
+            kind: "tool_result",
+            tool: "refund_order",
+            occurrence: 1,
+            result: { status: "processed" },
+          },
+          { kind: "policy", policy: "refund.autonomous_limit", config: { limit: 100 } },
+        ],
+      },
+    ]);
+    expect(JSON.parse(api.captured.out.join("\n")) as unknown).toHaveProperty("variants");
+
+    // policy configurations must be objects; the matrix needs at least one axis
+    expect(
+      await runWith(fakeApi({}), [
+        "matrix",
+        "trc_1",
+        "--at",
+        "evt_7",
+        "--vary-policy",
+        "refund.autonomous_limit=100",
+      ]),
+    ).toBe(2);
+    expect(await runWith(fakeApi({}), ["matrix", "trc_1", "--at", "evt_7"])).toBe(2);
+    expect(
+      await runWith(fakeApi({}), ["matrix", "trc_1", "--at", "evt_7", "--vary-tool", "nope"]),
+    ).toBe(2);
+  });
+
   it("creates forks with typed overrides, replays and compares", async () => {
     const fork = {
       id: "frk_1",

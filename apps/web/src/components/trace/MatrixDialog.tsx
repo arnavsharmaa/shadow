@@ -2,11 +2,27 @@
 
 import { api, type MatrixVariant } from "@/lib/api";
 import { money } from "@/lib/format";
-import type { Branch, JsonValue, ShadowEvent } from "@shadow/schemas";
+import {
+  matrixOverride,
+  matrixVariantName,
+  parseMatrixValues,
+  type MatrixAxis,
+} from "@/lib/matrix";
+import type { Branch, Override, ShadowEvent } from "@shadow/schemas";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge, Button, Dialog, Spinner, outcomeTone } from "../ui/primitives";
+
+const AXIS_LABEL: Record<MatrixAxis, { field: string; placeholder: string; values: string }> = {
+  context: { field: "Context key", placeholder: "refundLimit", values: "50, 100, 500" },
+  tool_result: {
+    field: "Tool",
+    placeholder: "refund_order",
+    values: '{"status": "processed"}\n{"status": "failed", "error": "card_declined"}',
+  },
+  policy: { field: "Policy id", placeholder: "refund.autonomous_limit", values: '{"limit": 100}' },
+};
 
 interface Props {
   open: boolean;
@@ -18,17 +34,14 @@ interface Props {
   onDone: () => Promise<void> | void;
 }
 
-function parseValue(text: string): JsonValue {
-  try {
-    return JSON.parse(text) as JsonValue;
-  } catch {
-    return text;
-  }
-}
-
-/** Scenario matrix: one context key, several values, every outcome side by side. */
+/** Scenario matrix: one axis (context key, tool result or policy), several values, every outcome side by side. */
 export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: Props) {
-  const [key, setKey] = useState("");
+  const toolName = event.eventType.startsWith("tool.") ? event.name : null;
+  const policyName = event.eventType.startsWith("policy.") ? event.name : null;
+  const [axis, setAxis] = useState<MatrixAxis>(
+    toolName ? "tool_result" : policyName ? "policy" : "context",
+  );
+  const [field, setField] = useState(toolName ?? policyName ?? "");
   const [values, setValues] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,16 +54,28 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
   });
   const contextEntries = useMemo(() => Object.entries(before.data?.context ?? {}), [before.data]);
 
-  const parsed = useMemo(
-    () =>
-      values
-        .split(",")
-        .map((v) => v.trim())
-        .filter((v) => v.length > 0)
-        .map(parseValue),
-    [values],
-  );
-  const canRun = key.trim().length > 0 && parsed.length > 0 && parsed.length <= 20 && !running;
+  const parsed = useMemo(() => parseMatrixValues(values), [values]);
+  const variants = useMemo(() => {
+    const name = field.trim();
+    if (!name) return { list: [], problem: null };
+    const list: { name: string; overrides: Override[] }[] = [];
+    for (const value of parsed) {
+      const built = matrixOverride(axis, name, value);
+      if ("error" in built) return { list: [], problem: built.error };
+      list.push({ name: matrixVariantName(name, value), overrides: [built.override] });
+    }
+    return { list, problem: null };
+  }, [axis, field, parsed]);
+  const canRun =
+    variants.list.length > 0 && variants.list.length <= 20 && !variants.problem && !running;
+
+  const switchAxis = (next: MatrixAxis) => {
+    setAxis(next);
+    setResults(null);
+    if (next === "tool_result") setField(toolName ?? "");
+    else if (next === "policy") setField(policyName ?? "");
+    else setField("");
+  };
 
   const run = async () => {
     setRunning(true);
@@ -60,10 +85,7 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
       const result = await api.forkMatrix(traceId, {
         forkEventId: event.id,
         parentBranchId: branch.id,
-        variants: parsed.map((value) => ({
-          name: `${key.trim()}=${JSON.stringify(value)}`.slice(0, 120),
-          overrides: [{ kind: "context", op: "set", key: key.trim(), value }],
-        })),
+        variants: variants.list,
       });
       setResults(result.variants);
       await onDone();
@@ -73,6 +95,10 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
       setRunning(false);
     }
   };
+
+  const labels = AXIS_LABEL[axis];
+  const currentContext =
+    axis === "context" ? contextEntries.find(([k]) => k === field.trim()) : undefined;
 
   return (
     <Dialog
@@ -90,14 +116,27 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
           </span>{" "}
           and replay it once per value. Every variant becomes a branch with its own comparison.
         </p>
-        <div className="grid grid-cols-[1fr_2fr] gap-3">
+        <div className="grid grid-cols-[auto_1fr_2fr] gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-fg-muted">Context key</span>
+            <span className="text-[11px] text-fg-muted">Vary</span>
+            <select
+              value={axis}
+              onChange={(e) => switchAxis(e.target.value as MatrixAxis)}
+              className="h-7 rounded border border-border bg-bg px-2"
+              data-testid="matrix-axis"
+            >
+              <option value="context">context value</option>
+              <option value="tool_result">tool result</option>
+              <option value="policy">policy config</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-fg-muted">{labels.field}</span>
             <input
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              list="matrix-context-keys"
-              placeholder="refundLimit"
+              value={field}
+              onChange={(e) => setField(e.target.value)}
+              list={axis === "context" ? "matrix-context-keys" : undefined}
+              placeholder={labels.placeholder}
               className="h-7 rounded border border-border bg-bg px-2"
               data-testid="matrix-key"
             />
@@ -109,23 +148,39 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-fg-muted">
-              Values, comma separated (parsed as JSON when possible, up to 20)
+              Values, one per line or comma separated (JSON when possible, up to 20)
             </span>
-            <input
+            <textarea
               value={values}
               onChange={(e) => setValues(e.target.value)}
-              placeholder="50, 100, 500"
-              className="h-7 rounded border border-border bg-bg px-2"
+              placeholder={labels.values}
+              rows={2}
+              className="mono min-h-7 resize-y rounded border border-border bg-bg px-2 py-1"
               data-testid="matrix-values"
             />
           </label>
         </div>
-        {key && contextEntries.some(([k]) => k === key) && (
+        {axis === "tool_result" && (
           <p className="text-fg-faint">
-            Current value:{" "}
-            <span className="mono">
-              {JSON.stringify(contextEntries.find(([k]) => k === key)?.[1])}
-            </span>
+            Each value replaces the next result of{" "}
+            <span className="mono">{field || "the tool"}</span> after the fork point; the recorded
+            call is not re-executed.
+          </p>
+        )}
+        {axis === "policy" && (
+          <p className="text-fg-faint">
+            Each value becomes the configuration object the policy sees, for example{" "}
+            <span className="mono">{'{"limit": 100}'}</span>.
+          </p>
+        )}
+        {currentContext && (
+          <p className="text-fg-faint">
+            Current value: <span className="mono">{JSON.stringify(currentContext[1])}</span>
+          </p>
+        )}
+        {variants.problem && (
+          <p className="text-err" data-testid="matrix-problem">
+            {variants.problem}
           </p>
         )}
         {parsed.length > 20 && <p className="text-err">At most 20 values per matrix.</p>}
@@ -181,7 +236,7 @@ export function MatrixDialog({ open, onClose, traceId, branch, event, onDone }: 
           </table>
         )}
         <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
-          {running && <Spinner label={`Replaying ${parsed.length} variants`} />}
+          {running && <Spinner label={`Replaying ${variants.list.length} variants`} />}
           <Button variant="ghost" onClick={onClose} disabled={running}>
             Close
           </Button>
