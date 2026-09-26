@@ -9,6 +9,7 @@ import type { Logger } from "pino";
 import type { DatabaseHandle } from "../db/client.js";
 import { ShadowMetrics } from "../metrics/registry.js";
 import { noopWebhook, type Webhook } from "../notify/webhook.js";
+import type { OtlpForwarder } from "../otlp/forwarder.js";
 import type { AgentRegistry } from "../replay/registry.js";
 
 /** Dependencies shared by every service function. */
@@ -23,11 +24,20 @@ export interface ServiceContext {
   metrics: ShadowMetrics;
   /** Outgoing notifications for finished traces. */
   webhook: Webhook;
+  /** Forwarding of finished traces to an OTLP collector. */
+  otlpForwarder: OtlpForwarder;
 }
+
+/** A forwarder that does nothing; used when no collector is configured and in tests. */
+export const noopOtlpForwarder: OtlpForwarder = {
+  enabled: false,
+  traceFinished: async () => undefined,
+  settle: async () => undefined,
+};
 
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
-    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook">>,
+    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder">>,
 ): ServiceContext {
   return {
     ...input,
@@ -35,6 +45,7 @@ export function createServiceContext(
     clock: input.clock ?? systemClock,
     metrics: input.metrics ?? new ShadowMetrics(),
     webhook: input.webhook ?? noopWebhook,
+    otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
   };
 }
 

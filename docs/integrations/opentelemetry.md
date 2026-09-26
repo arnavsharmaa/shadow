@@ -72,8 +72,10 @@ events to OTLP) is part of the same milestone so Shadow can sit alongside existi
 - `GET /api/v1/traces/:traceId/export?format=otlp` returning the trace as an OTLP
   `ExportTraceServiceRequest` (JSON, or protobuf with `encoding=protobuf` or
   `Accept: application/x-protobuf`), and `shadow otlp export <traceId> [--collector <url>]` to
-  save it or push it to any OTLP/HTTP endpoint (implemented). A server-side push on trace
-  completion is planned.
+  save it or push it to any OTLP/HTTP endpoint (implemented).
+- `SHADOW_OTLP_EXPORT_URL` (with `SHADOW_OTLP_EXPORT_HEADERS` and
+  `SHADOW_OTLP_EXPORT_ENCODING`) forwards every finished trace to a collector automatically
+  (implemented; see [the API docs](../architecture/api.md#otlp-forwarding)).
 
 ## Mapping
 

@@ -8,6 +8,22 @@ const boolish = z
     typeof v === "boolean" ? v : ["1", "true", "yes", "on"].includes(v.toLowerCase()),
   );
 
+/** An optional `http(s)` URL; blank values count as unset. */
+const optionalHttpUrl = z
+  .string()
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined || v.trim() === "") return undefined;
+    try {
+      const parsed = new URL(v.trim());
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("scheme");
+      return parsed.toString();
+    } catch {
+      ctx.addIssue({ code: "custom", message: "must be an http(s) URL" });
+      return z.NEVER;
+    }
+  });
+
 const configSchema = z.object({
   DATABASE_URL: z.string().optional(),
   SHADOW_DATA_DIR: z.string().default(".shadow/data"),
@@ -35,20 +51,7 @@ const configSchema = z.object({
   /** Requests per client IP per minute on /api/* (0 disables rate limiting). */
   SHADOW_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).max(1_000_000).default(0),
   /** Outgoing webhook for finished traces (unset disables notifications). */
-  SHADOW_WEBHOOK_URL: z
-    .string()
-    .optional()
-    .transform((v, ctx) => {
-      if (v === undefined || v.trim() === "") return undefined;
-      try {
-        const parsed = new URL(v.trim());
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("scheme");
-        return parsed.toString();
-      } catch {
-        ctx.addIssue({ code: "custom", message: "must be an http(s) URL" });
-        return z.NEVER;
-      }
-    }),
+  SHADOW_WEBHOOK_URL: optionalHttpUrl,
   /** HMAC-SHA256 secret used to sign webhook bodies (`x-shadow-signature-256`). */
   SHADOW_WEBHOOK_SECRET: z
     .string()
@@ -58,6 +61,15 @@ const configSchema = z.object({
   SHADOW_WEBHOOK_EVENTS: z.enum(["policy_violations", "failures", "all"]).default("failures"),
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */
   SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
+  /** OTLP/HTTP traces endpoint that finished traces are forwarded to (unset disables). */
+  SHADOW_OTLP_EXPORT_URL: optionalHttpUrl,
+  /** Extra request headers for the collector: `name=value` pairs separated by commas. */
+  SHADOW_OTLP_EXPORT_HEADERS: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Encoding for forwarded traces; protobuf is what collectors expect by default. */
+  SHADOW_OTLP_EXPORT_ENCODING: z.enum(["protobuf", "json"]).default("protobuf"),
   /** Delete traces older than this many days (unset disables retention). */
   SHADOW_RETENTION_DAYS: z
     .union([z.string(), z.number()])

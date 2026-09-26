@@ -34,7 +34,7 @@ describe("health and error envelope", () => {
       features: {
         auth: boolean;
         retention: { enabled: boolean; days?: number; intervalMinutes?: number };
-        otlp: { path: string; defaultProject: string };
+        otlp: { path: string; defaultProject: string; export: { enabled: boolean } };
       };
     }>(await t.app.inject({ method: "GET", url: "/health" }));
     expect(body.agents.replayable).toContain("refund-agent");
@@ -42,7 +42,11 @@ describe("health and error envelope", () => {
     expect(body.features).toEqual({
       auth: false,
       retention: { enabled: false },
-      otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+      otlp: {
+        path: "/api/v1/otlp/v1/traces",
+        defaultProject: "otel",
+        export: { enabled: false },
+      },
       webhook: { enabled: false },
     });
 
@@ -54,6 +58,8 @@ describe("health and error envelope", () => {
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
         SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
         SHADOW_WEBHOOK_EVENTS: "all",
+        SHADOW_OTLP_EXPORT_URL: "http://collector.example.com:4318/v1/traces",
+        SHADOW_OTLP_EXPORT_ENCODING: "json",
       },
     });
     try {
@@ -63,7 +69,11 @@ describe("health and error envelope", () => {
       expect(enabled.features).toEqual({
         auth: true,
         retention: { enabled: true, days: 30, intervalMinutes: 15, keepTag: "keep" },
-        otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "ingest" },
+        otlp: {
+          path: "/api/v1/otlp/v1/traces",
+          defaultProject: "ingest",
+          export: { enabled: true, encoding: "json" },
+        },
         webhook: { enabled: true, events: "all" },
       });
     } finally {

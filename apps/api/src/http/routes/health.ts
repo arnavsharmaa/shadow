@@ -19,7 +19,11 @@ const healthSchema = z.object({
       intervalMinutes: z.number().optional(),
       keepTag: z.string().optional(),
     }),
-    otlp: z.object({ path: z.string(), defaultProject: z.string() }),
+    otlp: z.object({
+      path: z.string(),
+      defaultProject: z.string(),
+      export: z.object({ enabled: z.boolean(), encoding: z.string().optional() }),
+    }),
     webhook: z.object({ enabled: z.boolean(), events: z.string().optional() }),
   }),
 });
@@ -32,6 +36,8 @@ export interface HealthRouteOptions {
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
+    | "SHADOW_OTLP_EXPORT_URL"
+    | "SHADOW_OTLP_EXPORT_ENCODING"
     | "SHADOW_WEBHOOK_URL"
     | "SHADOW_WEBHOOK_EVENTS"
   >;
@@ -77,6 +83,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
           otlp: {
             path: "/api/v1/otlp/v1/traces",
             defaultProject: config.SHADOW_OTLP_DEFAULT_PROJECT,
+            export: config.SHADOW_OTLP_EXPORT_URL
+              ? { enabled: true, encoding: config.SHADOW_OTLP_EXPORT_ENCODING }
+              : { enabled: false },
           },
           webhook: config.SHADOW_WEBHOOK_URL
             ? { enabled: true, events: config.SHADOW_WEBHOOK_EVENTS }

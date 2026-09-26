@@ -600,6 +600,9 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction          |
 | `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                          |
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`      |
+| `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to |
+| `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated  |
+| `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                     |
 | `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                   |
 | `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`             |
 | `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`               |
@@ -609,6 +612,16 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set               |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                     |
 | `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                      |
+
+### OTLP forwarding
+
+With `SHADOW_OTLP_EXPORT_URL` set, the API exports every trace whose root branch finishes (the
+same trigger as the webhook) with the OTLP mapping of `GET /traces/:traceId/export?format=otlp`
+and POSTs it to that endpoint, in protobuf by default. Traces that arrived through the OTLP
+endpoint are not forwarded again. Delivery runs off the ingestion path with
+three attempts and exponential backoff on `5xx`/`429`; other rejections are logged once.
+`shadow_otlp_exports_total{result}` on `/metrics` counts `delivered`, `rejected`, `failed` and
+`export_failed`. `/health` reports `features.otlp.export`.
 
 ### Webhooks
 

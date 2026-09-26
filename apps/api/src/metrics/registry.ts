@@ -144,6 +144,11 @@ export class ShadowMetrics {
     "shadow_otlp_requests_total",
     "OTLP export requests accepted.",
   );
+  readonly otlpExports = new Counter(
+    "shadow_otlp_exports_total",
+    "Finished traces forwarded to the OTLP collector, by result.",
+    ["result"],
+  );
   readonly pruned = new Counter(
     "shadow_traces_pruned_total",
     "Traces deleted by prune or retention.",
@@ -162,6 +167,7 @@ export class ShadowMetrics {
       this.replays,
       this.comparisons,
       this.otlpRequests,
+      this.otlpExports,
       this.pruned,
     ]) {
       lines.push(...metric.render());

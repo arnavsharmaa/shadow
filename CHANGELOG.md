@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OTLP forwarding: with `SHADOW_OTLP_EXPORT_URL` set (plus optional
+  `SHADOW_OTLP_EXPORT_HEADERS` and `SHADOW_OTLP_EXPORT_ENCODING`), every trace whose root
+  branch finishes is exported as OTLP and pushed to that collector off the ingestion path, with
+  retries, a `shadow_otlp_exports_total` counter and a `features.otlp.export` health flag that
+  `shadow status` prints.
 - OTLP export: `GET /api/v1/traces/:traceId/export?format=otlp` returns a trace as an
   OpenTelemetry `ExportTraceServiceRequest` (JSON, or protobuf via `encoding=protobuf` /
   `Accept: application/x-protobuf`), one OTel trace per branch with GenAI attributes, reserved

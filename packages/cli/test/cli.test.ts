@@ -183,7 +183,11 @@ describe("shadow cli", () => {
           features: {
             auth: true,
             retention: { enabled: true, days: 30, intervalMinutes: 60 },
-            otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+            otlp: {
+              path: "/api/v1/otlp/v1/traces",
+              defaultProject: "otel",
+              export: { enabled: true, encoding: "protobuf" },
+            },
           },
         },
       }),
@@ -204,7 +208,7 @@ describe("shadow cli", () => {
     expect(text).toContain("7 across 2 project(s) and 1 agent(s); 3 distinct tool(s)");
     expect(text).toContain("replay    inventory-agent, refund-agent");
     expect(text).toContain(
-      "auth required; retention 30d every 60m; otlp at /api/v1/otlp/v1/traces",
+      "auth required; retention 30d every 60m; otlp at /api/v1/otlp/v1/traces; otlp export on (protobuf)",
     );
     const json = fakeApi({
       "GET /health": () => ({

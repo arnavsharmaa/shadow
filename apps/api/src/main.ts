@@ -5,6 +5,7 @@ import { buildApp } from "./http/app.js";
 import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { createWebhook } from "./notify/webhook.js";
+import { createOtlpForwarder } from "./otlp/forwarder.js";
 import { createRetention } from "./retention.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
@@ -47,6 +48,13 @@ async function main(): Promise<void> {
       "webhook enabled",
     );
   }
+  const otlpForwarder = createOtlpForwarder({ config, logger });
+  if (otlpForwarder.enabled) {
+    logger.info(
+      { url: config.SHADOW_OTLP_EXPORT_URL, encoding: config.SHADOW_OTLP_EXPORT_ENCODING },
+      "otlp forwarding enabled",
+    );
+  }
   const services = createServiceContext({
     handle,
     logger,
@@ -55,6 +63,7 @@ async function main(): Promise<void> {
       additionalKeyPatterns: parsePatternList(config.SHADOW_REDACT_PATTERNS),
     }),
     webhook,
+    otlpForwarder,
   });
 
   if (config.SHADOW_AUTO_SEED && (await isDatabaseEmpty(services))) {
@@ -79,6 +88,7 @@ async function main(): Promise<void> {
       retention.stop();
       await app.close();
       await webhook.settle();
+      await otlpForwarder.settle();
       await handle.close();
       logger.info("shutdown complete");
       process.exit(0);

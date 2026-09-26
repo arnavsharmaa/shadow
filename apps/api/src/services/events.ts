@@ -265,11 +265,17 @@ export async function ingestEvents(
     await applyLifecycle(tx, trace, branchRow, prepared);
     return prepared;
   });
-  if (branchId === trace.rootBranchId && ctx.webhook.enabled) {
+  if (branchId === trace.rootBranchId && (ctx.webhook.enabled || ctx.otlpForwarder.enabled)) {
     const end = [...inserted]
       .reverse()
       .find((e) => e.eventType === "trace.completed" || e.eventType === "trace.failed");
-    if (end) {
+    if (end && ctx.otlpForwarder.enabled && end.source !== "otlp") {
+      // The whole trace is exported once its root branch has finished; off the ingestion path.
+      // Traces that arrived through the OTLP endpoint already live in a collector and are not
+      // sent back out, which also rules out loops between two Shadow instances.
+      void ctx.otlpForwarder.traceFinished(ctx, traceId);
+    }
+    if (end && ctx.webhook.enabled) {
       const summary = await getTraceSummary(ctx, traceId);
       // Delivery happens off the ingestion path; the client never waits for it.
       void ctx.webhook.traceFinished({

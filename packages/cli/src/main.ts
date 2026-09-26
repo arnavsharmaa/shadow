@@ -154,7 +154,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         features?: {
           auth: boolean;
           retention: { enabled: boolean; days?: number; intervalMinutes?: number };
-          otlp: { path: string; defaultProject: string };
+          otlp: {
+            path: string;
+            defaultProject: string;
+            export?: { enabled: boolean; encoding?: string };
+          };
         };
       }>("/health");
       const traces = await api.get<Page<TraceSummary>>("/api/v1/traces", { limit: 1 });
@@ -196,7 +200,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             ? `retention ${summary.features.retention.days}d every ${summary.features.retention.intervalMinutes}m`
             : "retention off";
           out(
-            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; otlp at ${summary.features.otlp.path}`,
+            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; otlp at ${summary.features.otlp.path}${summary.features.otlp.export?.enabled ? `; otlp export on (${summary.features.otlp.export.encoding ?? "protobuf"})` : ""}`,
           );
         }
       }

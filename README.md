@@ -241,7 +241,7 @@ GET  /api/v1/comparisons                  POST /api/v1/comparisons
 GET  /api/v1/comparisons/:comparisonId    POST /api/v1/otlp/v1/traces
 ```
 
-Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces.
+Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces, or `SHADOW_OTLP_EXPORT_URL` to forward every finished trace to an OpenTelemetry collector as OTLP spans.
 
 Events are cursor-paginated; every error is `{ "error": { "code", "message", "details?", "requestId" } }`. Reference: [docs/architecture/api.md](docs/architecture/api.md).
 

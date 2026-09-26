@@ -61,8 +61,9 @@ is welcome through GitHub issues; integration proposals have their own
 - **Anthropic tool-use traces**: import Messages API tool-use loops as model and tool spans
   ([proposal](./docs/integrations/anthropic.md)).
 - **Exporters**: push traces to external destinations in addition to the existing bundle export
-  (OTLP export exists: `GET /traces/:id/export?format=otlp` and `shadow otlp export
---collector <url>`; a server-side push on trace completion remains).
+  (OTLP is done: `GET /traces/:id/export?format=otlp`, `shadow otlp export --collector <url>`
+  and automatic forwarding of finished traces with `SHADOW_OTLP_EXPORT_URL`; file and other
+  destinations remain).
 - A published integration guide for custom runtimes with conformance tests for adapters.
 
 ### Ideas / under consideration
