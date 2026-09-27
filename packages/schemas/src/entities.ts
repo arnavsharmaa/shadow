@@ -200,3 +200,37 @@ export const savedViewSchema = z.object({
   updatedAt: timestamp,
 });
 export type SavedView = z.infer<typeof savedViewSchema>;
+
+export const BATCH_JOB_STATUSES = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+] as const;
+export const batchJobStatusSchema = z.enum(BATCH_JOB_STATUSES);
+export type BatchJobStatus = z.infer<typeof batchJobStatusSchema>;
+
+/** A batch counterfactual running in the background (`background: true`). */
+export const batchJobSchema = z.object({
+  id: idSchema,
+  kind: z.literal("batch_counterfactual"),
+  status: batchJobStatusSchema,
+  /** The validated request body. */
+  request: jsonObjectSchema,
+  progress: z.object({
+    total: z.number().int().nonnegative(),
+    done: z.number().int().nonnegative(),
+    changed: z.number().int().nonnegative(),
+    unchanged: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+  }),
+  /** The batch result once finished (partial for a cancelled job), otherwise `null`. */
+  result: jsonObjectSchema.nullable(),
+  error: z.string().nullable(),
+  createdAt: timestamp,
+  startedAt: timestamp.nullable(),
+  finishedAt: timestamp.nullable(),
+});
+export type BatchJob = z.infer<typeof batchJobSchema>;

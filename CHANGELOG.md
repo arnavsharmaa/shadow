@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Background batch counterfactuals: `"background": true` on `POST /api/v1/batch/counterfactuals`
+  queues the batch as a job (up to 500 traces instead of 50) and answers `202`; jobs are stored in
+  a new `batch_jobs` table (migration `0003_batch_jobs`), run one at a time in the API process
+  with per-trace progress, can be cancelled (`POST /api/v1/batch/jobs/:jobId/cancel`), are listed
+  at `GET /api/v1/batch/jobs` and are marked failed if an API restart interrupted them.
+  `shadow batch --background|--wait` and `shadow jobs list|show|cancel` use them.
 - OTLP forwarding: with `SHADOW_OTLP_EXPORT_URL` set (plus optional
   `SHADOW_OTLP_EXPORT_HEADERS` and `SHADOW_OTLP_EXPORT_ENCODING`), every trace whose root
   branch finishes is exported as OTLP and pushed to that collector off the ingestion path, with

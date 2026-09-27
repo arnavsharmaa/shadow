@@ -10,6 +10,7 @@ import {
   replaySchema,
   traceSchema,
   traceStatusSchema,
+  BATCH_JOB_STATUSES,
 } from "./entities.js";
 import { eventSchema, ingestEventSchema } from "./events.js";
 import { idSchema } from "./ids.js";
@@ -216,23 +217,44 @@ export type PruneTracesBody = z.infer<typeof pruneTracesBodySchema>;
  * Batch counterfactual: apply one override set to many recorded traces of an agent,
  * forking each at its first event matching `at`.
  */
-export const batchCounterfactualBodySchema = z.object({
-  agent: z.string().min(1).max(64),
-  project: z.string().max(64).optional(),
-  at: z.object({
-    eventType: z.string().min(1).max(96).default("tool.request"),
-    name: z.string().min(1).max(256),
-  }),
-  overrides: z.array(overrideSchema).min(1).max(200),
-  /** Branch name given to every fork (default: the next `fork-N` of each trace). */
-  branchName: z.string().min(1).max(128).optional(),
-  status: traceStatusSchema.optional(),
-  tag: z.string().max(64).optional(),
-  from: z.iso.datetime({ offset: true }).optional(),
-  to: z.iso.datetime({ offset: true }).optional(),
-  limit: z.number().int().min(1).max(50).default(20),
-});
+export const MAX_SYNC_BATCH = 50;
+export const MAX_BACKGROUND_BATCH = 500;
+
+export const batchCounterfactualBodySchema = z
+  .object({
+    agent: z.string().min(1).max(64),
+    project: z.string().max(64).optional(),
+    at: z.object({
+      eventType: z.string().min(1).max(96).default("tool.request"),
+      name: z.string().min(1).max(256),
+    }),
+    overrides: z.array(overrideSchema).min(1).max(200),
+    /** Branch name given to every fork (default: the next `fork-N` of each trace). */
+    branchName: z.string().min(1).max(128).optional(),
+    status: traceStatusSchema.optional(),
+    tag: z.string().max(64).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    /** Up to 50 traces synchronously, or up to 500 as a background job. */
+    limit: z.number().int().min(1).max(MAX_BACKGROUND_BATCH).default(20),
+    /** Queue the batch as a job and return `202` right away (see `GET /batch/jobs/:jobId`). */
+    background: z.boolean().default(false),
+  })
+  .superRefine((body, ctx) => {
+    if (!body.background && body.limit > MAX_SYNC_BATCH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["limit"],
+        message: `synchronous batches are limited to ${MAX_SYNC_BATCH} traces; set background: true for up to ${MAX_BACKGROUND_BATCH}`,
+      });
+    }
+  });
 export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
+
+export const batchJobListQuerySchema = z.object({
+  status: z.enum(BATCH_JOB_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
 
 /** Scenario matrix: fork one event once per variant, replay and compare each. */
 export const forkMatrixBodySchema = z.object({

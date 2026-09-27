@@ -104,7 +104,8 @@ is welcome through GitHub issues; integration proposals have their own
   (available in the API, the CLI and the web app for context values, tool results and policy
   configurations).
 - **Batch counterfactuals**: apply the same override set across many traces of an agent
-  (available in the API, CLI and web app; background execution for large batches remains).
+  (available in the API, CLI and web app; large batches of up to 500 traces run as background
+  jobs with progress and cancellation).
 
 ### Ideas / under consideration
 

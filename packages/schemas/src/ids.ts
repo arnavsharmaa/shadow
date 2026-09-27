@@ -22,6 +22,7 @@ export const ID_PREFIXES = {
   artifact: "art",
   approval: "apr",
   view: "view",
+  job: "job",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

@@ -6,6 +6,7 @@ import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { createWebhook } from "./notify/webhook.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
+import { failInterruptedJobs } from "./services/batch.js";
 import { createRetention } from "./retention.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
@@ -66,6 +67,10 @@ async function main(): Promise<void> {
     otlpForwarder,
   });
 
+  const interrupted = await failInterruptedJobs(services);
+  if (interrupted > 0)
+    logger.warn({ jobs: interrupted }, "marked interrupted batch jobs as failed");
+
   if (config.SHADOW_AUTO_SEED && (await isDatabaseEmpty(services))) {
     logger.info("database is empty; seeding demo data");
     await seedDemoData(services);
@@ -89,6 +94,7 @@ async function main(): Promise<void> {
       await app.close();
       await webhook.settle();
       await otlpForwarder.settle();
+      await services.jobs.stop();
       await handle.close();
       logger.info("shutdown complete");
       process.exit(0);

@@ -830,6 +830,105 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("runs batches in the background and follows jobs", async () => {
+    const result = {
+      matched: 2,
+      summary: { changed: 1, unchanged: 1, skipped: 0, failed: 0 },
+      results: [
+        {
+          traceId: "trc_a",
+          startedAt: "2026-09-01T09:00:00.000Z",
+          status: "ok",
+          outcome: {
+            base: { label: "Refund issued" },
+            target: { label: "Approval" },
+            changed: true,
+          },
+          firstDivergence: { sequence: 37, summary: "policy required approval" },
+        },
+        {
+          traceId: "trc_b",
+          startedAt: "2026-09-02T09:00:00.000Z",
+          status: "ok",
+          outcome: {
+            base: { label: "Refund issued" },
+            target: { label: "Refund issued" },
+            changed: false,
+          },
+          firstDivergence: null,
+        },
+      ],
+    };
+    const job = (status: string, done: number, withResult = false) => ({
+      id: "job_1",
+      kind: "batch_counterfactual",
+      status,
+      request: { agent: "refund-agent", at: { eventType: "tool.request", name: "refund_order" } },
+      progress: {
+        total: 2,
+        done,
+        changed: done > 0 ? 1 : 0,
+        unchanged: done > 1 ? 1 : 0,
+        skipped: 0,
+        failed: 0,
+      },
+      result: withResult ? result : null,
+      error: null,
+      createdAt: "2026-09-27T09:00:00.000Z",
+      startedAt: null,
+      finishedAt: null,
+    });
+    const polls = [job("queued", 0), job("running", 1), job("completed", 2, true)];
+    const api = fakeApi({
+      "POST /api/v1/batch/counterfactuals": () => ({ status: 202, body: job("queued", 0) }),
+      "GET /api/v1/batch/jobs/job_1": () => ({ body: polls.shift() ?? job("completed", 2, true) }),
+      "GET /api/v1/batch/jobs": () => ({ body: { items: [job("running", 1)] } }),
+      "POST /api/v1/batch/jobs/job_1/cancel": () => ({ body: job("running", 1) }),
+    });
+    const args = [
+      "batch",
+      "--agent",
+      "refund-agent",
+      "--at",
+      "refund_order",
+      "--set",
+      "refundLimit=100",
+    ];
+
+    expect(await runWith(api, [...args, "--background", "--limit", "200"])).toBe(0);
+    const sent = api.captured.calls[0]?.body as { background?: boolean; limit: number };
+    expect(sent).toMatchObject({ background: true, limit: 200 });
+    expect(api.captured.out.join("\n")).toContain(
+      "queued job_1; follow it with: shadow jobs show job_1",
+    );
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, [...args, "--wait", "--interval", "1"])).toBe(0);
+    const waited = api.captured.out.join("\n");
+    expect(waited).toContain("job_1  queued  0/2 trace(s)");
+    expect(waited).toContain("job_1  running  1/2 trace(s): 1 changed");
+    expect(waited).toContain("job_1  completed  2/2 trace(s)");
+    expect(waited).toContain("#37 policy required approval");
+    expect(waited).toContain("2 of 2 matching trace(s): 1 changed, 1 unchanged");
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["jobs", "list"])).toBe(0);
+    expect(api.captured.out.join("\n")).toMatch(
+      /job_1\s+running\s+refund-agent\s+refund_order\s+1\/2/,
+    );
+    expect(await runWith(api, ["jobs", "show", "job_1"])).toBe(0);
+    expect(await runWith(api, ["jobs", "cancel", "job_1"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("asked job_1 to stop");
+
+    const failing = fakeApi({
+      "POST /api/v1/batch/counterfactuals": () => ({ status: 202, body: job("queued", 0) }),
+      "GET /api/v1/batch/jobs/job_1": () => ({
+        body: { ...job("failed", 0), error: "interrupted by an API restart" },
+      }),
+    });
+    expect(await runWith(failing, [...args, "--wait", "--interval", "1"])).toBe(1);
+  });
+
   it("manages shared views and lists traces through one", async () => {
     const view = {
       id: "view_1",

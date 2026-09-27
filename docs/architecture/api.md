@@ -442,6 +442,31 @@ conflict) with a `reason`; one trace's failure never aborts the batch. `422
 agent_not_replayable` when the agent has no registered program. CLI: `shadow batch --agent
 refund-agent --at refund_order --set refundLimit=100`.
 
+With `"background": true` the batch runs as a job instead: `limit` may go up to 500, and the
+response is `202` with a `Location` header and the `BatchJob`
+`{ id, kind: "batch_counterfactual", status, request, progress, result, error, createdAt,
+startedAt, finishedAt }`. `status` moves from `queued` to `running` to `completed`, `failed` or
+`cancelled`; `progress` is `{ total, done, changed, unchanged, skipped, failed }`, updated after
+every trace, and `result` holds the usual batch result once the job has finished. Jobs run one at
+a time in the API process, in submission order; jobs that were queued or running when the API
+stopped are marked `failed` ("interrupted by an API restart") at the next start.
+
+### `GET /api/v1/batch/jobs?status=&limit=`
+
+`{ items: [BatchJob] }`, newest first (`limit` 1 to 100, default 20); `result` is left out
+(`null`) in the list.
+
+### `GET /api/v1/batch/jobs/:jobId`
+
+One `BatchJob` with its `result`, or `404`.
+
+### `POST /api/v1/batch/jobs/:jobId/cancel`
+
+Cancels a queued job before it starts, or asks a running one to stop before its next trace (it
+then finishes as `cancelled` with the partial result). Returns the `BatchJob`; `409 conflict`
+for a job that has already finished. CLI: `shadow batch … --background` (print the job id) or
+`--wait` (poll and print the results), and `shadow jobs list|show <jobId>|cancel <jobId>`.
+
 ### `GET /api/v1/traces/:traceId/replays`
 
 `{ items: Replay[] }`.

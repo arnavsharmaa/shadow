@@ -3,6 +3,7 @@ import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
   Artifact,
+  BatchJob,
   Branch,
   DiffEntry,
   Comparison,
@@ -1324,10 +1325,16 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--tag <tag>", "only traces carrying this tag")
     .option("--from <cutoff>", "traces started at or after", cutoff)
     .option("--to <cutoff>", "traces started at or before", cutoff)
-    .option("--limit <n>", "maximum traces (1-50)", positiveInt, 20)
+    .option("--limit <n>", "maximum traces (1-50, or up to 500 with --background)", positiveInt, 20)
+    .option("--background", "queue the batch as a job and print its id")
+    .option("--wait", "run in the background and poll until the job finishes")
+    .option("--interval <ms>", "poll interval for --wait", positiveInt, 2000)
     .option("--json", "print JSON")
     .action(
       async (opts: {
+        background?: boolean;
+        wait?: boolean;
+        interval: number;
         agent: string;
         at: string;
         project?: string;
@@ -1366,23 +1373,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           separator > 0 && opts.at.slice(0, separator).includes(".")
             ? { eventType: opts.at.slice(0, separator), name: opts.at.slice(separator + 1) }
             : { eventType: "tool.request", name: opts.at };
-        const result = await client().post<{
-          matched: number;
-          summary: { changed: number; unchanged: number; skipped: number; failed: number };
-          results: {
-            traceId: string;
-            startedAt: string;
-            status: "ok" | "skipped" | "failed";
-            reason?: string;
-            outcome?: {
-              base: { label: string } | null;
-              target: { label: string } | null;
-              changed: boolean;
-            };
-            firstDivergence?: { sequence: number; summary: string } | null;
-            comparisonId?: string;
-          }[];
-        }>("/api/v1/batch/counterfactuals", {
+        const api = client();
+        const background = Boolean(opts.background || opts.wait);
+        const request = {
           agent: opts.agent,
           project: opts.project,
           at,
@@ -1393,35 +1386,134 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           from: opts.from,
           to: opts.to,
           limit: opts.limit,
-        });
-        if (opts.json) return json(result);
-        if (result.results.length === 0) return out("no traces matched");
-        out(
-          table(
-            ["TRACE", "STARTED", "RESULT", "ORIGINAL", "COUNTERFACTUAL", "DETAIL"],
-            result.results.map((r) => [
-              r.traceId,
-              r.startedAt,
-              r.status === "ok" ? (r.outcome?.changed ? "changed" : "same") : r.status,
-              r.outcome?.base?.label ?? "-",
-              r.outcome?.target?.label ?? "-",
-              truncate(
-                r.status === "ok"
-                  ? r.firstDivergence
-                    ? `#${r.firstDivergence.sequence} ${r.firstDivergence.summary}`
-                    : "identical"
-                  : (r.reason ?? ""),
-                60,
-              ),
-            ]),
-          ),
-        );
-        const s = result.summary;
-        out(
-          `${result.results.length} of ${result.matched} matching trace(s): ${s.changed} changed, ${s.unchanged} unchanged, ${s.skipped} skipped, ${s.failed} failed`,
-        );
+          ...(background ? { background: true } : {}),
+        };
+        if (!background) {
+          const result = await api.post<BatchCliResult>("/api/v1/batch/counterfactuals", request);
+          if (opts.json) return json(result);
+          return printBatch(result);
+        }
+        const job = await api.post<BatchJob>("/api/v1/batch/counterfactuals", request);
+        if (!opts.wait) {
+          if (opts.json) return json(job);
+          out(`queued ${job.id}; follow it with: shadow jobs show ${job.id}`);
+          return;
+        }
+        const finished = await waitForJob(api, job.id, opts.interval, opts.json ? null : out);
+        if (opts.json) return json(finished);
+        if (finished.status === "failed") {
+          throw new CliError(`job ${finished.id} failed: ${finished.error ?? "unknown error"}`);
+        }
+        if (finished.result) printBatch(finished.result as unknown as BatchCliResult);
+        if (finished.status === "cancelled") out(`job ${finished.id} was cancelled`);
       },
     );
+
+  const jobs = program.command("jobs").description("background batch jobs");
+
+  jobs
+    .command("list")
+    .description("list recent background jobs")
+    .option("--status <status>", "queued | running | completed | failed | cancelled")
+    .option("--limit <n>", "maximum rows", positiveInt, 20)
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { status?: string; limit: number; json?: boolean }) => {
+      const page = await client().get<{ items: BatchJob[] }>("/api/v1/batch/jobs", {
+        status: opts.status,
+        limit: opts.limit,
+      });
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no jobs");
+      out(
+        table(
+          ["JOB", "STATUS", "AGENT", "AT", "PROGRESS", "CHANGED", "CREATED"],
+          page.items.map((j) => [
+            j.id,
+            j.status,
+            String(j.request.agent ?? "-"),
+            String((j.request.at as { name?: string } | undefined)?.name ?? "-"),
+            `${j.progress.done}/${j.progress.total}`,
+            String(j.progress.changed),
+            j.createdAt,
+          ]),
+        ),
+      );
+    });
+
+  jobs
+    .command("show")
+    .description("show a job's progress, and its results once finished")
+    .argument("<jobId>", "job id")
+    .option("--json", "print JSON")
+    .action(async (jobId: string, opts: { json?: boolean }) => {
+      const job = await client().get<BatchJob>(`/api/v1/batch/jobs/${encodeURIComponent(jobId)}`);
+      if (opts.json) return json(job);
+      out(`${job.id}  ${job.status}  ${progressLine(job)}`);
+      if (job.error) out(`error: ${job.error}`);
+      if (job.result) printBatch(job.result as unknown as BatchCliResult);
+    });
+
+  jobs
+    .command("cancel")
+    .description("cancel a queued or running job (a running batch stops before its next trace)")
+    .argument("<jobId>", "job id")
+    .action(async (jobId: string) => {
+      const job = await client().post<BatchJob>(
+        `/api/v1/batch/jobs/${encodeURIComponent(jobId)}/cancel`,
+        {},
+      );
+      out(
+        job.status === "cancelled"
+          ? `cancelled ${job.id}`
+          : `asked ${job.id} to stop; it finishes the current trace first`,
+      );
+    });
+
+  function printBatch(result: BatchCliResult): void {
+    if (result.results.length === 0) return out("no traces matched");
+    out(
+      table(
+        ["TRACE", "STARTED", "RESULT", "ORIGINAL", "COUNTERFACTUAL", "DETAIL"],
+        result.results.map((r) => [
+          r.traceId,
+          r.startedAt,
+          r.status === "ok" ? (r.outcome?.changed ? "changed" : "same") : r.status,
+          r.outcome?.base?.label ?? "-",
+          r.outcome?.target?.label ?? "-",
+          truncate(
+            r.status === "ok"
+              ? r.firstDivergence
+                ? `#${r.firstDivergence.sequence} ${r.firstDivergence.summary}`
+                : "identical"
+              : (r.reason ?? ""),
+            60,
+          ),
+        ]),
+      ),
+    );
+    const s = result.summary;
+    out(
+      `${result.results.length} of ${result.matched} matching trace(s): ${s.changed} changed, ${s.unchanged} unchanged, ${s.skipped} skipped, ${s.failed} failed`,
+    );
+  }
+
+  /** Poll a job until it leaves queued/running, printing progress whenever it moves. */
+  async function waitForJob(
+    api: ApiClient,
+    jobId: string,
+    intervalMs: number,
+    report: ((line: string) => void) | null,
+  ): Promise<BatchJob> {
+    let last = "";
+    for (;;) {
+      const job = await api.get<BatchJob>(`/api/v1/batch/jobs/${encodeURIComponent(jobId)}`);
+      const line = `${job.id}  ${job.status}  ${progressLine(job)}`;
+      if (report && line !== last) report(line);
+      last = line;
+      if (job.status !== "queued" && job.status !== "running") return job;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
 
   program
     .command("replay")
@@ -1619,6 +1711,29 @@ function matrixOverride(cell: MatrixCell): Record<string, unknown> {
     case "policy":
       return { kind: "policy", policy: cell.axis.name, config: cell.value };
   }
+}
+
+interface BatchCliResult {
+  matched: number;
+  summary: { changed: number; unchanged: number; skipped: number; failed: number };
+  results: {
+    traceId: string;
+    startedAt: string;
+    status: "ok" | "skipped" | "failed";
+    reason?: string;
+    outcome?: {
+      base: { label: string } | null;
+      target: { label: string } | null;
+      changed: boolean;
+    };
+    firstDivergence?: { sequence: number; summary: string } | null;
+    comparisonId?: string;
+  }[];
+}
+
+function progressLine(job: BatchJob): string {
+  const p = job.progress;
+  return `${p.done}/${p.total} trace(s): ${p.changed} changed, ${p.unchanged} unchanged, ${p.skipped} skipped, ${p.failed} failed`;
 }
 
 function artifactText(artifact: Artifact): string {

@@ -257,6 +257,27 @@ export const savedViews = pgTable(
   (t) => [uniqueIndex("saved_views_name_idx").on(t.name)],
 );
 
+/** Background batch counterfactuals (`background: true`); results are kept with the job. */
+export const batchJobs = pgTable(
+  "batch_jobs",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    status: text("status").notNull(),
+    request: jsonb("request").notNull(),
+    progress: jsonb("progress").notNull(),
+    result: jsonb("result"),
+    error: text("error"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    startedAt: ts("started_at"),
+    finishedAt: ts("finished_at"),
+  },
+  (t) => [
+    index("batch_jobs_created_idx").on(t.createdAt),
+    index("batch_jobs_status_idx").on(t.status),
+  ],
+);
+
 export const schema = {
   projects,
   agents,
@@ -269,6 +290,7 @@ export const schema = {
   comparisons,
   artifacts,
   savedViews,
+  batchJobs,
 };
 
 export const nowSql = sql`now()`;

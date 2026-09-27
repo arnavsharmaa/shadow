@@ -10,6 +10,7 @@ import type { DatabaseHandle } from "../db/client.js";
 import { ShadowMetrics } from "../metrics/registry.js";
 import { noopWebhook, type Webhook } from "../notify/webhook.js";
 import type { OtlpForwarder } from "../otlp/forwarder.js";
+import { createJobRunner, type JobRunner } from "../jobs/runner.js";
 import type { AgentRegistry } from "../replay/registry.js";
 
 /** Dependencies shared by every service function. */
@@ -26,6 +27,8 @@ export interface ServiceContext {
   webhook: Webhook;
   /** Forwarding of finished traces to an OTLP collector. */
   otlpForwarder: OtlpForwarder;
+  /** Background jobs (large batch counterfactuals), one at a time. */
+  jobs: JobRunner;
 }
 
 /** A forwarder that does nothing; used when no collector is configured and in tests. */
@@ -37,7 +40,9 @@ export const noopOtlpForwarder: OtlpForwarder = {
 
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
-    Partial<Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder">>,
+    Partial<
+      Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder" | "jobs">
+    >,
 ): ServiceContext {
   return {
     ...input,
@@ -46,6 +51,9 @@ export function createServiceContext(
     metrics: input.metrics ?? new ShadowMetrics(),
     webhook: input.webhook ?? noopWebhook,
     otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
+    jobs:
+      input.jobs ??
+      createJobRunner((jobId, error) => input.logger.error({ jobId, err: error }, "job crashed")),
   };
 }
 
