@@ -112,17 +112,39 @@ const savedViewFiltersSchema = traceListQuerySchema
  * values the trace list would not accept. Returns `null` when the query is invalid.
  */
 export function normalizeViewQuery(query: string): string | null {
-  const params = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
-  params.delete("cursor");
-  params.delete("limit");
+  const text = query.startsWith("?") ? query.slice(1) : query;
   const record: Record<string, string> = {};
-  for (const [key, value] of params) {
-    if (key in record) return null;
+  for (const pair of text.split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    const key = formDecode(index < 0 ? pair : pair.slice(0, index));
+    const value = formDecode(index < 0 ? "" : pair.slice(index + 1));
+    if (key === null || value === null) return null;
+    if (key === "cursor" || key === "limit") continue;
+    if (Object.hasOwn(record, key)) return null;
     record[key] = value;
   }
   if (!savedViewFiltersSchema.safeParse(record).success) return null;
-  params.sort();
-  return params.toString();
+  return Object.keys(record)
+    .sort()
+    .map((key) => `${formEncode(key)}=${formEncode(record[key] ?? "")}`)
+    .join("&");
+}
+
+/** `application/x-www-form-urlencoded` decoding, as `URLSearchParams` does it. */
+function formDecode(text: string): string | null {
+  try {
+    return decodeURIComponent(text.replace(/\+/g, " "));
+  } catch {
+    return null;
+  }
+}
+
+/** `application/x-www-form-urlencoded` encoding, byte-for-byte what `URLSearchParams` emits. */
+function formEncode(text: string): string {
+  return encodeURIComponent(text)
+    .replace(/%20/g, "+")
+    .replace(/[!'()~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 export const saveViewBodySchema = z.object({
