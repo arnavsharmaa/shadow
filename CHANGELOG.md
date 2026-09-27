@@ -84,7 +84,10 @@ migration (see `docs/concepts/schema-versioning.md`).
   20 override sets, replays and compares each, and returns the outcomes side by side;
   `shadow matrix <traceId> --at <eventId> --vary key=v1,v2` builds the grid from the CLI.
 - Saved views in the trace explorer: name the current filters and sort, re-apply them from a
-  dropdown, and delete them; kept per browser.
+  dropdown, and delete them; kept per browser, or shared with the team by ticking "Share with
+  team", which stores them through `GET/POST /api/v1/views` and `DELETE /api/v1/views/:viewId`
+  (new `saved_views` table, migration `0002_shared_saved_views`). `shadow views
+  list|save|delete` manage them and `shadow traces list --view <name>` lists through one.
 - Keyboard shortcuts overlay (`?` or the header button) listing the trace view's shortcuts, and
   `n` to jump to the note box.
 - Notes on events: the event inspector has an "Add a note" box (Ctrl+Enter saves) and renders

@@ -9,6 +9,7 @@ import type {
   Fork,
   Override,
   Replay,
+  SavedView,
   ShadowEvent,
   TraceExport,
   TraceSummary,
@@ -239,9 +240,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       return value;
     })
     .option("--limit <n>", "maximum rows", positiveInt, 25)
+    .option("--view <name>", "start from a shared saved view; explicit options override it")
     .option("--json", "print JSON instead of a table")
     .action(
       async (opts: {
+        view?: string;
         project?: string;
         agent?: string;
         status?: string;
@@ -257,7 +260,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         limit: number;
         json?: boolean;
       }) => {
-        const page = await client().get<Page<TraceSummary>>("/api/v1/traces", {
+        const api = client();
+        const base: Record<string, string> = {};
+        if (opts.view) {
+          const found = await api.get<{ items: SavedView[] }>("/api/v1/views", {
+            name: opts.view,
+          });
+          for (const [key, value] of new URLSearchParams(found.items[0]?.query ?? "")) {
+            base[key] = value;
+          }
+        }
+        const explicit: Record<string, string | number | undefined> = {
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
@@ -270,6 +283,13 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minDurationMs: opts.minDuration,
           sort: opts.sort,
           order: opts.order,
+        };
+        const query: Record<string, string | number | undefined> = { ...base };
+        for (const [key, value] of Object.entries(explicit)) {
+          if (value !== undefined) query[key] = value;
+        }
+        const page = await api.get<Page<TraceSummary>>("/api/v1/traces", {
+          ...query,
           limit: opts.limit,
         });
         if (opts.json) return json(page);
@@ -886,6 +906,68 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       };
       diffs("state diff", state.stateDiff);
       diffs("context diff", state.contextDiff);
+    });
+
+  const views = program
+    .command("views")
+    .description("shared saved views: named trace-explorer filters stored on the server");
+
+  views
+    .command("list")
+    .description("list shared views")
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { json?: boolean }) => {
+      const page = await client().get<{ items: SavedView[] }>("/api/v1/views");
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no shared views");
+      out(
+        table(
+          ["VIEW", "NAME", "FILTERS", "UPDATED"],
+          page.items.map((v) => [v.id, v.name, v.query || "(all traces)", v.updatedAt]),
+        ),
+      );
+    });
+
+  views
+    .command("save")
+    .description("create a shared view, or replace the filters of the view with that name")
+    .argument("<name>", "view name")
+    .argument(
+      "[query]",
+      "explorer query string, e.g. 'status=failed&sort=totalEstimatedCost' (default: all traces)",
+    )
+    .option("--description <text>", "what the view is for")
+    .option("--json", "print JSON")
+    .action(
+      async (
+        name: string,
+        query: string | undefined,
+        opts: { description?: string; json?: boolean },
+      ) => {
+        const view = await client().post<SavedView>("/api/v1/views", {
+          name,
+          query: query ?? "",
+          ...(opts.description ? { description: opts.description } : {}),
+        });
+        if (opts.json) return json(view);
+        out(`saved view ${view.name} (${view.id}): ${view.query || "(all traces)"}`);
+        out(`open it at /?${view.query} or run: shadow traces list --view '${view.name}'`);
+      },
+    );
+
+  views
+    .command("delete")
+    .description("delete a shared view by name or id")
+    .argument("<nameOrId>", "view name or id")
+    .action(async (nameOrId: string) => {
+      const api = client();
+      let id = nameOrId;
+      if (!nameOrId.startsWith("view_")) {
+        const found = await api.get<{ items: SavedView[] }>("/api/v1/views", { name: nameOrId });
+        id = found.items[0]?.id ?? nameOrId;
+      }
+      await api.delete(`/api/v1/views/${encodeURIComponent(id)}`);
+      out(`deleted view ${nameOrId}`);
     });
 
   const artifacts = program

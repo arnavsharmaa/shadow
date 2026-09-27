@@ -830,6 +830,65 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("manages shared views and lists traces through one", async () => {
+    const view = {
+      id: "view_1",
+      name: "costly failures",
+      query: "sort=totalEstimatedCost&status=failed",
+      description: null,
+      createdAt: "2026-09-27T09:00:00.000Z",
+      updatedAt: "2026-09-27T09:00:00.000Z",
+    };
+    const api = fakeApi({
+      "GET /api/v1/views": () => ({ body: { items: [view] } }),
+      "POST /api/v1/views": (body) => ({
+        status: 201,
+        body: { ...view, ...(body as object), query: "status=failed" },
+      }),
+      "DELETE /api/v1/views/view_1": () => ({ status: 204, body: null }),
+      "GET /api/v1/traces": () => ({ body: { items: [trace], nextCursor: null } }),
+    });
+
+    expect(await runWith(api, ["views", "list"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("sort=totalEstimatedCost&status=failed");
+
+    expect(
+      await runWith(api, [
+        "views",
+        "save",
+        "costly failures",
+        "status=failed",
+        "--description",
+        "x",
+      ]),
+    ).toBe(0);
+    const saved = api.captured.calls.find((c) => c.method === "POST");
+    expect(saved?.body).toEqual({
+      name: "costly failures",
+      query: "status=failed",
+      description: "x",
+    });
+
+    // The view supplies the filters; explicit options win over it.
+    expect(
+      await runWith(api, ["traces", "list", "--view", "costly failures", "--status", "completed"]),
+    ).toBe(0);
+    const lookup = api.captured.calls.filter((c) => c.url.includes("/api/v1/views?"));
+    expect(lookup.at(-1)?.url).toContain("name=costly+failures");
+    const listCall = new URL(
+      api.captured.calls.filter((c) => c.url.includes("/api/v1/traces")).at(-1)?.url ?? "",
+    );
+    expect(listCall.searchParams.get("sort")).toBe("totalEstimatedCost");
+    expect(listCall.searchParams.get("status")).toBe("completed");
+
+    expect(await runWith(api, ["views", "delete", "costly failures"])).toBe(0);
+    expect(api.captured.calls.at(-1)).toMatchObject({
+      method: "DELETE",
+      url: expect.stringContaining("/api/v1/views/view_1"),
+    });
+    expect(await runWith(api, ["views", "delete", "view_1"])).toBe(0);
+  });
+
   it("exports a trace as OTLP and can push it to a collector", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "shadow-otlp-export-"));
     const payload = {

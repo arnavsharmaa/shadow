@@ -81,7 +81,8 @@ is welcome through GitHub issues; integration proposals have their own
   for any shared deployment.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing.
 - Annotations and comments on events and branches.
-- Saved views shared across a team (per-browser saved views exist).
+- Saved views shared across a team (done: shared views are stored by the API next to the
+  per-browser ones; per-user ownership arrives with authentication).
 
 ### Ideas / under consideration
 

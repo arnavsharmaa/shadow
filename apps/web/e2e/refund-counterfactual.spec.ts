@@ -503,11 +503,13 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await page.getByTestId("save-view").click();
     await page.getByTestId("view-name").fill("costly failures");
     await page.getByTestId("confirm-save-view").click();
-    await expect(page.getByTestId("saved-view-select")).toHaveValue("costly failures");
+    await expect(page.getByTestId("saved-view-select").locator("option:checked")).toHaveText(
+      "costly failures",
+    );
 
     await page.goto("/");
     await expect(page.getByTestId("saved-view-select")).toHaveValue("");
-    await page.getByTestId("saved-view-select").selectOption("costly failures");
+    await page.getByTestId("saved-view-select").selectOption({ label: "costly failures" });
     await expect(page).toHaveURL(/status=failed/);
     await expect(page).toHaveURL(/sort=totalEstimatedCost/);
     for (const text of await page.locator('[data-testid="trace-row"]').allInnerTexts()) {
@@ -515,9 +517,42 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
 
     await page.reload();
-    await expect(page.getByTestId("saved-view-select")).toHaveValue("costly failures");
+    await expect(page.getByTestId("saved-view-select").locator("option:checked")).toHaveText(
+      "costly failures",
+    );
     await page.getByTestId("delete-view").click();
     await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
+  });
+
+  test("shared views are stored by the API and survive a fresh browser", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/?status=failed&agent=refund-agent");
+    await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();
+    await page.getByTestId("save-view").click();
+    await page.getByTestId("view-name").fill("refund failures (team)");
+    await page.getByTestId("share-view").check();
+    await page.getByTestId("confirm-save-view").click();
+    const select = page.getByTestId("saved-view-select");
+    await expect(select.locator("option:checked")).toHaveText("refund failures (team)");
+    await expect(page.getByTestId("shared-view-badge")).toBeVisible();
+
+    // A browser without any local views still sees the shared one.
+    await context.clearCookies();
+    await page.evaluate(() => localStorage.clear());
+    await page.goto("/");
+    await expect(select.locator('optgroup[label="Shared with the team"] option')).toHaveText([
+      "refund failures (team)",
+    ]);
+    await select.selectOption({ label: "refund failures (team)" });
+    await expect(page).toHaveURL(/agent=refund-agent/);
+    await expect(page).toHaveURL(/status=failed/);
+
+    await page.getByTestId("delete-view").click();
+    await expect(page.getByTestId("shared-view-badge")).toHaveCount(0);
     await page.reload();
     await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
   });

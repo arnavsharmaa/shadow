@@ -72,6 +72,78 @@ export const traceListQuerySchema = z.object({
 });
 export type TraceListQuery = z.infer<typeof traceListQuerySchema>;
 
+/** Trace list parameters a saved view may carry (everything except paging). */
+export const SAVED_VIEW_KEYS = [
+  "project",
+  "agent",
+  "status",
+  "tag",
+  "tool",
+  "q",
+  "from",
+  "to",
+  "minCost",
+  "minDurationMs",
+  "sort",
+  "order",
+] as const;
+
+const savedViewFiltersSchema = traceListQuerySchema
+  .pick({
+    project: true,
+    agent: true,
+    status: true,
+    tag: true,
+    tool: true,
+    q: true,
+    from: true,
+    to: true,
+    minCost: true,
+    minDurationMs: true,
+    sort: true,
+    order: true,
+  })
+  .partial()
+  .strict();
+
+/**
+ * Normalise a saved-view query string: drop paging, sort the keys and reject parameters or
+ * values the trace list would not accept. Returns `null` when the query is invalid.
+ */
+export function normalizeViewQuery(query: string): string | null {
+  const params = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
+  params.delete("cursor");
+  params.delete("limit");
+  const record: Record<string, string> = {};
+  for (const [key, value] of params) {
+    if (key in record) return null;
+    record[key] = value;
+  }
+  if (!savedViewFiltersSchema.safeParse(record).success) return null;
+  params.sort();
+  return params.toString();
+}
+
+export const saveViewBodySchema = z.object({
+  name: z.string().trim().min(1).max(64),
+  query: z
+    .string()
+    .max(2048)
+    .transform((value, ctx) => {
+      const normalized = normalizeViewQuery(value);
+      if (normalized === null) {
+        ctx.addIssue({
+          code: "custom",
+          message: `query must only contain trace list filters (${SAVED_VIEW_KEYS.join(", ")}) with valid values`,
+        });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
+  description: z.string().max(500).optional(),
+});
+export type SaveViewBody = z.infer<typeof saveViewBodySchema>;
+
 export const ingestEventsBodySchema = z.object({
   branchId: idSchema.optional(),
   events: z.array(ingestEventSchema).min(1).max(5000),

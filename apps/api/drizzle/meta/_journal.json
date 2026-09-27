@@ -15,6 +15,13 @@
       "when": 1789328371424,
       "tag": "0001_cross_trace_comparisons",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790494903302,
+      "tag": "0002_shared_saved_views",
+      "breakpoints": true
     }
   ]
 }

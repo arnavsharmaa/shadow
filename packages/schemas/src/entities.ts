@@ -188,3 +188,15 @@ export const artifactSchema = z.object({
   createdAt: timestamp,
 });
 export type Artifact = z.infer<typeof artifactSchema>;
+
+/** A named trace-explorer filter set stored on the server and shared by everyone using the API. */
+export const savedViewSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1).max(64),
+  /** Explorer query string (the trace list filters and sort), without `cursor` or `limit`. */
+  query: z.string().max(2048),
+  description: z.string().max(500).nullable().default(null),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+export type SavedView = z.infer<typeof savedViewSchema>;

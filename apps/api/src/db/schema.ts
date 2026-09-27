@@ -243,6 +243,20 @@ export const artifacts = pgTable(
   (t) => [index("artifacts_trace_idx").on(t.traceId)],
 );
 
+/** Explorer filter sets shared by everyone using this API (team saved views). */
+export const savedViews = pgTable(
+  "saved_views",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    query: text("query").notNull(),
+    description: text("description"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("saved_views_name_idx").on(t.name)],
+);
+
 export const schema = {
   projects,
   agents,
@@ -254,6 +268,7 @@ export const schema = {
   replays,
   comparisons,
   artifacts,
+  savedViews,
 };
 
 export const nowSql = sql`now()`;

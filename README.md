@@ -200,6 +200,8 @@ shadow traces inspect trc_demo_refund_violation --grep refund_order
 shadow events show trc_demo_refund_violation <eventId>
 shadow traces update trc_demo_refund_violation --tag triaged --meta owner=jordan
 shadow artifacts list trc_demo_refund_violation
+shadow views save "costly failures" "status=failed&sort=totalEstimatedCost"
+shadow traces list --view "costly failures"
 shadow artifacts add trc_demo_refund_violation --kind note --event <eventId> --content "stale policy doc"
 shadow traces prune --before 90d --status completed --dry-run
 shadow traces prune --before 90d --archive ./archive --yes
@@ -239,6 +241,7 @@ GET  /api/v1/branches/:branchId           PATCH/DELETE /api/v1/branches/:branchI
 GET  /api/v1/branches/:branchId/state     POST /api/v1/branches/:branchId/replay
 GET  /api/v1/comparisons                  POST /api/v1/comparisons
 GET  /api/v1/comparisons/:comparisonId    POST /api/v1/otlp/v1/traces
+GET  /api/v1/views                        POST /api/v1/views   DELETE /api/v1/views/:viewId
 ```
 
 Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces, or `SHADOW_OTLP_EXPORT_URL` to forward every finished trace to an OpenTelemetry collector as OTLP spans.

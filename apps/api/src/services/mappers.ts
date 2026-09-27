@@ -17,6 +17,7 @@ import type {
   Trace,
   TraceSummary,
   Artifact,
+  SavedView,
 } from "@shadow/schemas";
 import { emptyBranchMetrics } from "@shadow/schemas";
 import type { InferSelectModel } from "drizzle-orm";
@@ -29,6 +30,7 @@ import type {
   forks,
   projects,
   replays,
+  savedViews,
   traces,
 } from "../db/schema.js";
 
@@ -282,5 +284,18 @@ export function toArtifact(row: ArtifactRow): Artifact {
     contentType: row.contentType,
     content: row.content as JsonValue,
     createdAt: iso(row.createdAt),
+  };
+}
+
+export type SavedViewRow = InferSelectModel<typeof savedViews>;
+
+export function toSavedView(row: SavedViewRow): SavedView {
+  return {
+    id: row.id,
+    name: row.name,
+    query: row.query,
+    description: row.description,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
   };
 }

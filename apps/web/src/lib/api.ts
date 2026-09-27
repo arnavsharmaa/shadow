@@ -6,6 +6,7 @@ import type {
   Override,
   ReconstructedState,
   Replay,
+  SavedView as SharedView,
   ShadowEvent,
   TraceSummary,
   DiffEntry,
@@ -200,6 +201,11 @@ export interface AgentStatsRow {
 }
 
 export const api = {
+  views: () => request<{ items: SharedView[] }>("GET", "/api/v1/views"),
+  saveView: (body: { name: string; query: string; description?: string }) =>
+    request<SharedView>("POST", "/api/v1/views", body),
+  deleteView: (viewId: string) =>
+    request<void>("DELETE", `/api/v1/views/${encodeURIComponent(viewId)}`),
   agentStats: (filter: { from?: string; to?: string; project?: string } = {}) =>
     request<{ from: string | null; to: string | null; items: AgentStatsRow[] }>(
       "GET",

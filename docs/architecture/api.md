@@ -528,6 +528,32 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## Shared saved views
+
+Named trace-explorer filter sets stored by the API, so everyone using the same deployment sees
+them (the web app also keeps per-browser views in `localStorage`).
+
+### `GET /api/v1/views?name=`
+
+`{ items: [SavedView] }` sorted by name (at most 200). With `name`, the one view of that name or
+`404`. A `SavedView` is `{ id, name, query, description, createdAt, updatedAt }`, where `query`
+is the explorer query string, which is also valid as `GET /api/v1/traces` parameters.
+
+### `POST /api/v1/views`
+
+Body `{ name, query, description? }`. `query` may only contain trace list filters (`project`,
+`agent`, `status`, `tag`, `tool`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `sort`, `order`)
+with values the list endpoint accepts; `cursor` and `limit` are dropped and the keys sorted, so
+equal filters produce equal strings. Creates the view (`201`) or, when a view with that name
+exists, replaces its query and description and keeps its id (`200`). Invalid queries are `400
+validation_error`.
+
+### `DELETE /api/v1/views/:viewId`
+
+`204`, or `404` for an unknown id. CLI: `shadow views list|save <name> [query]|delete
+<nameOrId>`, and `shadow traces list --view <name>` lists traces through a view (explicit options
+override its filters).
+
 ## OpenTelemetry ingestion
 
 ### `POST /api/v1/otlp/v1/traces`
