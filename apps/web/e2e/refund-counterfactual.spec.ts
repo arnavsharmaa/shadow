@@ -496,6 +496,27 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("comparison-view")).toBeVisible();
   });
 
+  test("a what-if can run as a background job with progress", async ({ page }) => {
+    await page.goto("/agents");
+    const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
+    await refund.getByTestId("what-if").click();
+    const dialog = page.getByTestId("batch-dialog");
+    await dialog.getByTestId("batch-tool").fill("refund_order");
+    await dialog.getByTestId("batch-key").fill("refundLimit");
+    await dialog.getByTestId("batch-value").fill("250");
+    await dialog.getByTestId("batch-background").check();
+    await dialog.getByTestId("batch-limit").fill("200");
+    await expect(dialog.getByTestId("run-batch")).toHaveText("Run across 200 traces");
+    await dialog.getByTestId("run-batch").click();
+    const job = dialog.getByTestId("batch-job");
+    await expect(job).toContainText(/job_/);
+    await expect(job).toContainText("completed", { timeout: 60_000 });
+    await expect(dialog.getByTestId("batch-job-progress")).toHaveText(/^(\d+)\/\1$/);
+    await expect(dialog.getByTestId("cancel-batch-job")).toHaveCount(0);
+    await expect(dialog.getByTestId("batch-summary")).toContainText("changed");
+    expect(await dialog.locator('[data-testid="batch-row"]').count()).toBeGreaterThanOrEqual(2);
+  });
+
   test("explorer filters can be saved as named views", async ({ page }) => {
     await page.goto("/?status=failed&sort=totalEstimatedCost&order=desc");
     await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();

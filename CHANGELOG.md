@@ -16,7 +16,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   a new `batch_jobs` table (migration `0003_batch_jobs`), run one at a time in the API process
   with per-trace progress, can be cancelled (`POST /api/v1/batch/jobs/:jobId/cancel`), are listed
   at `GET /api/v1/batch/jobs` and are marked failed if an API restart interrupted them.
-  `shadow batch --background|--wait` and `shadow jobs list|show|cancel` use them.
+  `shadow batch --background|--wait` and `shadow jobs list|show|cancel` use them, and the
+  Agents page's "What if…" dialog has a "Run in the background" option with a progress bar and a
+  cancel button.
 - OTLP forwarding: with `SHADOW_OTLP_EXPORT_URL` set (plus optional
   `SHADOW_OTLP_EXPORT_HEADERS` and `SHADOW_OTLP_EXPORT_ENCODING`), every trace whose root
   branch finishes is exported as OTLP and pushed to that collector off the ingestion path, with

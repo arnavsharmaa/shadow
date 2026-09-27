@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  BatchJob,
   Branch,
   Comparison,
   Fork,
@@ -267,6 +268,18 @@ export const api = {
     branchName?: string;
     limit?: number;
   }) => request<BatchResult>("POST", "/api/v1/batch/counterfactuals", body),
+  startBatchJob: (body: {
+    agent: string;
+    project?: string;
+    at: { eventType?: string; name: string };
+    overrides: Override[];
+    branchName?: string;
+    limit?: number;
+  }) => request<BatchJob>("POST", "/api/v1/batch/counterfactuals", { ...body, background: true }),
+  batchJob: (jobId: string) =>
+    request<BatchJob>("GET", `/api/v1/batch/jobs/${encodeURIComponent(jobId)}`),
+  cancelBatchJob: (jobId: string) =>
+    request<BatchJob>("POST", `/api/v1/batch/jobs/${encodeURIComponent(jobId)}/cancel`, {}),
   forkMatrix: (
     traceId: string,
     body: {

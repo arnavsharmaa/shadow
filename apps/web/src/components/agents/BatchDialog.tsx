@@ -2,9 +2,9 @@
 
 import { api, type AgentStatsRow, type BatchResult } from "@/lib/api";
 import { dateTime } from "@/lib/format";
-import type { JsonValue } from "@shadow/schemas";
+import type { BatchJob, JsonValue } from "@shadow/schemas";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Dialog, Spinner } from "../ui/primitives";
 
 interface Props {
@@ -23,6 +23,10 @@ function parseValue(text: string): JsonValue {
   }
 }
 
+const SYNC_LIMIT = 50;
+const BACKGROUND_LIMIT = 500;
+const POLL_MS = 750;
+
 /** "What if" across an agent's recorded traces: one context override, many runs. */
 export function BatchDialog({ open, onClose, agent, tools }: Props) {
   const [tool, setTool] = useState("");
@@ -32,26 +36,60 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchResult | null>(null);
+  const [background, setBackground] = useState(false);
+  const [job, setJob] = useState<BatchJob | null>(null);
+  // Stops polling once the dialog is gone; the job itself keeps running on the server.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const maxLimit = background ? BACKGROUND_LIMIT : SYNC_LIMIT;
   const canRun = tool.trim() !== "" && key.trim() !== "" && value.trim() !== "" && !running;
 
   const run = async () => {
     setRunning(true);
     setError(null);
     setResult(null);
+    setJob(null);
+    const body = {
+      agent: agent.agentSlug,
+      project: agent.projectSlug,
+      at: { eventType: "tool.request", name: tool.trim() },
+      overrides: [
+        { kind: "context" as const, op: "set" as const, key: key.trim(), value: parseValue(value) },
+      ],
+      limit: Math.min(limit, maxLimit),
+    };
     try {
-      setResult(
-        await api.batchCounterfactual({
-          agent: agent.agentSlug,
-          project: agent.projectSlug,
-          at: { eventType: "tool.request", name: tool.trim() },
-          overrides: [{ kind: "context", op: "set", key: key.trim(), value: parseValue(value) }],
-          limit,
-        }),
-      );
+      if (!background) {
+        setResult(await api.batchCounterfactual(body));
+        return;
+      }
+      let current = await api.startBatchJob(body);
+      setJob(current);
+      while (alive.current && (current.status === "queued" || current.status === "running")) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        current = await api.batchJob(current.id);
+        if (alive.current) setJob(current);
+      }
+      if (current.result) setResult(current.result as unknown as BatchResult);
+      if (current.status === "failed") setError(current.error ?? "the batch job failed");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const cancelJob = async () => {
+    if (!job) return;
+    try {
+      setJob(await api.cancelBatchJob(job.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -107,18 +145,66 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-fg-muted">Traces (max 50)</span>
+            <span className="text-[11px] text-fg-muted">Traces (max {maxLimit})</span>
             <input
               type="number"
               min={1}
-              max={50}
+              max={maxLimit}
               value={limit}
-              onChange={(e) => setLimit(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+              onChange={(e) =>
+                setLimit(Math.min(maxLimit, Math.max(1, Number(e.target.value) || 1)))
+              }
               className="h-7 rounded border border-border bg-bg px-2"
               data-testid="batch-limit"
             />
           </label>
         </div>
+        <label className="flex items-center gap-2 text-fg-muted">
+          <input
+            type="checkbox"
+            checked={background}
+            onChange={(e) => {
+              setBackground(e.target.checked);
+              if (!e.target.checked) setLimit((l) => Math.min(l, SYNC_LIMIT));
+            }}
+            disabled={running}
+            data-testid="batch-background"
+          />
+          Run in the background (up to {BACKGROUND_LIMIT} traces; the job keeps running if you close
+          this dialog, and <span className="mono">shadow jobs list</span> shows it)
+        </label>
+        {job && (
+          <div className="flex items-center gap-3" data-testid="batch-job">
+            <span className="mono text-fg-faint">{job.id}</span>
+            <Badge
+              tone={
+                job.status === "failed"
+                  ? "err"
+                  : job.status === "completed"
+                    ? "ok"
+                    : job.status === "cancelled"
+                      ? "muted"
+                      : "warn"
+              }
+            >
+              {job.status}
+            </Badge>
+            <progress
+              className="h-2 flex-1"
+              max={Math.max(1, job.progress.total)}
+              value={job.progress.done}
+              aria-label="Batch progress"
+            />
+            <span className="tabular" data-testid="batch-job-progress">
+              {job.progress.done}/{job.progress.total}
+            </span>
+            {(job.status === "queued" || job.status === "running") && (
+              <Button size="xs" variant="ghost" onClick={cancelJob} data-testid="cancel-batch-job">
+                Cancel job
+              </Button>
+            )}
+          </div>
+        )}
         {error && (
           <p className="rounded border border-err/40 bg-err-bg p-2 text-err" role="alert">
             {error}
@@ -203,7 +289,7 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
         )}
         <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
           {running && <Spinner label="Replaying traces" />}
-          <Button variant="ghost" onClick={onClose} disabled={running}>
+          <Button variant="ghost" onClick={onClose} disabled={running && !background}>
             Close
           </Button>
           <Button variant="primary" onClick={run} disabled={!canRun} data-testid="run-batch">
