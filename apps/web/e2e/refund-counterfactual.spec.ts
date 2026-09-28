@@ -370,6 +370,26 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("target-branch-name")).toHaveText("refundLimit=100");
   });
 
+  test("the activity tab lists who changed the trace", async ({ page }) => {
+    await openRefundTrace(page);
+    const editor = page.getByTestId("tag-editor");
+    await editor.getByTestId("tag-input").fill("activity-check");
+    await editor.getByTestId("tag-input").press("Enter");
+    await expect(
+      editor.locator('[data-testid="trace-tag"][data-tag="activity-check"]'),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Remove tag activity-check" }).click();
+    await expect(
+      editor.locator('[data-testid="trace-tag"][data-tag="activity-check"]'),
+    ).toHaveCount(0);
+
+    await page.getByTestId("tab-activity").click();
+    const rows = page.locator('[data-testid="activity-row"]');
+    await expect(rows.first()).toContainText("updated the trace");
+    await expect(rows.first()).toContainText("web");
+    await expect(rows.first()).toContainText("trace.updated");
+  });
+
   test("a scenario matrix can vary a policy configuration", async ({ page }) => {
     await openRefundTrace(page);
     await page

@@ -9,6 +9,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, ErrorState, Kbd, Panel, Skeleton } from "../ui/primitives";
 import { BranchGraph } from "./BranchGraph";
+import { ActivityList } from "./ActivityList";
 import { ComparisonList } from "./ComparisonList";
 import { EventDetail } from "./EventDetail";
 import { EventTree } from "./EventTree";
@@ -97,7 +98,9 @@ export function TraceDetail({ traceId }: { traceId: string }) {
   }, [events, selectedId, selectEvent]);
 
   const [forkOpen, setForkOpen] = useState(false);
-  const [leftTab, setLeftTab] = useState<"events" | "branches" | "comparisons">("events");
+  const [leftTab, setLeftTab] = useState<"events" | "branches" | "comparisons" | "activity">(
+    "events",
+  );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [matrixOpen, setMatrixOpen] = useState(false);
   const comparisons = useQuery({
@@ -176,6 +179,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["trace", traceId] }),
       queryClient.invalidateQueries({ queryKey: ["comparisons", traceId] }),
+      queryClient.invalidateQueries({ queryKey: ["audit", traceId] }),
     ]);
   }, [queryClient, traceId]);
 
@@ -243,6 +247,13 @@ export function TraceDetail({ traceId }: { traceId: string }) {
               >
                 Comparisons{comparisons.data ? ` (${comparisons.data.items.length})` : ""}
               </TabButton>
+              <TabButton
+                active={leftTab === "activity"}
+                onClick={() => setLeftTab("activity")}
+                testId="tab-activity"
+              >
+                Activity
+              </TabButton>
             </span>
           }
           actions={
@@ -279,8 +290,10 @@ export function TraceDetail({ traceId }: { traceId: string }) {
               onSelectBranch={selectBranch}
               onChanged={refreshBranches}
             />
-          ) : (
+          ) : leftTab === "comparisons" ? (
             <ComparisonList traceId={traceId} />
+          ) : (
+            <ActivityList traceId={traceId} />
           )}
         </Panel>
         <Panel

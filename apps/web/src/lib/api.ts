@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  AuditEntry,
   BatchJob,
   Branch,
   Comparison,
@@ -309,6 +310,11 @@ export const api = {
     request<Comparison>("POST", "/api/v1/comparisons", { baseBranchId, targetBranchId }),
   comparison: (comparisonId: string) =>
     request<Comparison>("GET", `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`),
+  audit: (traceId: string) =>
+    request<{ items: AuditEntry[]; nextCursor: string | null }>(
+      "GET",
+      `/api/v1/audit${query({ traceId, limit: 100 })}`,
+    ),
   comparisons: (traceId: string) =>
     request<{ items: Comparison[] }>("GET", `/api/v1/comparisons${query({ traceId, limit: 100 })}`),
   createArtifact: (

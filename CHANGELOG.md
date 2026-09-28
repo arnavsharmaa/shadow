@@ -18,6 +18,8 @@ migration (see `docs/concepts/schema-versioning.md`).
   `system:retention`. `GET /api/v1/audit` pages it newest first with trace, action and actor
   filters, and `shadow audit` prints it. The CLI reports `--actor` / `SHADOW_ACTOR` / the OS
   user, the web app `NEXT_PUBLIC_SHADOW_ACTOR` or `web`, and the SDK `sdk`.
+- Activity tab on the trace page: the audit entries for the trace (forks, replays, renames,
+  comparisons, notes, tag changes), newest first, with the actor and a relative time.
 - Background batch counterfactuals: `"background": true` on `POST /api/v1/batch/counterfactuals`
   queues the batch as a job (up to 500 traces instead of 50) and answers `202`; jobs are stored in
   a new `batch_jobs` table (migration `0003_batch_jobs`), run one at a time in the API process
