@@ -21,6 +21,8 @@ export interface ApiClientOptions {
   fetch?: typeof fetch;
   /** Bearer token for APIs started with SHADOW_API_TOKEN. */
   token?: string;
+  /** Name recorded in the API's audit log (`x-shadow-actor`). */
+  actor?: string;
 }
 
 interface ErrorEnvelope {
@@ -32,11 +34,13 @@ export class ApiClient {
   private readonly endpoint: string;
   private readonly fetchImpl: typeof fetch;
   private readonly token: string | undefined;
+  private readonly actor: string | undefined;
 
   constructor(options: ApiClientOptions) {
     this.endpoint = options.endpoint.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.token = options.token;
+    this.actor = options.actor;
   }
 
   get<T>(path: string, query?: Record<string, string | number | undefined>): Promise<T> {
@@ -73,7 +77,11 @@ export class ApiClient {
     try {
       response = await this.fetchImpl(url.toString(), {
         method: "GET",
-        headers: { accept, ...(this.token ? { authorization: `Bearer ${this.token}` } : {}) },
+        headers: {
+          accept,
+          ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+          ...(this.actor ? { "x-shadow-actor": this.actor } : {}),
+        },
       });
     } catch (error) {
       throw new CliError(
@@ -105,6 +113,7 @@ export class ApiClient {
         headers: {
           accept: "application/json",
           ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+          ...(this.actor ? { "x-shadow-actor": this.actor } : {}),
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),

@@ -2,6 +2,7 @@ import { comparisonListQuerySchema, createComparisonBodySchema, idSchema } from 
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createComparison, getComparison, listComparisons } from "../../services/comparisons.js";
+import { audit } from "../audit.js";
 
 export const comparisonRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
@@ -15,6 +16,16 @@ export const comparisonRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["comparisons"], body: createComparisonBodySchema } },
     async (request, reply) => {
       const comparison = await createComparison(app.services, request.body);
+      await audit(app, request, {
+        action: "comparison.created",
+        targetType: "comparison",
+        targetId: comparison.id,
+        traceId: comparison.traceId,
+        details: {
+          baseBranchId: comparison.baseBranchId,
+          targetBranchId: comparison.targetBranchId,
+        },
+      });
       return reply.status(201).send(comparison);
     },
   );

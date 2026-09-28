@@ -1,8 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
   Artifact,
+  AuditEntry,
   BatchJob,
   Branch,
   DiffEntry,
@@ -62,13 +64,23 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "bearer token for APIs started with SHADOW_API_TOKEN",
       env.SHADOW_TOKEN,
     )
+    .option(
+      "--actor <name>",
+      "name recorded in the audit log for changes you make (default: SHADOW_ACTOR or your OS user)",
+      env.SHADOW_ACTOR ?? defaultActor(),
+    )
     .exitOverride()
     .configureOutput({ writeOut: (s) => out(s.trimEnd()), writeErr: (s) => err(s.trimEnd()) })
     .showHelpAfterError("(use --help for usage)");
 
   const client = () => {
-    const opts = program.opts<{ endpoint: string; token?: string }>();
-    return new ApiClient({ endpoint: opts.endpoint, fetch: options.fetch, token: opts.token });
+    const opts = program.opts<{ endpoint: string; token?: string; actor?: string }>();
+    return new ApiClient({
+      endpoint: opts.endpoint,
+      fetch: options.fetch,
+      token: opts.token,
+      actor: opts.actor,
+    });
   };
   const json = (value: unknown) => out(JSON.stringify(value, null, 2));
 
@@ -909,6 +921,45 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       diffs("context diff", state.contextDiff);
     });
 
+  program
+    .command("audit")
+    .description("show the audit log: who forked, replayed, deleted, pruned or imported what")
+    .option("--trace <traceId>", "only entries about this trace")
+    .option("--action <action>", "e.g. trace.deleted, fork.created, replay.run, traces.pruned")
+    .option("--by <actor>", "only entries by this actor")
+    .option("--limit <n>", "maximum rows", positiveInt, 50)
+    .option("--json", "print JSON instead of a table")
+    .action(
+      async (opts: {
+        trace?: string;
+        action?: string;
+        by?: string;
+        limit: number;
+        json?: boolean;
+      }) => {
+        const page = await client().get<{ items: AuditEntry[]; nextCursor: string | null }>(
+          "/api/v1/audit",
+          { traceId: opts.trace, action: opts.action, actor: opts.by, limit: opts.limit },
+        );
+        if (opts.json) return json(page);
+        if (page.items.length === 0) return out("no audit entries");
+        out(
+          table(
+            ["AT", "ACTOR", "ACTION", "TARGET", "TRACE", "DETAIL"],
+            page.items.map((e) => [
+              e.at,
+              e.actor,
+              e.action,
+              `${e.targetType} ${e.targetId}`,
+              e.traceId ?? "-",
+              truncate(auditDetail(e), 60),
+            ]),
+          ),
+        );
+        if (page.nextCursor) out(`(more entries; raise --limit to see them)`);
+      },
+    );
+
   const views = program
     .command("views")
     .description("shared saved views: named trace-explorer filters stored on the server");
@@ -1729,6 +1780,32 @@ interface BatchCliResult {
     firstDivergence?: { sequence: number; summary: string } | null;
     comparisonId?: string;
   }[];
+}
+
+/** The OS user name, or undefined when it cannot be read (some containers). */
+function defaultActor(): string | undefined {
+  try {
+    return userInfo().username || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One-line summary of an audit entry's details for the table. */
+function auditDetail(entry: AuditEntry): string {
+  const d = entry.details;
+  const pick = (key: string) => (d[key] === undefined ? undefined : JSON.stringify(d[key]));
+  return (
+    [
+      d.name !== undefined ? `name=${String(d.name)}` : undefined,
+      d.status !== undefined ? `status=${String(d.status)}` : undefined,
+      d.deleted !== undefined ? `deleted=${pick("deleted")}` : undefined,
+      d.changes !== undefined ? `changes=${pick("changes")}` : undefined,
+      d.overrides !== undefined ? `overrides=${pick("overrides")}` : undefined,
+    ]
+      .filter((x): x is string => x !== undefined)
+      .join(" ") || JSON.stringify(d)
+  );
 }
 
 function progressLine(job: BatchJob): string {

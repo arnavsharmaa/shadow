@@ -278,6 +278,32 @@ export const batchJobs = pgTable(
   ],
 );
 
+/**
+ * Who changed what. Rows outlive the traces they mention (no foreign key), so deletions and
+ * prunes stay visible after the data is gone.
+ */
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    /** Insertion order; several entries can share a millisecond. */
+    seq: integer("seq").notNull().generatedAlwaysAsIdentity(),
+    at: ts("at").notNull().defaultNow(),
+    actor: text("actor").notNull(),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    traceId: text("trace_id"),
+    details: jsonb("details").notNull(),
+    requestId: text("request_id"),
+  },
+  (t) => [
+    uniqueIndex("audit_log_seq_idx").on(t.seq),
+    index("audit_log_at_idx").on(t.at),
+    index("audit_log_trace_idx").on(t.traceId, t.seq),
+  ],
+);
+
 export const schema = {
   projects,
   agents,
@@ -291,6 +317,7 @@ export const schema = {
   artifacts,
   savedViews,
   batchJobs,
+  auditLog,
 };
 
 export const nowSql = sql`now()`;

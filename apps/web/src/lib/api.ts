@@ -49,6 +49,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       headers: {
         accept: "application/json",
         ...(apiToken() ? { authorization: `Bearer ${apiToken()}` } : {}),
+        // Shown as the actor in the audit log; self-reported, like every client's.
+        "x-shadow-actor": process.env.NEXT_PUBLIC_SHADOW_ACTOR || "web",
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),

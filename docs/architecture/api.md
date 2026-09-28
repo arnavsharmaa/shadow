@@ -553,6 +553,28 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## Audit log
+
+Every state-changing request is recorded: trace updates, deletions, imports and prunes, forks,
+matrices, replays, branch renames and deletions, comparisons, artifacts, batches (run, queued,
+cancelled) and shared views. Ingestion and trace creation are not, to keep the log about
+decisions rather than traffic. Entries outlive the traces they mention.
+
+### `GET /api/v1/audit?traceId=&action=&actor=&cursor=&limit=`
+
+`{ items: [AuditEntry], nextCursor }`, newest first (`limit` 1 to 500, default 100), where an
+`AuditEntry` is `{ id, at, actor, action, targetType, targetId, traceId, details, requestId }`.
+`details` holds what changed (for example a fork's overrides, a rename, a prune's cutoff and up
+to 100 deleted trace ids) and passes through server-side redaction.
+
+The `actor` is whatever the client sends in the `x-shadow-actor` header: the CLI sends
+`--actor`, `SHADOW_ACTOR` or the OS user name, the web app sends `NEXT_PUBLIC_SHADOW_ACTOR` or
+`web`, and the SDK sends `sdk`. Values that are not a plain name (letters, digits, spaces and
+`_.@:+/-`, up to 128 characters) are stored as `anonymous`; retention sweeps are recorded as
+`system:retention`. The actor is self-reported until Shadow has per-user authentication, so
+treat the log as an operational record, not as proof of identity. CLI: `shadow audit [--trace
+<traceId>] [--action <action>] [--by <actor>]`.
+
 ## Shared saved views
 
 Named trace-explorer filter sets stored by the API, so everyone using the same deployment sees
@@ -662,6 +684,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables) |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set               |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                     |
+| `NEXT_PUBLIC_SHADOW_ACTOR`          | `web`                                         | actor the web app reports in the audit log               |
 | `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                      |
 
 ### OTLP forwarding

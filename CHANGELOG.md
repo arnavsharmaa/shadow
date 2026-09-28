@@ -11,6 +11,13 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Audit log: every state-changing request (trace updates, deletions, imports and prunes, forks,
+  matrices, replays, branch changes, comparisons, artifacts, batches and shared views) is
+  recorded in a new `audit_log` table (migration `0004_audit_log`) with the actor from the
+  `x-shadow-actor` header, the request id and redacted details; retention sweeps appear as
+  `system:retention`. `GET /api/v1/audit` pages it newest first with trace, action and actor
+  filters, and `shadow audit` prints it. The CLI reports `--actor` / `SHADOW_ACTOR` / the OS
+  user, the web app `NEXT_PUBLIC_SHADOW_ACTOR` or `web`, and the SDK `sdk`.
 - Background batch counterfactuals: `"background": true` on `POST /api/v1/batch/counterfactuals`
   queues the batch as a job (up to 500 traces instead of 50) and answers `202`; jobs are stored in
   a new `batch_jobs` table (migration `0003_batch_jobs`), run one at a time in the API process

@@ -56,7 +56,13 @@ export class HttpTransport implements Transport {
 
   constructor(options: HttpTransportOptions) {
     this.endpoint = options.endpoint.replace(/\/+$/, "");
-    this.headers = { "content-type": "application/json", ...(options.headers ?? {}) };
+    // `x-shadow-actor` names the SDK in the API's audit log (trace label changes); override it
+    // through `headers` to attribute changes to a service or person.
+    this.headers = {
+      "content-type": "application/json",
+      "x-shadow-actor": "sdk",
+      ...(options.headers ?? {}),
+    };
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.maxAttempts = Math.max(1, options.maxAttempts ?? 3);
     this.backoffMs = options.backoffMs ?? 250;

@@ -234,3 +234,39 @@ export const batchJobSchema = z.object({
   finishedAt: timestamp.nullable(),
 });
 export type BatchJob = z.infer<typeof batchJobSchema>;
+
+/** Actions the API records in the audit log; the column is an open string for the future. */
+export const AUDIT_ACTIONS = [
+  "trace.updated",
+  "trace.deleted",
+  "trace.imported",
+  "traces.pruned",
+  "fork.created",
+  "matrix.run",
+  "replay.run",
+  "branch.updated",
+  "branch.deleted",
+  "comparison.created",
+  "artifact.created",
+  "batch.run",
+  "batch.queued",
+  "batch.cancelled",
+  "view.saved",
+  "view.deleted",
+] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+/** Who did what to which resource; written by the API for every state-changing request. */
+export const auditEntrySchema = z.object({
+  id: idSchema,
+  at: timestamp,
+  /** Self-reported by the client (`x-shadow-actor`), or `system:<task>` for background work. */
+  actor: z.string().max(128),
+  action: z.string().max(64),
+  targetType: z.string().max(32),
+  targetId: z.string().max(128),
+  traceId: idSchema.nullable(),
+  details: jsonObjectSchema,
+  requestId: z.string().max(128).nullable(),
+});
+export type AuditEntry = z.infer<typeof auditEntrySchema>;

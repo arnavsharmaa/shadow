@@ -53,6 +53,11 @@ machine or inside a trusted network:
   trace, including redacted model messages, tool arguments and results, is exported as
   OpenTelemetry spans to that collector. Point it only at infrastructure you trust, use HTTPS
   and pass credentials through `SHADOW_OTLP_EXPORT_HEADERS` rather than the URL.
+- **The audit log is self-reported.** Every state-changing request is logged with the actor the
+  client names in `x-shadow-actor`. Without per-user authentication anyone who can reach the API
+  can claim any name, so the log shows what happened and when, not who provably did it. Entries
+  keep override values and deleted trace ids after the traces themselves are gone; prune the
+  `audit_log` table directly if that is a concern.
 - **Metrics reveal usage.** `GET /metrics` exposes request, ingestion and storage counts (never
   payloads). Protect it with the token or keep it on a private interface.
 - **No encryption at rest.** Events are stored as plain JSON in PGlite (`.shadow/data`) or in the

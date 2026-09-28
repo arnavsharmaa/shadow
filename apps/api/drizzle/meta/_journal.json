@@ -29,6 +29,13 @@
       "when": 1790495550375,
       "tag": "0003_batch_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790608808949,
+      "tag": "0004_audit_log",
+      "breakpoints": true
     }
   ]
 }

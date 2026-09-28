@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import type { ApiConfig } from "./config.js";
 import type { ServiceContext } from "./services/context.js";
 import { pruneTraces } from "./services/traces.js";
+import { recordAudit } from "./services/audit.js";
 
 const DAY_MS = 86_400_000;
 /** Traces deleted per prune call; keeps each transaction short. */
@@ -56,6 +57,20 @@ export function createRetention(input: {
         excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
       });
       deleted += result.matched;
+      if (result.traceIds.length > 0) {
+        await recordAudit(services, {
+          actor: "system:retention",
+          action: "traces.pruned",
+          targetType: "trace",
+          targetId: result.traceIds.length === 1 ? (result.traceIds[0] ?? "-") : "*",
+          details: {
+            before: cutoff,
+            deleted: result.traceIds.length,
+            traceIds: result.traceIds.slice(0, 100),
+            retentionDays: days,
+          },
+        });
+      }
       truncated = result.truncated;
       if (!truncated) break;
     }

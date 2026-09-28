@@ -830,6 +830,52 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("sends the actor header and shows the audit log", async () => {
+    const entry = {
+      id: "aud_1",
+      at: "2026-09-28T09:00:00.000Z",
+      actor: "arnav",
+      action: "branch.deleted",
+      targetType: "branch",
+      targetId: "br_fork",
+      traceId: "trc_1",
+      details: { name: "limit-100", deleted: ["br_fork"] },
+      requestId: "req_1",
+    };
+    const api = fakeApi({
+      "GET /api/v1/audit": () => ({ body: { items: [entry], nextCursor: "abc" } }),
+    });
+    expect(
+      await runWith(api, [
+        "--actor",
+        "arnav",
+        "audit",
+        "--trace",
+        "trc_1",
+        "--by",
+        "arnav",
+        "--action",
+        "branch.deleted",
+      ]),
+    ).toBe(0);
+    const call = api.captured.calls[0];
+    expect(call?.headers?.["x-shadow-actor"]).toBe("arnav");
+    const url = new URL(call?.url ?? "");
+    expect(url.searchParams.get("traceId")).toBe("trc_1");
+    expect(url.searchParams.get("actor")).toBe("arnav");
+    expect(url.searchParams.get("action")).toBe("branch.deleted");
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("branch br_fork");
+    expect(text).toContain('name=limit-100 deleted=["br_fork"]');
+    expect(text).toContain("more entries");
+
+    const empty = fakeApi({
+      "GET /api/v1/audit": () => ({ body: { items: [], nextCursor: null } }),
+    });
+    expect(await runWith(empty, ["audit"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toContain("no audit entries");
+  });
+
   it("runs batches in the background and follows jobs", async () => {
     const result = {
       matched: 2,

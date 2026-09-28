@@ -36,6 +36,7 @@ import {
   updateTrace,
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
+import { audit } from "../audit.js";
 import { exportTraceToOtlp } from "../../otlp/export.js";
 import { encodeOtlpProtobuf } from "../../otlp/protobuf.js";
 
@@ -72,6 +73,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["transfer"], body: importTraceBodySchema } },
     async (request, reply) => {
       const trace = await importTrace(app.services, request.body.bundle, request.body.idStrategy);
+      await audit(app, request, {
+        action: "trace.imported",
+        targetType: "trace",
+        targetId: trace.id,
+        traceId: trace.id,
+        details: { idStrategy: request.body.idStrategy ?? null, name: trace.name },
+      });
       return reply.status(201).send(trace);
     },
   );
@@ -80,7 +88,23 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/traces/prune",
     { schema: { tags: ["traces"], body: pruneTracesBodySchema } },
-    async (request) => pruneTraces(app.services, request.body),
+    async (request) => {
+      const result = await pruneTraces(app.services, request.body);
+      if (!result.dryRun && result.traceIds.length > 0) {
+        await audit(app, request, {
+          action: "traces.pruned",
+          targetType: "trace",
+          targetId: result.traceIds.length === 1 ? (result.traceIds[0] ?? "-") : "*",
+          details: {
+            before: request.body.before,
+            deleted: result.traceIds.length,
+            traceIds: result.traceIds.slice(0, 100),
+            truncated: result.truncated,
+          },
+        });
+      }
+      return result;
+    },
   );
 
   app.get(
@@ -96,14 +120,32 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/traces/:traceId",
     { schema: { tags: ["traces"], params: traceParams, body: updateTraceBodySchema } },
-    async (request) => updateTrace(app.services, request.params.traceId, request.body),
+    async (request) => {
+      const trace = await updateTrace(app.services, request.params.traceId, request.body);
+      await audit(app, request, {
+        action: "trace.updated",
+        targetType: "trace",
+        targetId: trace.id,
+        traceId: trace.id,
+        details: { changes: request.body },
+      });
+      return trace;
+    },
   );
 
   app.delete(
     "/traces/:traceId",
     { schema: { tags: ["traces"], params: traceParams } },
     async (request, reply) => {
-      await deleteTrace(app.services, request.params.traceId);
+      const trace = await getTraceSummary(app.services, request.params.traceId);
+      await deleteTrace(app.services, trace.id);
+      await audit(app, request, {
+        action: "trace.deleted",
+        targetType: "trace",
+        targetId: trace.id,
+        traceId: trace.id,
+        details: { name: trace.name, agent: trace.agentSlug, project: trace.projectSlug },
+      });
       return reply.status(204).send();
     },
   );
@@ -207,6 +249,18 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["forks"], params: traceParams, body: createForkBodySchema } },
     async (request, reply) => {
       const result = await createForkForTrace(app.services, request.params.traceId, request.body);
+      await audit(app, request, {
+        action: "fork.created",
+        targetType: "branch",
+        targetId: result.branch.id,
+        traceId: result.branch.traceId,
+        details: {
+          name: result.branch.name,
+          forkEventId: result.fork.forkEventId,
+          parentBranchId: result.fork.parentBranchId,
+          overrides: result.fork.overrides,
+        },
+      });
       return reply.status(201).send(result);
     },
   );
@@ -217,6 +271,17 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["forks"], params: traceParams, body: forkMatrixBodySchema } },
     async (request, reply) => {
       const result = await runForkMatrix(app.services, request.params.traceId, request.body);
+      await audit(app, request, {
+        action: "matrix.run",
+        targetType: "trace",
+        targetId: request.params.traceId,
+        traceId: request.params.traceId,
+        details: {
+          forkEventId: request.body.forkEventId,
+          branches: result.variants.map((v) => v.branch.id),
+          changed: result.variants.filter((v) => v.outcome.changed).length,
+        },
+      });
       return reply.status(201).send(result);
     },
   );
@@ -243,6 +308,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["artifacts"], params: traceParams, body: createArtifactBodySchema } },
     async (request, reply) => {
       const artifact = await createArtifact(app.services, request.params.traceId, request.body);
+      await audit(app, request, {
+        action: "artifact.created",
+        targetType: "artifact",
+        targetId: artifact.id,
+        traceId: artifact.traceId,
+        details: { kind: artifact.kind, name: artifact.name, eventId: artifact.eventId },
+      });
       return reply.status(201).send(artifact);
     },
   );

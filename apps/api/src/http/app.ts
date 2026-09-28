@@ -18,6 +18,7 @@ import { ApiError } from "../errors.js";
 import type { ServiceContext } from "../services/context.js";
 import { batchRoutes } from "./routes/batch.js";
 import { viewRoutes } from "./routes/views.js";
+import { auditRoutes } from "./routes/audit.js";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
@@ -150,6 +151,7 @@ export async function buildApp(options: BuildAppOptions) {
         { name: "artifacts" },
         { name: "transfer" },
         { name: "views" },
+        { name: "audit" },
       ],
     },
     transform: jsonSchemaTransform,
@@ -283,6 +285,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(comparisonRoutes, { prefix: "/api/v1" });
   await app.register(batchRoutes, { prefix: "/api/v1" });
   await app.register(viewRoutes, { prefix: "/api/v1" });
+  await app.register(auditRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

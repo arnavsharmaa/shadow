@@ -273,6 +273,14 @@ export const batchCounterfactualBodySchema = z
   });
 export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
 
+export const auditListQuerySchema = cursorPageQuerySchema.extend({
+  traceId: idSchema.optional(),
+  action: z.string().max(64).optional(),
+  actor: z.string().max(128).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
+
 export const batchJobListQuerySchema = z.object({
   status: z.enum(BATCH_JOB_STATUSES).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
