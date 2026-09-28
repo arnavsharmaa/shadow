@@ -19,6 +19,7 @@ import type { ServiceContext } from "../services/context.js";
 import { batchRoutes } from "./routes/batch.js";
 import { viewRoutes } from "./routes/views.js";
 import { auditRoutes } from "./routes/audit.js";
+import { shareRoutes } from "./routes/shares.js";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
@@ -67,6 +68,8 @@ export async function buildApp(options: BuildAppOptions) {
     const expectedDigest = createHash("sha256").update(expectedToken).digest();
     app.addHook("onRequest", async (request, reply) => {
       if (!request.url.startsWith("/api/") && request.url !== "/metrics") return;
+      // Share links carry their own capability token (see services/shares.ts).
+      if (request.url.startsWith("/api/v1/shared/")) return;
       const header = request.headers.authorization ?? "";
       const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
       const digest = createHash("sha256").update(presented).digest();
@@ -152,6 +155,7 @@ export async function buildApp(options: BuildAppOptions) {
         { name: "transfer" },
         { name: "views" },
         { name: "audit" },
+        { name: "sharing" },
       ],
     },
     transform: jsonSchemaTransform,
@@ -286,6 +290,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(batchRoutes, { prefix: "/api/v1" });
   await app.register(viewRoutes, { prefix: "/api/v1" });
   await app.register(auditRoutes, { prefix: "/api/v1" });
+  await app.register(shareRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

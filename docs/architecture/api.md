@@ -553,6 +553,36 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## Share links
+
+Read-only links that hand one trace to someone who has no API token, for example a vendor or a
+teammate running their own Shadow. The link serves the same `shadow.trace` bundle as `GET
+/traces/:traceId/export`, which `shadow traces import <url>` (or `POST /traces/import`) loads.
+
+### `POST /api/v1/traces/:traceId/shares`
+
+Body `{ expiresInHours?, note? }` (1 to 720 hours, default 168). Returns `201 { share, token,
+path }` where `path` is `/api/v1/shared/<token>`. The token (`shs_` plus 32 random bytes) is shown
+only here; the API stores its SHA-256 hash. A `TraceShare` is `{ id, traceId, note, createdAt,
+expiresAt, revokedAt, accessCount, lastAccessedAt }`.
+
+### `GET /api/v1/traces/:traceId/shares`
+
+`{ items: [TraceShare] }`, newest first, without tokens.
+
+### `DELETE /api/v1/traces/:traceId/shares/:shareId`
+
+Revokes the link immediately and returns the `TraceShare`; `404` when it is unknown or already
+revoked. Deleting the trace removes its links.
+
+### `GET /api/v1/shared/:token`
+
+The only API route that never asks for `SHADOW_API_TOKEN`: the token in the path is the
+credential. Returns the bundle with `cache-control: private, no-store` and counts the access.
+Unknown, expired and revoked tokens all answer the same `404`. Creating and revoking links is
+audited (`share.created`, `share.revoked`). CLI: `shadow traces share <traceId> [--expires 7d]
+[--note …]`, `shadow traces shares <traceId>`, `shadow traces unshare <traceId> <shareId>`.
+
 ## Audit log
 
 Every state-changing request is recorded: trace updates, deletions, imports and prunes, forks,

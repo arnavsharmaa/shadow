@@ -6,6 +6,7 @@ import type {
   Artifact,
   AuditEntry,
   BatchJob,
+  TraceShare,
   Branch,
   DiffEntry,
   Comparison,
@@ -498,14 +499,29 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   traces
     .command("import")
-    .description("import a previously exported trace bundle")
-    .argument("<file>", "path to a .json bundle")
+    .description("import a previously exported trace bundle, from a file or a share link")
+    .argument("<file>", "path to a .json bundle, or a share URL (…/api/v1/shared/shs_…)")
     .option("--regenerate-ids", "assign fresh ids (import a copy)")
     .action(async (file: string, opts: { regenerateIds?: boolean }) => {
       let raw: unknown;
       try {
-        raw = JSON.parse(await readFile(file, "utf8"));
+        if (/^https?:\/\//i.test(file)) {
+          // Share links are capability URLs: fetched without this API's token.
+          const response = await (options.fetch ?? globalThis.fetch)(file, {
+            headers: { accept: "application/json" },
+          });
+          if (!response.ok) {
+            throw new CliError(
+              `the share link answered ${response.status}${response.status === 404 ? " (expired, revoked or unknown)" : ""}`,
+              response.status === 404 ? EXIT.notFound : EXIT.error,
+            );
+          }
+          raw = await response.json();
+        } else {
+          raw = JSON.parse(await readFile(file, "utf8"));
+        }
       } catch (error) {
+        if (error instanceof CliError) throw error;
         throw new CliError(
           `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
           EXIT.usage,
@@ -519,6 +535,65 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         },
       );
       out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
+    });
+
+  traces
+    .command("share")
+    .description("create a read-only link that serves the trace bundle without the API token")
+    .argument("<traceId>", "trace id")
+    .option("--expires <age>", "lifetime such as 12h, 7d or 30d (max 30d)", "7d")
+    .option("--note <text>", "who or what the link is for")
+    .option("--json", "print JSON")
+    .action(async (traceId: string, opts: { expires: string; note?: string; json?: boolean }) => {
+      const hours = durationHours(opts.expires);
+      const endpoint = program.opts<{ endpoint: string }>().endpoint.replace(/\/+$/, "");
+      const created = await client().post<{ share: TraceShare; token: string; path: string }>(
+        `/api/v1/traces/${encodeURIComponent(traceId)}/shares`,
+        { expiresInHours: hours, ...(opts.note ? { note: opts.note } : {}) },
+      );
+      const url = `${endpoint}${created.path}`;
+      if (opts.json) return json({ ...created, url });
+      out(url);
+      out(
+        `share ${created.share.id} expires ${created.share.expiresAt}; anyone with the link can read the whole trace. Revoke with: shadow traces unshare ${traceId} ${created.share.id}`,
+      );
+    });
+
+  traces
+    .command("shares")
+    .description("list a trace's share links (tokens are never shown again)")
+    .argument("<traceId>", "trace id")
+    .option("--json", "print JSON instead of a table")
+    .action(async (traceId: string, opts: { json?: boolean }) => {
+      const page = await client().get<{ items: TraceShare[] }>(
+        `/api/v1/traces/${encodeURIComponent(traceId)}/shares`,
+      );
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no share links");
+      out(
+        table(
+          ["SHARE", "STATE", "EXPIRES", "OPENED", "NOTE"],
+          page.items.map((s) => [
+            s.id,
+            s.revokedAt ? "revoked" : Date.parse(s.expiresAt) <= Date.now() ? "expired" : "active",
+            s.expiresAt,
+            `${s.accessCount}x${s.lastAccessedAt ? ` (last ${s.lastAccessedAt})` : ""}`,
+            s.note ?? "",
+          ]),
+        ),
+      );
+    });
+
+  traces
+    .command("unshare")
+    .description("revoke a share link")
+    .argument("<traceId>", "trace id")
+    .argument("<shareId>", "share id from `shadow traces shares`")
+    .action(async (traceId: string, shareId: string) => {
+      await client().delete(
+        `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
+      );
+      out(`revoked ${shareId}`);
     });
 
   traces
@@ -1780,6 +1855,20 @@ interface BatchCliResult {
     firstDivergence?: { sequence: number; summary: string } | null;
     comparisonId?: string;
   }[];
+}
+
+/** Parse a lifetime such as `90m`, `12h`, `7d` or `2w` into whole hours (at least one). */
+function durationHours(value: string): number {
+  const match = /^(\d+)\s*(m|h|d|w)$/i.exec(value.trim());
+  if (!match)
+    throw new CliError(`--expires expects an age such as 12h or 7d, got '${value}'`, EXIT.usage);
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? "h").toLowerCase();
+  const hours =
+    unit === "m" ? amount / 60 : unit === "h" ? amount : unit === "d" ? amount * 24 : amount * 168;
+  const rounded = Math.max(1, Math.ceil(hours));
+  if (rounded > 24 * 30) throw new CliError("--expires is limited to 30d", EXIT.usage);
+  return rounded;
 }
 
 /** The OS user name, or undefined when it cannot be read (some containers). */

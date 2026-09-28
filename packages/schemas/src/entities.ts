@@ -253,6 +253,8 @@ export const AUDIT_ACTIONS = [
   "batch.cancelled",
   "view.saved",
   "view.deleted",
+  "share.created",
+  "share.revoked",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -270,3 +272,16 @@ export const auditEntrySchema = z.object({
   requestId: z.string().max(128).nullable(),
 });
 export type AuditEntry = z.infer<typeof auditEntrySchema>;
+
+/** A read-only link to one trace; the token itself is only returned when it is created. */
+export const traceShareSchema = z.object({
+  id: idSchema,
+  traceId: idSchema,
+  note: z.string().max(500).nullable(),
+  createdAt: timestamp,
+  expiresAt: timestamp,
+  revokedAt: timestamp.nullable(),
+  accessCount: z.number().int().nonnegative(),
+  lastAccessedAt: timestamp.nullable(),
+});
+export type TraceShare = z.infer<typeof traceShareSchema>;

@@ -216,6 +216,8 @@ shadow batch --agent refund-agent --at refund_order --set refundLimit=100
 shadow batch --agent refund-agent --at refund_order --set refundLimit=100 --limit 300 --wait
 shadow jobs list
 shadow audit --trace trc_demo_refund_violation
+shadow traces share trc_demo_refund_violation --expires 2d --note "for the payments team"
+shadow traces import http://localhost:4000/api/v1/shared/shs_…
 shadow compare <baseBranchId> <targetBranchId>
 shadow comparisons list trc_demo_refund_violation
 ```
@@ -246,7 +248,8 @@ GET  /api/v1/comparisons                  POST /api/v1/comparisons
 GET  /api/v1/comparisons/:comparisonId    POST /api/v1/otlp/v1/traces
 GET  /api/v1/views                        POST /api/v1/views   DELETE /api/v1/views/:viewId
 GET  /api/v1/batch/jobs                   GET  /api/v1/batch/jobs/:jobId   POST …/:jobId/cancel
-GET  /api/v1/audit
+GET  /api/v1/audit                        POST /api/v1/traces/:traceId/shares
+GET  /api/v1/shared/:token                (no API token: the link is the credential)
 ```
 
 Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces, or `SHADOW_OTLP_EXPORT_URL` to forward every finished trace to an OpenTelemetry collector as OTLP spans.

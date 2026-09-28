@@ -154,12 +154,13 @@ export interface RefundScenario {
 export async function ingestRefundScenario(
   t: TestApp,
   traceId = "trc_test_refund",
-  options: { seed?: string; startAt?: string } = {},
+  options: { seed?: string; startAt?: string; headers?: Record<string, string> } = {},
 ): Promise<RefundScenario> {
   const recorded = await recordRefund(traceId, options);
   const created = await t.app.inject({
     method: "POST",
     url: "/api/v1/traces",
+    headers: options.headers,
     payload: {
       id: traceId,
       project: "support-agent",
@@ -175,10 +176,14 @@ export async function ingestRefundScenario(
   const ingested = await t.app.inject({
     method: "POST",
     url: `/api/v1/traces/${traceId}/events`,
+    headers: options.headers,
     payload: { events: recorded.events },
   });
   if (ingested.statusCode !== 201) throw new Error(`ingest failed: ${ingested.body}`);
-  const rootEvents = await listAllEvents(t, traceId, { branchId: rootBranchId });
+  const rootEvents = await listAllEvents(t, traceId, {
+    branchId: rootBranchId,
+    headers: options.headers,
+  });
   return { traceId, rootBranchId, recorded, rootEvents };
 }
 
@@ -239,7 +244,13 @@ export async function forkReplayCompare(
 export async function listAllEvents(
   t: TestApp,
   traceId: string,
-  query: { branchId?: string; inherited?: boolean; eventType?: string; limit?: number } = {},
+  query: {
+    branchId?: string;
+    inherited?: boolean;
+    eventType?: string;
+    limit?: number;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<ShadowEvent[]> {
   const items: ShadowEvent[] = [];
   let cursor: string | null = null;
@@ -253,6 +264,7 @@ export async function listAllEvents(
     const response = await t.app.inject({
       method: "GET",
       url: `/api/v1/traces/${traceId}/events?${params}`,
+      headers: query.headers,
     });
     if (response.statusCode !== 200) throw new Error(`list events failed: ${response.body}`);
     const page = json<{ items: ShadowEvent[]; nextCursor: string | null }>(response);

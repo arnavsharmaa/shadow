@@ -830,6 +830,57 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("creates, lists and revokes share links and imports from one", async () => {
+    const share = {
+      id: "shr_1",
+      traceId: "trc_1",
+      note: "vendor",
+      createdAt: "2026-09-28T09:00:00.000Z",
+      expiresAt: "2099-09-30T09:00:00.000Z",
+      revokedAt: null,
+      accessCount: 2,
+      lastAccessedAt: "2026-09-28T10:00:00.000Z",
+    };
+    const bundle = { format: "shadow.trace", trace: { id: "trc_1" }, events: [], branches: [] };
+    const api = fakeApi({
+      "POST /api/v1/traces/trc_1/shares": () => ({
+        status: 201,
+        body: { share, token: "shs_abc", path: "/api/v1/shared/shs_abc" },
+      }),
+      "GET /api/v1/traces/trc_1/shares": () => ({ body: { items: [share] } }),
+      "DELETE /api/v1/traces/trc_1/shares/shr_1": () => ({ status: 204, body: null }),
+      "GET /api/v1/shared/shs_abc": () => ({ body: bundle }),
+      "GET /api/v1/shared/shs_gone": () => ({ status: 404, body: { error: { message: "x" } } }),
+      "POST /api/v1/traces/import": () => ({ status: 201, body: { id: "trc_1", branchCount: 1 } }),
+    });
+
+    expect(
+      await runWith(api, ["traces", "share", "trc_1", "--expires", "2d", "--note", "vendor"]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({ expiresInHours: 48, note: "vendor" });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("http://shadow.test/api/v1/shared/shs_abc");
+    expect(text).toContain("shadow traces unshare trc_1 shr_1");
+
+    expect(await runWith(api, ["traces", "shares", "trc_1"])).toBe(0);
+    expect(api.captured.out.join("\n")).toMatch(/shr_1\s+active\s+2099-09-30T09:00:00.000Z\s+2x/);
+    expect(await runWith(api, ["traces", "unshare", "trc_1", "shr_1"])).toBe(0);
+
+    expect(
+      await runWith(api, ["traces", "import", "http://shadow.test/api/v1/shared/shs_abc"]),
+    ).toBe(0);
+    const shared = api.captured.calls.find((c) => c.url.endsWith("/api/v1/shared/shs_abc"));
+    expect(shared?.headers).not.toHaveProperty("authorization");
+    const imported = api.captured.calls.find((c) => c.url.endsWith("/api/v1/traces/import"));
+    expect(imported?.body).toEqual({ bundle, idStrategy: "keep" });
+    expect(
+      await runWith(api, ["traces", "import", "http://shadow.test/api/v1/shared/shs_gone"]),
+    ).toBe(4);
+
+    expect(await runWith(api, ["traces", "share", "trc_1", "--expires", "forever"])).toBe(2);
+    expect(await runWith(api, ["traces", "share", "trc_1", "--expires", "31d"])).toBe(2);
+  });
+
   it("sends the actor header and shows the audit log", async () => {
     const entry = {
       id: "aud_1",

@@ -273,6 +273,20 @@ export const batchCounterfactualBodySchema = z
   });
 export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
 
+export const MAX_SHARE_HOURS = 24 * 30;
+
+export const createShareBodySchema = z.object({
+  /** Lifetime of the link in hours (default 7 days, at most 30 days). */
+  expiresInHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_SHARE_HOURS)
+    .default(24 * 7),
+  note: z.string().max(500).optional(),
+});
+export type CreateShareBody = z.infer<typeof createShareBodySchema>;
+
 export const auditListQuerySchema = cursorPageQuerySchema.extend({
   traceId: idSchema.optional(),
   action: z.string().max(64).optional(),

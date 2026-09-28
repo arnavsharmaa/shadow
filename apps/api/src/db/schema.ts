@@ -304,6 +304,28 @@ export const auditLog = pgTable(
   ],
 );
 
+/** Read-only share links. Only a SHA-256 hash of the token is stored. */
+export const traceShares = pgTable(
+  "trace_shares",
+  {
+    id: text("id").primaryKey(),
+    traceId: text("trace_id")
+      .notNull()
+      .references(() => traces.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    note: text("note"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    expiresAt: ts("expires_at").notNull(),
+    revokedAt: ts("revoked_at"),
+    accessCount: integer("access_count").notNull().default(0),
+    lastAccessedAt: ts("last_accessed_at"),
+  },
+  (t) => [
+    uniqueIndex("trace_shares_token_idx").on(t.tokenHash),
+    index("trace_shares_trace_idx").on(t.traceId),
+  ],
+);
+
 export const schema = {
   projects,
   agents,
@@ -318,6 +340,7 @@ export const schema = {
   savedViews,
   batchJobs,
   auditLog,
+  traceShares,
 };
 
 export const nowSql = sql`now()`;

@@ -53,6 +53,11 @@ machine or inside a trusted network:
   trace, including redacted model messages, tool arguments and results, is exported as
   OpenTelemetry spans to that collector. Point it only at infrastructure you trust, use HTTPS
   and pass credentials through `SHADOW_OTLP_EXPORT_HEADERS` rather than the URL.
+- **Share links bypass the API token.** `GET /api/v1/shared/<token>` serves a full trace
+  bundle (redacted payloads included) to anyone who has the link, until it expires (at most 30
+  days) or is revoked. Tokens carry 256 bits of randomness, only their SHA-256 hash is stored,
+  and unknown, expired and revoked links look identical. Share over channels you trust, give
+  links a short lifetime, and revoke them with `shadow traces unshare` when done.
 - **The audit log is self-reported.** Every state-changing request is logged with the actor the
   client names in `x-shadow-actor`. Without per-user authentication anyone who can reach the API
   can claim any name, so the log shows what happened and when, not who provably did it. Entries
