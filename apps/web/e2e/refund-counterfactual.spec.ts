@@ -215,6 +215,39 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     );
   });
 
+  test("a share link opens a read-only view of the trace", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const created = await request.post(`${apiUrl}/api/v1/traces/trc_demo_refund_violation/shares`, {
+      data: { expiresInHours: 1, note: "e2e" },
+    });
+    expect(created.status()).toBe(201);
+    const { token, share } = (await created.json()) as { token: string; share: { id: string } };
+
+    await page.goto(`/shared/${token}`);
+    await expect(page.getByTestId("shared-trace-name")).toHaveText(
+      "refund-request: defective headphones",
+    );
+    await expect(page.getByTestId("shared-import-command")).toContainText(
+      `shadow traces import ${apiUrl}/api/v1/shared/${token}`,
+    );
+    const refund = page.locator(
+      '[data-testid="shared-event"][data-event-type="tool.request"][data-event-name="refund_order"]',
+    );
+    await refund.click();
+    await expect(page.getByTestId("shared-event-detail")).toContainText("refund_order");
+    // Fork branches show their inherited prefix plus their own events.
+    const branch = page.getByTestId("shared-branch");
+    const options = await branch.locator("option").allTextContents();
+    expect(options.length).toBeGreaterThan(1);
+    await branch.selectOption({ index: 1 });
+    await expect(page.locator('[data-testid="shared-event"]').first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /fork/i })).toHaveCount(0);
+
+    await request.delete(`${apiUrl}/api/v1/traces/trc_demo_refund_violation/shares/${share.id}`);
+    await page.reload();
+    await expect(page.getByTestId("shared-unavailable")).toBeVisible();
+  });
+
   test("OTLP-imported traces fork without replay", async ({ page, request }) => {
     const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
     const traceId = "e2e0000000000000000000000000abcd";

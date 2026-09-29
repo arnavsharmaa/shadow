@@ -860,6 +860,7 @@ describe("shadow cli", () => {
     expect(api.captured.calls[0]?.body).toEqual({ expiresInHours: 48, note: "vendor" });
     const text = api.captured.out.join("\n");
     expect(text).toContain("http://shadow.test/api/v1/shared/shs_abc");
+    expect(text).toContain("view it in the browser: http://localhost:3000/shared/shs_abc");
     expect(text).toContain("shadow traces unshare trc_1 shr_1");
 
     expect(await runWith(api, ["traces", "shares", "trc_1"])).toBe(0);

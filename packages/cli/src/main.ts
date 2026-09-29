@@ -543,21 +543,33 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .argument("<traceId>", "trace id")
     .option("--expires <age>", "lifetime such as 12h, 7d or 30d (max 30d)", "7d")
     .option("--note <text>", "who or what the link is for")
+    .option(
+      "--web <url>",
+      "web app base URL for the viewer link",
+      env.SHADOW_WEB_URL ?? "http://localhost:3000",
+    )
     .option("--json", "print JSON")
-    .action(async (traceId: string, opts: { expires: string; note?: string; json?: boolean }) => {
-      const hours = durationHours(opts.expires);
-      const endpoint = program.opts<{ endpoint: string }>().endpoint.replace(/\/+$/, "");
-      const created = await client().post<{ share: TraceShare; token: string; path: string }>(
-        `/api/v1/traces/${encodeURIComponent(traceId)}/shares`,
-        { expiresInHours: hours, ...(opts.note ? { note: opts.note } : {}) },
-      );
-      const url = `${endpoint}${created.path}`;
-      if (opts.json) return json({ ...created, url });
-      out(url);
-      out(
-        `share ${created.share.id} expires ${created.share.expiresAt}; anyone with the link can read the whole trace. Revoke with: shadow traces unshare ${traceId} ${created.share.id}`,
-      );
-    });
+    .action(
+      async (
+        traceId: string,
+        opts: { expires: string; note?: string; web: string; json?: boolean },
+      ) => {
+        const hours = durationHours(opts.expires);
+        const endpoint = program.opts<{ endpoint: string }>().endpoint.replace(/\/+$/, "");
+        const created = await client().post<{ share: TraceShare; token: string; path: string }>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}/shares`,
+          { expiresInHours: hours, ...(opts.note ? { note: opts.note } : {}) },
+        );
+        const url = `${endpoint}${created.path}`;
+        const viewer = `${opts.web.replace(/\/+$/, "")}/shared/${created.token}`;
+        if (opts.json) return json({ ...created, url, viewer });
+        out(url);
+        out(`view it in the browser: ${viewer}`);
+        out(
+          `share ${created.share.id} expires ${created.share.expiresAt}; anyone with the link can read the whole trace. Revoke with: shadow traces unshare ${traceId} ${created.share.id}`,
+        );
+      },
+    );
 
   traces
     .command("shares")

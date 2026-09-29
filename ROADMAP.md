@@ -80,8 +80,8 @@ is welcome through GitHub issues; integration proposals have their own
 - Authentication and per-project authorisation (API keys and single sign-on), the prerequisite
   for any shared deployment.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing (event,
-  branch and comparison permalinks and expiring read-only share links exist; a web viewer for
-  shared links remains).
+  branch and comparison permalinks and expiring read-only share links with a web viewer are
+  done).
 - Annotations and comments on events and branches.
 - Saved views shared across a team (done: shared views are stored by the API next to the
   per-browser ones; per-user ownership arrives with authentication).

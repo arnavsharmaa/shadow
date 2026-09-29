@@ -10,6 +10,7 @@ import type {
   Replay,
   SavedView as SharedView,
   ShadowEvent,
+  TraceExport,
   TraceSummary,
   DiffEntry,
   TraceListQuery,
@@ -310,6 +311,9 @@ export const api = {
     request<Comparison>("POST", "/api/v1/comparisons", { baseBranchId, targetBranchId }),
   comparison: (comparisonId: string) =>
     request<Comparison>("GET", `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`),
+  /** A shared trace bundle; the token in the path is the credential. */
+  sharedTrace: (token: string) =>
+    request<TraceExport>("GET", `/api/v1/shared/${encodeURIComponent(token)}`),
   audit: (traceId: string) =>
     request<{ items: AuditEntry[]; nextCursor: string | null }>(
       "GET",

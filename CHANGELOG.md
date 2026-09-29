@@ -16,7 +16,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   links are listed and revoked per trace, only token hashes are stored (new `trace_shares`
   table, migration `0005_trace_shares`), and unknown, expired and revoked links answer the same
   `404`. `shadow traces share|shares|unshare` manage them and `shadow traces import` accepts a
-  share URL.
+  share URL. The web app shows a shared trace read-only at `/shared/<token>` (header, branch
+  picker with inherited events, event tree and payloads), and `shadow traces share` prints that
+  viewer link.
 - Audit log: every state-changing request (trace updates, deletions, imports and prunes, forks,
   matrices, replays, branch changes, comparisons, artifacts, batches and shared views) is
   recorded in a new `audit_log` table (migration `0004_audit_log`) with the actor from the

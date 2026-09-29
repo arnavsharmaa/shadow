@@ -581,7 +581,13 @@ The only API route that never asks for `SHADOW_API_TOKEN`: the token in the path
 credential. Returns the bundle with `cache-control: private, no-store` and counts the access.
 Unknown, expired and revoked tokens all answer the same `404`. Creating and revoking links is
 audited (`share.created`, `share.revoked`). CLI: `shadow traces share <traceId> [--expires 7d]
-[--note …]`, `shadow traces shares <traceId>`, `shadow traces unshare <traceId> <shareId>`.
+[--note …] [--web <url>]`, `shadow traces shares <traceId>`, `shadow traces unshare <traceId>
+<shareId>`.
+
+The web app renders a link at `/shared/<token>`: a read-only page (header, branch picker, event
+tree and event payloads) built only from the bundle, so it works without the API token.
+`shadow traces share` prints that URL too (`--web`, default `SHADOW_WEB_URL` or
+`http://localhost:3000`).
 
 ## Audit log
 
