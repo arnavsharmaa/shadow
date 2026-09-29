@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
 import { BatchDialog } from "./BatchDialog";
+import { AgentTrend } from "./AgentTrend";
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
   { key: "24h", label: "Last 24 hours", days: 1 },
@@ -40,6 +41,7 @@ export function AgentStats() {
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
   const replayable = new Set(health.data?.agents?.replayable ?? []);
   const [batchAgent, setBatchAgent] = useState<AgentStatsRow | null>(null);
+  const [trendAgent, setTrendAgent] = useState<AgentStatsRow | null>(null);
 
   const setParam = (key: string, value: string | undefined) => {
     const next = new URLSearchParams(params.toString());
@@ -131,10 +133,18 @@ export function AgentStats() {
                   key={a.agentId}
                   row={a}
                   onWhatIf={replayable.has(a.agentSlug) ? () => setBatchAgent(a) : undefined}
+                  onTrend={() => setTrendAgent(a)}
                 />
               ))}
             </tbody>
           </table>
+        )}
+        {trendAgent && (
+          <AgentTrend
+            key={trendAgent.agentId}
+            agent={trendAgent}
+            onClose={() => setTrendAgent(null)}
+          />
         )}
       </div>
       {batchAgent && (
@@ -153,7 +163,15 @@ export function AgentStats() {
   );
 }
 
-function AgentRow({ row, onWhatIf }: { row: AgentStatsRow; onWhatIf?: () => void }) {
+function AgentRow({
+  row,
+  onWhatIf,
+  onTrend,
+}: {
+  row: AgentStatsRow;
+  onWhatIf?: () => void;
+  onTrend: () => void;
+}) {
   const failureRate = row.traces > 0 ? row.failed / row.traces : 0;
   return (
     <tr
@@ -208,7 +226,16 @@ function AgentRow({ row, onWhatIf }: { row: AgentStatsRow; onWhatIf?: () => void
           "–"
         )}
       </td>
-      <td className="px-3 py-1.5 text-right align-top">
+      <td className="space-x-1 whitespace-nowrap px-3 py-1.5 text-right align-top">
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={onTrend}
+          title="Chart this agent's traces, failures, latency and cost over time"
+          data-testid="show-trend"
+        >
+          Trend
+        </Button>
         {onWhatIf && (
           <Button
             size="xs"

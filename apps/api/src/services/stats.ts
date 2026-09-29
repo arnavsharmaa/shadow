@@ -1,5 +1,6 @@
-import { and, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import { agents, projects, traces } from "../db/schema.js";
+import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import { isoOrNull } from "./mappers.js";
 
@@ -96,4 +97,132 @@ export async function agentStats(
     totalTokens: num(row.totalTokens),
     lastStartedAt: isoOrNull(row.lastStartedAt),
   }));
+}
+
+export type TrendBucket = "hour" | "day";
+
+export interface AgentTrendQuery {
+  bucket: TrendBucket;
+  from?: string;
+  to?: string;
+  project?: string;
+}
+
+export interface AgentTrendPoint {
+  /** Start of the bucket (UTC). */
+  start: string;
+  traces: number;
+  completed: number;
+  failed: number;
+  policyViolations: number;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  totalEstimatedCost: number;
+  totalTokens: number;
+}
+
+export interface AgentTrend {
+  agent: string;
+  project: string | null;
+  bucket: TrendBucket;
+  from: string;
+  to: string;
+  points: AgentTrendPoint[];
+}
+
+const BUCKET_MS: Record<TrendBucket, number> = { hour: 3_600_000, day: 86_400_000 };
+const DEFAULT_SPAN: Record<TrendBucket, number> = { hour: 48, day: 30 };
+export const MAX_TREND_POINTS = 1000;
+
+function truncateUtc(ms: number, bucket: TrendBucket): number {
+  return Math.floor(ms / BUCKET_MS[bucket]) * BUCKET_MS[bucket];
+}
+
+/**
+ * One agent's traces grouped into hourly or daily UTC buckets, with every bucket in the range
+ * present (empty ones as zeros) so charts need no gap handling. Defaults to the last 30 days
+ * (daily) or 48 hours (hourly); at most 1000 buckets.
+ */
+export async function agentTrend(
+  ctx: ServiceContext,
+  agentSlug: string,
+  query: AgentTrendQuery,
+): Promise<AgentTrend> {
+  const agentFilters: SQL[] = [eq(agents.slug, agentSlug)];
+  if (query.project) agentFilters.push(eq(projects.slug, query.project));
+  const matching = await ctx.handle.db
+    .select({ id: agents.id })
+    .from(agents)
+    .innerJoin(projects, eq(projects.id, agents.projectId))
+    .where(and(...agentFilters));
+  if (matching.length === 0) throw ApiError.notFound("agent", agentSlug);
+
+  const step = BUCKET_MS[query.bucket];
+  const toMs = query.to ? Date.parse(query.to) : ctx.clock.now();
+  const fromMs = query.from ? Date.parse(query.from) : toMs - DEFAULT_SPAN[query.bucket] * step;
+  if (fromMs > toMs) throw ApiError.badRequest("from must not be after to");
+  const first = truncateUtc(fromMs, query.bucket);
+  const last = truncateUtc(toMs, query.bucket);
+  const count = (last - first) / step + 1;
+  if (count > MAX_TREND_POINTS) {
+    throw ApiError.badRequest(
+      `the range covers ${count} ${query.bucket}s; at most ${MAX_TREND_POINTS} buckets are returned`,
+    );
+  }
+
+  const unit = sql.raw(`'${query.bucket}'`);
+  const bucketStart = sql<string>`date_trunc(${unit}, ${traces.startedAt} at time zone 'UTC') at time zone 'UTC'`;
+  const cost = sql<number>`coalesce((${traces.metrics}->>'totalEstimatedCost')::float, 0)`;
+  const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
+  const rows = await ctx.handle.db
+    .select({
+      start: bucketStart,
+      traces: sql<number>`count(*)`,
+      completed: sql<number>`count(*) filter (where ${traces.status} = 'completed')`,
+      failed: sql<number>`count(*) filter (where ${traces.status} = 'failed')`,
+      policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
+      avgDurationMs: sql<number | null>`avg(${durationMs})`,
+      p95DurationMs: sql<
+        number | null
+      >`percentile_cont(0.95) within group (order by ${durationMs})`,
+      totalEstimatedCost: sql<number>`coalesce(sum(${cost}), 0)`,
+      totalTokens: sql<number>`coalesce(sum((${traces.metrics}->>'totalTokens')::float), 0)`,
+    })
+    .from(traces)
+    .where(
+      and(
+        inArray(
+          traces.agentId,
+          matching.map((m) => m.id),
+        ),
+        gte(traces.startedAt, new Date(first).toISOString()),
+        lt(traces.startedAt, new Date(last + step).toISOString()),
+      ),
+    )
+    .groupBy(bucketStart);
+
+  const byStart = new Map(rows.map((row) => [Date.parse(isoOrNull(row.start) ?? ""), row]));
+  const points: AgentTrendPoint[] = [];
+  for (let at = first; at <= last; at += step) {
+    const row = byStart.get(at);
+    points.push({
+      start: new Date(at).toISOString(),
+      traces: num(row?.traces),
+      completed: num(row?.completed),
+      failed: num(row?.failed),
+      policyViolations: num(row?.policyViolations),
+      avgDurationMs: row ? nullableNum(row.avgDurationMs) : null,
+      p95DurationMs: row ? nullableNum(row.p95DurationMs) : null,
+      totalEstimatedCost: num(row?.totalEstimatedCost),
+      totalTokens: num(row?.totalTokens),
+    });
+  }
+  return {
+    agent: agentSlug,
+    project: query.project ?? null,
+    bucket: query.bucket,
+    from: new Date(first).toISOString(),
+    to: new Date(last + step).toISOString(),
+    points,
+  };
 }

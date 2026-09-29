@@ -748,6 +748,75 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   program
+    .command("trend")
+    .description("one agent's traces, failures, latency or cost per day or hour (UTC)")
+    .argument("<agent>", "agent slug")
+    .option("--project <slug>", "only this project")
+    .option(
+      "--bucket <bucket>",
+      "day | hour",
+      (value: string) => {
+        if (value !== "day" && value !== "hour")
+          throw new InvalidArgumentError("expected day or hour");
+        return value;
+      },
+      "day",
+    )
+    .option(
+      "--metric <metric>",
+      "traces | failed | policyViolations | p95DurationMs | totalEstimatedCost | totalTokens",
+      (value: string) => {
+        if (!TREND_METRIC_KEYS.includes(value as TrendMetricKey)) {
+          throw new InvalidArgumentError(`expected one of ${TREND_METRIC_KEYS.join(", ")}`);
+        }
+        return value;
+      },
+      "traces",
+    )
+    .option("--from <cutoff>", "start of the window (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "end of the window (default: now)", cutoff)
+    .option("--json", "print JSON")
+    .action(
+      async (
+        agent: string,
+        opts: {
+          project?: string;
+          bucket: string;
+          metric: TrendMetricKey;
+          from?: string;
+          to?: string;
+          json?: boolean;
+        },
+      ) => {
+        const trend = await client().get<CliTrend>(
+          `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries`,
+          { bucket: opts.bucket, project: opts.project, from: opts.from, to: opts.to },
+        );
+        if (opts.json) return json(trend);
+        const values = trend.points.map((p) => p[opts.metric] ?? 0);
+        out(`${agent} ${opts.metric} per ${trend.bucket}, ${trend.from} to ${trend.to}`);
+        out(sparkline(values));
+        const busy = trend.points.filter((p) => p.traces > 0);
+        if (busy.length === 0) return out("no traces in this window");
+        out(
+          table(
+            ["BUCKET", opts.metric.toUpperCase(), "TRACES", "FAILED"],
+            busy.map((p) => [
+              p.start,
+              opts.metric === "totalEstimatedCost"
+                ? money(p.totalEstimatedCost)
+                : opts.metric === "p95DurationMs"
+                  ? duration(p.p95DurationMs)
+                  : String(p[opts.metric] ?? "-"),
+              String(p.traces),
+              String(p.failed),
+            ]),
+          ),
+        );
+      },
+    );
+
+  program
     .command("agents")
     .description("per-agent volume, failures, policy violations, latency, cost and tokens")
     .option("--project <slug>", "only this project")
@@ -1907,6 +1976,36 @@ function auditDetail(entry: AuditEntry): string {
       .filter((x): x is string => x !== undefined)
       .join(" ") || JSON.stringify(d)
   );
+}
+
+const TREND_METRIC_KEYS = [
+  "traces",
+  "failed",
+  "policyViolations",
+  "p95DurationMs",
+  "totalEstimatedCost",
+  "totalTokens",
+] as const;
+type TrendMetricKey = (typeof TREND_METRIC_KEYS)[number];
+
+interface CliTrend {
+  bucket: string;
+  from: string;
+  to: string;
+  points: ({ start: string; traces: number; failed: number } & Record<
+    TrendMetricKey,
+    number | null
+  >)[];
+}
+
+/** Unicode block sparkline scaled to the largest value; zero stays at the lowest block. */
+export function sparkline(values: readonly number[]): string {
+  const blocks = "▁▂▃▄▅▆▇█";
+  const max = Math.max(0, ...values);
+  if (max === 0) return blocks[0]?.repeat(values.length) ?? "";
+  return values
+    .map((v) => blocks[Math.min(7, Math.round((Math.max(0, v) / max) * 7))] ?? "")
+    .join("");
 }
 
 function progressLine(job: BatchJob): string {

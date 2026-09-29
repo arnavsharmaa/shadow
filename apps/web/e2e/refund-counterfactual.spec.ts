@@ -525,6 +525,25 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
   });
 
+  test("an agent's trend is charted with hover details and a table", async ({ page }) => {
+    await page.goto("/agents");
+    const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
+    await refund.getByTestId("show-trend").click();
+    const trend = page.getByTestId("agent-trend");
+    await expect(trend.getByTestId("trend-chart")).toBeVisible();
+    const bars = trend.getByTestId("trend-bar");
+    await expect(bars).toHaveCount(31);
+    await expect(trend.getByTestId("trend-max-label")).toHaveText(/^\d+$/);
+    await bars.last().hover();
+    await expect(trend.getByTestId("trend-tooltip")).toContainText("Traces:");
+    await trend.getByTestId("trend-metric").selectOption("totalEstimatedCost");
+    await expect(trend.getByTestId("trend-max-label")).toHaveText(/^\$/);
+    await trend.getByText("Show as a table").click();
+    await expect(trend.getByTestId("trend-table").locator("tbody tr").first()).toBeVisible();
+    await trend.getByTestId("trend-bucket").selectOption("hour");
+    await expect(bars).toHaveCount(49);
+  });
+
   test("a what-if runs across an agent's recorded traces", async ({ page }) => {
     await page.goto("/agents");
     const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');

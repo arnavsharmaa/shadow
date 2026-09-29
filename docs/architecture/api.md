@@ -174,6 +174,19 @@ Per-agent aggregates over traces started in the range (both bounds optional, ISO
 Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
 constant in the number of events. CLI: `shadow agents --from 7d`.
 
+### `GET /api/v1/stats/agents/:agentSlug/timeseries?bucket=&from=&to=&project=`
+
+One agent's traces grouped into UTC buckets (`bucket=day`, the default, or `hour`):
+`{ agent, project, bucket, from, to, points }` where each point is `{ start, traces, completed,
+failed, policyViolations, avgDurationMs, p95DurationMs, totalEstimatedCost, totalTokens }`.
+Every bucket in the range is present, empty ones as zeros with `null` latencies, so charts need
+no gap handling. The window defaults to the 30 days (or 48 hours) up to `to`, which defaults to
+now; `from` and `to` snap to bucket boundaries and `to` is exclusive in the response. At most
+1000 buckets; `400` for larger or inverted ranges and `404` for an unknown agent (or one that is
+not in `project`). The Agents page charts it with a "Trend" button per agent, ending the window
+at the agent's latest run. CLI: `shadow trend <agent> [--bucket hour] [--metric
+totalEstimatedCost] [--from 14d]`.
+
 ## Traces
 
 ### `GET /api/v1/traces`

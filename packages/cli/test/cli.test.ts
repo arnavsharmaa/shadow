@@ -830,6 +830,54 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("prints an agent trend as a sparkline and a table", async () => {
+    const point = (start: string, traces: number, failed: number, cost: number) => ({
+      start,
+      traces,
+      completed: traces - failed,
+      failed,
+      policyViolations: failed,
+      avgDurationMs: traces ? 1000 : null,
+      p95DurationMs: traces ? 4700 : null,
+      totalEstimatedCost: cost,
+      totalTokens: traces * 600,
+    });
+    const api = fakeApi({
+      "GET /api/v1/stats/agents/refund-agent/timeseries": () => ({
+        body: {
+          agent: "refund-agent",
+          bucket: "day",
+          from: "2026-09-01T00:00:00.000Z",
+          to: "2026-09-04T00:00:00.000Z",
+          points: [
+            point("2026-09-01T00:00:00.000Z", 2, 1, 0.01),
+            point("2026-09-02T00:00:00.000Z", 0, 0, 0),
+            point("2026-09-03T00:00:00.000Z", 1, 0, 0.005),
+          ],
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "trend",
+        "refund-agent",
+        "--metric",
+        "totalEstimatedCost",
+        "--from",
+        "3d",
+      ]),
+    ).toBe(0);
+    const url = new URL(api.captured.calls[0]?.url ?? "");
+    expect(url.searchParams.get("bucket")).toBe("day");
+    expect(url.searchParams.get("from")).toMatch(/^\d{4}-/);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("█▁▅");
+    expect(text).toContain("$0.0100");
+    expect(text).not.toContain("2026-09-02T00:00:00.000Z  ");
+    expect(await runWith(api, ["trend", "refund-agent", "--metric", "vibes"])).toBe(2);
+    expect(await runWith(api, ["trend", "refund-agent", "--bucket", "week"])).toBe(2);
+  });
+
   it("creates, lists and revokes share links and imports from one", async () => {
     const share = {
       id: "shr_1",

@@ -2,13 +2,18 @@ import { createProjectBodySchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
-import { agentStats } from "../../services/stats.js";
+import { agentStats, agentTrend } from "../../services/stats.js";
 
 const agentStatsQuerySchema = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
   to: z.iso.datetime({ offset: true }).optional(),
   project: z.string().max(64).optional(),
 });
+
+const agentTrendQuerySchema = agentStatsQuerySchema.extend({
+  bucket: z.enum(["hour", "day"]).default("day"),
+});
+const agentParams = z.object({ agentSlug: z.string().min(1).max(64) });
 
 export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get("/projects", { schema: { tags: ["projects"] } }, async () => ({
@@ -44,5 +49,14 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
       to: request.query.to ?? null,
       items: await agentStats(app.services, request.query),
     }),
+  );
+
+  /** One agent's traces bucketed by hour or day (UTC), empty buckets included. */
+  app.get(
+    "/stats/agents/:agentSlug/timeseries",
+    {
+      schema: { tags: ["projects"], params: agentParams, querystring: agentTrendQuerySchema },
+    },
+    async (request) => agentTrend(app.services, request.params.agentSlug, request.query),
   );
 };

@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Agent trends: `GET /api/v1/stats/agents/:agentSlug/timeseries` buckets one agent's traces by
+  UTC day or hour with every bucket present (volume, completions, failures, policy violations,
+  mean and p95 duration, estimated cost, tokens). The Agents page gains a "Trend" button that
+  charts any of those metrics as a column chart with per-bar tooltips, a labelled maximum and a
+  table view, in light and dark themes (new `--chart-1` colour token). `shadow trend <agent>`
+  prints a sparkline and the busy buckets.
 - Read-only share links: `POST /api/v1/traces/:traceId/shares` creates an expiring link (1 hour
   to 30 days) whose `GET /api/v1/shared/:token` serves the trace bundle without the API token;
   links are listed and revoked per trace, only token hashes are stored (new `trace_shares`
