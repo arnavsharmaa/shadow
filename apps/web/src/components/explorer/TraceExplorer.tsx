@@ -16,6 +16,7 @@ import {
   outcomeTone,
   statusTone,
 } from "../ui/primitives";
+import { CollectionAdder } from "./CollectionAdder";
 import { SavedViews } from "./SavedViews";
 
 function readFilters(params: URLSearchParams): TraceFilters {
@@ -31,6 +32,7 @@ function readFilters(params: URLSearchParams): TraceFilters {
     to: get("to"),
     minCost: get("minCost") ? Number(get("minCost")) : undefined,
     minDurationMs: get("minDurationMs") ? Number(get("minDurationMs")) : undefined,
+    collection: get("collection"),
     sort: (get("sort") as TraceFilters["sort"]) ?? "startedAt",
     order: (get("order") as TraceFilters["order"]) ?? "desc",
     cursor: get("cursor"),
@@ -73,6 +75,11 @@ export function TraceExplorer() {
     queryFn: () => api.listTraces(filters),
   });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
+  const collections = useQuery({
+    queryKey: ["collections"],
+    queryFn: () => api.collections(),
+    retry: false,
+  });
 
   const toggleSort = (sort: NonNullable<TraceFilters["sort"]>) => {
     if (filters.sort === sort) setFilter({ order: filters.order === "asc" ? "desc" : "asc" });
@@ -90,6 +97,7 @@ export function TraceExplorer() {
     "to",
     "minCost",
     "minDurationMs",
+    "collection",
   ].filter((k) => params.get(k)).length;
 
   return (
@@ -146,6 +154,15 @@ export function TraceExplorer() {
           value={filters.tag}
           onChange={(v) => setFilter({ tag: v })}
           options={(facets.data?.tags ?? []).map((t) => ({ value: t, label: t }))}
+        />
+        <Select
+          label="Collection"
+          value={filters.collection}
+          onChange={(v) => setFilter({ collection: v })}
+          options={(collections.data?.items ?? []).map((c) => ({
+            value: c.name,
+            label: `${c.name} (${c.traceCount})`,
+          }))}
         />
         <Select
           label="Tool"
@@ -301,6 +318,10 @@ export function TraceExplorer() {
           >
             Compare traces
           </Button>
+          <CollectionAdder
+            traceIds={picked.map((p) => p.id)}
+            collections={collections.data?.items ?? []}
+          />
           <Button size="xs" variant="ghost" onClick={() => setPicked([])}>
             Clear
           </Button>

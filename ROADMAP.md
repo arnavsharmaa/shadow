@@ -90,7 +90,7 @@ is welcome through GitHub issues; integration proposals have their own
 
 - Chat integrations and notifications on failed replays (a webhook for finished traces exists
   via `SHADOW_WEBHOOK_URL`).
-- Trace collections for grouping related executions (batches, experiments, incidents).
+- Trace collections for grouping related executions (batches, experiments, incidents): done.
 - Audit log of who forked, replayed or deleted what (done, with self-reported actors until
   authentication lands).
 

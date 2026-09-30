@@ -830,6 +830,61 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("manages collections and lists traces through one", async () => {
+    const collection = (traceCount: number) => ({
+      id: "col_1",
+      name: "incident-42",
+      description: "refund incident",
+      traceCount,
+      createdAt: "2026-09-30T09:00:00.000Z",
+      updatedAt: "2026-09-30T09:00:00.000Z",
+    });
+    const api = fakeApi({
+      "POST /api/v1/collections": () => ({
+        status: 201,
+        body: { collection: collection(1), added: ["trc_1"], missing: ["trc_gone"] },
+      }),
+      "GET /api/v1/collections": () => ({ body: { items: [collection(2)] } }),
+      "POST /api/v1/collections/incident-42/traces": () => ({
+        body: { collection: collection(2), added: ["trc_2"], missing: [] },
+      }),
+      "DELETE /api/v1/collections/incident-42/traces/trc_2": () => ({ body: collection(1) }),
+      "DELETE /api/v1/collections/incident-42": () => ({ status: 204, body: null }),
+      "GET /api/v1/traces": () => ({ body: { items: [trace], nextCursor: null } }),
+    });
+    expect(
+      await runWith(api, [
+        "collections",
+        "create",
+        "incident-42",
+        "trc_1",
+        "trc_gone",
+        "--description",
+        "refund incident",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      name: "incident-42",
+      traceIds: ["trc_1", "trc_gone"],
+      description: "refund incident",
+    });
+    expect(api.captured.out.join("\n")).toContain("not found: trc_gone");
+
+    expect(await runWith(api, ["collections", "list", "--trace", "trc_1"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.url).toContain("traceId=trc_1");
+    expect(api.captured.out.join("\n")).toMatch(/col_1\s+incident-42\s+2/);
+
+    expect(await runWith(api, ["collections", "add", "incident-42", "trc_2"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain(
+      "added 1 trace(s) to incident-42; it now holds 2",
+    );
+    expect(await runWith(api, ["traces", "list", "--collection", "incident-42"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.url).toContain("collection=incident-42");
+    expect(await runWith(api, ["collections", "remove", "incident-42", "trc_2"])).toBe(0);
+    expect(await runWith(api, ["collections", "delete", "incident-42"])).toBe(0);
+    expect(await runWith(api, ["collections", "delete", "unknown"])).toBe(4);
+  });
+
   it("manages alert rules and fails the check when one is firing", async () => {
     const rule = (state: string, lastValue: number | null) => ({
       id: "alr_1",

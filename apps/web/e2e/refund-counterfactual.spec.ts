@@ -628,6 +628,31 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     expect(await dialog.locator('[data-testid="batch-row"]').count()).toBeGreaterThanOrEqual(2);
   });
 
+  test("ticked traces can be grouped into a collection and filtered by it", async ({
+    page,
+    request,
+  }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const name = `e2e-collection-${Date.now()}`;
+    await page.goto("/?agent=refund-agent");
+    const rows = page.locator('[data-testid="trace-row"]');
+    await expect(rows.first()).toBeVisible();
+    await rows.nth(0).getByRole("checkbox").check();
+    await rows.nth(1).getByRole("checkbox").check();
+    await page.getByTestId("collection-name").fill(name);
+    await page.getByTestId("add-to-collection").click();
+    await expect(page.getByTestId("collection-message")).toHaveText(`Created ${name} (2 traces)`);
+    try {
+      await page.goto("/");
+      await page.locator("#filter-collection").selectOption(name);
+      await expect(page).toHaveURL(/collection=e2e-collection-/);
+      await expect(rows).toHaveCount(2);
+      for (const text of await rows.allInnerTexts()) expect(text).toContain("refund");
+    } finally {
+      await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(name)}`);
+    }
+  });
+
   test("explorer filters can be saved as named views", async ({ page }) => {
     await page.goto("/?status=failed&sort=totalEstimatedCost&order=desc");
     await expect(page.locator('[data-testid="trace-row"]').first()).toBeVisible();

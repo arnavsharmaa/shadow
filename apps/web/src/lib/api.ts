@@ -4,6 +4,7 @@ import type {
   AuditEntry,
   BatchJob,
   Branch,
+  Collection,
   Comparison,
   Fork,
   Override,
@@ -326,6 +327,25 @@ export const api = {
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
   alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
+  collections: (traceId?: string) =>
+    request<{ items: Collection[] }>("GET", `/api/v1/collections${query({ traceId })}`),
+  addToCollection: (collection: string, traceIds: string[]) =>
+    request<{ collection: Collection; added: string[]; missing: string[] }>(
+      "POST",
+      `/api/v1/collections/${encodeURIComponent(collection)}/traces`,
+      { traceIds },
+    ),
+  createCollection: (name: string, traceIds: string[]) =>
+    request<{ collection: Collection; added: string[]; missing: string[] }>(
+      "POST",
+      "/api/v1/collections",
+      { name, traceIds },
+    ),
+  removeFromCollection: (collection: string, traceId: string) =>
+    request<Collection>(
+      "DELETE",
+      `/api/v1/collections/${encodeURIComponent(collection)}/traces/${encodeURIComponent(traceId)}`,
+    ),
   /** A shared trace bundle; the token in the path is the credential. */
   sharedTrace: (token: string) =>
     request<TraceExport>("GET", `/api/v1/shared/${encodeURIComponent(token)}`),

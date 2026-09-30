@@ -9,6 +9,7 @@ import type {
   BatchJob,
   TraceShare,
   Branch,
+  Collection,
   DiffEntry,
   Comparison,
   Fork,
@@ -256,10 +257,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     })
     .option("--limit <n>", "maximum rows", positiveInt, 25)
     .option("--view <name>", "start from a shared saved view; explicit options override it")
+    .option("--collection <name>", "only traces in this collection")
     .option("--json", "print JSON instead of a table")
     .action(
       async (opts: {
         view?: string;
+        collection?: string;
         project?: string;
         agent?: string;
         status?: string;
@@ -296,6 +299,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           to: opts.to,
           minCost: opts.minCost,
           minDurationMs: opts.minDuration,
+          collection: opts.collection,
           sort: opts.sort,
           order: opts.order,
         };
@@ -747,6 +751,97 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }
       },
     );
+
+  const collections = program
+    .command("collections")
+    .description("named groups of traces: incidents, experiments, review queues");
+
+  collections
+    .command("list")
+    .description("list collections")
+    .option("--trace <traceId>", "only collections containing this trace")
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { trace?: string; json?: boolean }) => {
+      const page = await client().get<{ items: Collection[] }>("/api/v1/collections", {
+        traceId: opts.trace,
+      });
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no collections");
+      out(
+        table(
+          ["COLLECTION", "NAME", "TRACES", "UPDATED", "DESCRIPTION"],
+          page.items.map((c) => [
+            c.id,
+            c.name,
+            String(c.traceCount),
+            c.updatedAt,
+            truncate(c.description ?? "", 50),
+          ]),
+        ),
+      );
+    });
+
+  collections
+    .command("create")
+    .description("create a collection, optionally with traces")
+    .argument("<name>", "collection name")
+    .argument("[traceId...]", "traces to add")
+    .option("--description <text>", "what the collection is for")
+    .option("--json", "print JSON")
+    .action(
+      async (name: string, traceIds: string[], opts: { description?: string; json?: boolean }) => {
+        const result = await client().post<CollectionChange>("/api/v1/collections", {
+          name,
+          traceIds,
+          ...(opts.description ? { description: opts.description } : {}),
+        });
+        if (opts.json) return json(result);
+        out(
+          `created ${result.collection.name} (${result.collection.id}) with ${result.collection.traceCount} trace(s)`,
+        );
+        if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
+      },
+    );
+
+  collections
+    .command("add")
+    .description("add traces to a collection")
+    .argument("<collection>", "collection name or id")
+    .argument("<traceId...>", "trace ids")
+    .action(async (collection: string, traceIds: string[]) => {
+      const result = await client().post<CollectionChange>(
+        `/api/v1/collections/${encodeURIComponent(collection)}/traces`,
+        { traceIds },
+      );
+      out(
+        `added ${result.added.length} trace(s) to ${result.collection.name}; it now holds ${result.collection.traceCount}`,
+      );
+      if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
+    });
+
+  collections
+    .command("remove")
+    .description("remove traces from a collection (the traces themselves are kept)")
+    .argument("<collection>", "collection name or id")
+    .argument("<traceId...>", "trace ids")
+    .action(async (collection: string, traceIds: string[]) => {
+      const api = client();
+      for (const traceId of traceIds) {
+        await api.delete(
+          `/api/v1/collections/${encodeURIComponent(collection)}/traces/${encodeURIComponent(traceId)}`,
+        );
+      }
+      out(`removed ${traceIds.length} trace(s) from ${collection}`);
+    });
+
+  collections
+    .command("delete")
+    .description("delete a collection (its traces are kept)")
+    .argument("<collection>", "collection name or id")
+    .action(async (collection: string) => {
+      await client().delete(`/api/v1/collections/${encodeURIComponent(collection)}`);
+      out(`deleted collection ${collection}`);
+    });
 
   const alerts = program
     .command("alerts")
@@ -2074,6 +2169,12 @@ function auditDetail(entry: AuditEntry): string {
       .filter((x): x is string => x !== undefined)
       .join(" ") || JSON.stringify(d)
   );
+}
+
+interface CollectionChange {
+  collection: Collection;
+  added: string[];
+  missing: string[];
 }
 
 function alertValue(rule: AlertRule, value: number | null): string {

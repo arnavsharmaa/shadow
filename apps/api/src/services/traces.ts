@@ -8,7 +8,7 @@ import {
   type UpdateTraceBody,
 } from "@shadow/schemas";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
-import { agents, branches, projects, traces } from "../db/schema.js";
+import { agents, branches, collectionTraces, collections, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import {
@@ -144,6 +144,12 @@ export async function listTraces(
   }
   if (query.minDurationMs !== undefined)
     filters.push(sql`coalesce(${traces.durationMs}, 0) >= ${query.minDurationMs}`);
+  if (query.collection) {
+    // An unknown collection simply matches nothing, like any other filter value.
+    filters.push(
+      sql`exists (select 1 from ${collectionTraces} inner join ${collections} on ${collections.id} = ${collectionTraces.collectionId} where ${collectionTraces.traceId} = ${traces.id} and ${collections.name} = ${query.collection})`,
+    );
+  }
   const where = filters.length > 0 ? and(...filters) : undefined;
   const offset = decodeOffset(query.cursor);
   const orderBy =

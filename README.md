@@ -218,6 +218,8 @@ shadow jobs list
 shadow trend refund-agent --metric failed --from 14d
 shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h
 shadow alerts check
+shadow collections create incident-42 trc_demo_refund_violation --description "refund limit incident"
+shadow traces list --collection incident-42
 shadow audit --trace trc_demo_refund_violation
 shadow traces share trc_demo_refund_violation --expires 2d --note "for the payments team"
 shadow traces import http://localhost:4000/api/v1/shared/shs_…
@@ -237,6 +239,7 @@ GET  /api/v1/projects                     POST /api/v1/projects
 GET  /api/v1/agents                       GET  /api/v1/stats/agents
 GET  /api/v1/stats/agents/:agentSlug/timeseries
 GET  /api/v1/alerts/rules                 POST /api/v1/alerts/rules   POST /api/v1/alerts/evaluate
+GET  /api/v1/collections                  POST /api/v1/collections/:collection/traces
 GET  /api/v1/traces                       POST /api/v1/traces
 GET  /api/v1/traces/:traceId              PATCH/DELETE /api/v1/traces/:traceId
 POST /api/v1/traces/prune                 POST /api/v1/traces/import

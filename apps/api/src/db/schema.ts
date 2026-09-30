@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -350,6 +351,36 @@ export const alertRules = pgTable(
   (t) => [uniqueIndex("alert_rules_name_idx").on(t.name)],
 );
 
+/** Named groups of traces (incidents, experiments, review queues). */
+export const collections = pgTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("collections_name_idx").on(t.name)],
+);
+
+export const collectionTraces = pgTable(
+  "collection_traces",
+  {
+    collectionId: text("collection_id")
+      .notNull()
+      .references(() => collections.id, { onDelete: "cascade" }),
+    traceId: text("trace_id")
+      .notNull()
+      .references(() => traces.id, { onDelete: "cascade" }),
+    addedAt: ts("added_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.collectionId, t.traceId] }),
+    index("collection_traces_trace_idx").on(t.traceId),
+  ],
+);
+
 export const schema = {
   projects,
   agents,
@@ -366,6 +397,8 @@ export const schema = {
   auditLog,
   traceShares,
   alertRules,
+  collections,
+  collectionTraces,
 };
 
 export const nowSql = sql`now()`;

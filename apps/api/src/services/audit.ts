@@ -9,7 +9,8 @@ import { iso } from "./mappers.js";
 export interface AuditInput {
   actor: string;
   action: AuditAction;
-  targetType: "trace" | "branch" | "comparison" | "artifact" | "job" | "view" | "alert";
+  targetType:
+    "trace" | "branch" | "comparison" | "artifact" | "job" | "view" | "alert" | "collection";
   targetId: string;
   traceId?: string | null;
   details?: Record<string, unknown>;

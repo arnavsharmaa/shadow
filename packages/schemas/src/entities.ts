@@ -258,6 +258,11 @@ export const AUDIT_ACTIONS = [
   "alert.created",
   "alert.updated",
   "alert.deleted",
+  "collection.created",
+  "collection.updated",
+  "collection.deleted",
+  "collection.traces_added",
+  "collection.traces_removed",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -330,3 +335,14 @@ export const alertRuleSchema = z.object({
   updatedAt: timestamp,
 });
 export type AlertRule = z.infer<typeof alertRuleSchema>;
+
+/** A named group of related traces: an incident, an experiment, a batch, a review queue. */
+export const collectionSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1).max(64),
+  description: z.string().max(500).nullable(),
+  traceCount: z.number().int().nonnegative(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+export type Collection = z.infer<typeof collectionSchema>;

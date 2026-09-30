@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Trace collections: named groups of traces (incidents, experiments, review queues) stored in
+  new `collections` and `collection_traces` tables (migration `0007_collections`). Collections are
+  managed at `/api/v1/collections`, `GET /api/v1/traces?collection=<name>` filters by one (also
+  inside saved views), the explorer gains a Collection filter and an "Add to collection" control
+  for ticked traces, and the CLI gains `shadow collections list|create|add|remove|delete` and
+  `shadow traces list --collection`.
 - Alert rules: thresholds on failure rate, policy violations, tool errors, estimated cost or p95
   duration over a look-back window, optionally scoped to an agent or project and guarded by a
   minimum trace count (new `alert_rules` table, migration `0006_alert_rules`). The API evaluates

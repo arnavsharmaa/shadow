@@ -566,6 +566,43 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## Collections
+
+Named groups of traces, for example the runs behind an incident, an experiment's variants or a
+review queue. A trace can be in any number of collections; deleting a trace removes it from
+them, and deleting a collection never deletes traces.
+
+### `GET /api/v1/collections?traceId=`
+
+`{ items: [Collection] }` sorted by name; with `traceId`, only the collections containing that
+trace. A `Collection` is `{ id, name, description, traceCount, createdAt, updatedAt }`.
+
+### `POST /api/v1/collections`
+
+Body `{ name, description?, traceIds? }`. Names are unique, up to 64 characters of letters,
+digits, spaces and `_ . : -`. Returns `201 { collection, added, missing }`; `409` for a duplicate
+name. At most 500 collections.
+
+### `GET | PATCH | DELETE /api/v1/collections/:collection`
+
+`:collection` is the collection id (`col_…`) or its name. `PATCH` accepts `{ name?,
+description? }`; `DELETE` answers `204`.
+
+### `POST /api/v1/collections/:collection/traces`
+
+Body `{ traceIds }` (1 to 500). Returns `{ collection, added, missing }`: traces already in the
+collection are left alone and unknown ids are reported in `missing` instead of failing the call.
+
+### `DELETE /api/v1/collections/:collection/traces/:traceId`
+
+Removes one trace from the collection and returns the `Collection`; `404` when it was not in it.
+
+`GET /api/v1/traces?collection=<name>` filters the trace list (and therefore saved views and
+the explorer) to a collection; an unknown name matches nothing. Changes are audited. In the web
+app, tick traces in the explorer and use "Add to collection", then filter with the Collection
+dropdown. CLI: `shadow collections list|create <name> [traceId…]|add|remove|delete` and `shadow
+traces list --collection <name>`.
+
 ## Alerts
 
 Threshold rules over recent traces, the first step towards anomaly alerting. A rule measures one

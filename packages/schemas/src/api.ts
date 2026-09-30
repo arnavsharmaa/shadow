@@ -67,6 +67,8 @@ export const traceListQuerySchema = z.object({
   to: z.iso.datetime({ offset: true }).optional(),
   minCost: z.coerce.number().nonnegative().optional(),
   minDurationMs: z.coerce.number().nonnegative().optional(),
+  /** Only traces in the collection with this name. */
+  collection: z.string().max(64).optional(),
   sort: z
     .enum(["startedAt", "durationMs", "totalEstimatedCost", "totalTokens", "name"])
     .default("startedAt"),
@@ -86,6 +88,7 @@ export const SAVED_VIEW_KEYS = [
   "to",
   "minCost",
   "minDurationMs",
+  "collection",
   "sort",
   "order",
 ] as const;
@@ -102,6 +105,7 @@ const savedViewFiltersSchema = traceListQuerySchema
     to: true,
     minCost: true,
     minDurationMs: true,
+    collection: true,
     sort: true,
     order: true,
   })
@@ -273,6 +277,37 @@ export const batchCounterfactualBodySchema = z
     }
   });
 export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
+
+/** Collection names appear in URLs and CLI arguments, so they stay simple. */
+const collectionNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[\w][\w .:-]*$/, "use letters, digits, spaces and _ . : -");
+
+export const createCollectionBodySchema = z.object({
+  name: collectionNameSchema,
+  description: z.string().max(500).optional(),
+  /** Traces to add straight away. */
+  traceIds: z.array(idSchema).max(500).default([]),
+});
+export type CreateCollectionBody = z.infer<typeof createCollectionBodySchema>;
+
+export const updateCollectionBodySchema = z
+  .object({ name: collectionNameSchema, description: z.string().max(500).nullable() })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, { message: "nothing to update" });
+export type UpdateCollectionBody = z.infer<typeof updateCollectionBodySchema>;
+
+export const collectionTracesBodySchema = z.object({
+  traceIds: z.array(idSchema).min(1).max(500),
+});
+
+export const collectionListQuerySchema = z.object({
+  /** Only collections that contain this trace. */
+  traceId: idSchema.optional(),
+});
 
 export const createAlertRuleBodySchema = z.object({
   name: z.string().trim().min(1).max(128),
