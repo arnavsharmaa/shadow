@@ -326,6 +326,30 @@ export const traceShares = pgTable(
   ],
 );
 
+/** Threshold alerts over recent traces; the current state is kept on the rule. */
+export const alertRules = pgTable(
+  "alert_rules",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    agent: text("agent"),
+    project: text("project"),
+    metric: text("metric").notNull(),
+    threshold: real("threshold").notNull(),
+    windowMinutes: integer("window_minutes").notNull(),
+    minTraces: integer("min_traces").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    state: text("state").notNull().default("ok"),
+    lastValue: real("last_value"),
+    lastTraces: integer("last_traces"),
+    lastEvaluatedAt: ts("last_evaluated_at"),
+    lastTriggeredAt: ts("last_triggered_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("alert_rules_name_idx").on(t.name)],
+);
+
 export const schema = {
   projects,
   agents,
@@ -341,6 +365,7 @@ export const schema = {
   batchJobs,
   auditLog,
   traceShares,
+  alertRules,
 };
 
 export const nowSql = sql`now()`;

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
 import { BatchDialog } from "./BatchDialog";
 import { AgentTrend } from "./AgentTrend";
+import { AlertsBanner } from "./AlertsBanner";
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
   { key: "24h", label: "Last 24 hours", days: 1 },
@@ -92,6 +93,7 @@ export function AgentStats() {
           </span>
         )}
       </div>
+      <AlertsBanner />
       <div className="min-h-0 flex-1 overflow-auto">
         {stats.isError ? (
           <ErrorState error={stats.error} retry={() => stats.refetch()} />

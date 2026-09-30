@@ -255,6 +255,9 @@ export const AUDIT_ACTIONS = [
   "view.deleted",
   "share.created",
   "share.revoked",
+  "alert.created",
+  "alert.updated",
+  "alert.deleted",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -285,3 +288,45 @@ export const traceShareSchema = z.object({
   lastAccessedAt: timestamp.nullable(),
 });
 export type TraceShare = z.infer<typeof traceShareSchema>;
+
+/**
+ * What an alert rule measures over traces started inside its window:
+ * - `failure_rate`: failed traces divided by finished traces (0 to 1)
+ * - `policy_violations`: traces whose outcome is a policy violation
+ * - `tool_errors`: failed tool calls, summed
+ * - `total_cost`: estimated cost, summed
+ * - `p95_duration_ms`: 95th percentile trace duration
+ */
+export const ALERT_METRICS = [
+  "failure_rate",
+  "policy_violations",
+  "tool_errors",
+  "total_cost",
+  "p95_duration_ms",
+] as const;
+export const alertMetricSchema = z.enum(ALERT_METRICS);
+export type AlertMetric = z.infer<typeof alertMetricSchema>;
+
+/** A threshold on one metric; it fires while the value is at or above the threshold. */
+export const alertRuleSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1).max(128),
+  /** Agent slug the rule is scoped to, or `null` for every agent. */
+  agent: z.string().max(64).nullable(),
+  project: z.string().max(64).nullable(),
+  metric: alertMetricSchema,
+  threshold: z.number().nonnegative(),
+  windowMinutes: z.number().int().positive(),
+  /** Traces needed in the window before the rule can fire (guards small samples). */
+  minTraces: z.number().int().positive(),
+  enabled: z.boolean(),
+  state: z.enum(["ok", "firing"]),
+  lastValue: z.number().nullable(),
+  lastTraces: z.number().int().nonnegative().nullable(),
+  lastEvaluatedAt: timestamp.nullable(),
+  /** When the rule last went from ok to firing. */
+  lastTriggeredAt: timestamp.nullable(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+export type AlertRule = z.infer<typeof alertRuleSchema>;

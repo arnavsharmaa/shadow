@@ -3,6 +3,7 @@ import { userInfo } from "node:os";
 import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
+  AlertRule,
   Artifact,
   AuditEntry,
   BatchJob,
@@ -746,6 +747,103 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }
       },
     );
+
+  const alerts = program
+    .command("alerts")
+    .description(
+      "threshold alerts on failure rate, policy violations, tool errors, cost and latency",
+    );
+
+  alerts
+    .command("list")
+    .description("list alert rules with their current state")
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { json?: boolean }) => {
+      const page = await client().get<{ items: AlertRule[] }>("/api/v1/alerts/rules");
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no alert rules");
+      out(alertTable(page.items));
+    });
+
+  alerts
+    .command("add")
+    .description("create an alert rule; it fires while the metric is at or above the threshold")
+    .argument("<name>", "rule name")
+    .requiredOption(
+      "--metric <metric>",
+      "failure_rate | policy_violations | tool_errors | total_cost | p95_duration_ms",
+    )
+    .requiredOption("--threshold <n>", "fire at or above this value", nonNegative)
+    .option("--agent <slug>", "only this agent's traces")
+    .option("--project <slug>", "only this project's traces")
+    .option("--window <age>", "look-back window such as 30m, 6h or 7d", "1h")
+    .option("--min-traces <n>", "traces needed in the window before it can fire", positiveInt, 1)
+    .option("--json", "print JSON")
+    .action(
+      async (
+        name: string,
+        opts: {
+          metric: string;
+          threshold: number;
+          agent?: string;
+          project?: string;
+          window: string;
+          minTraces: number;
+          json?: boolean;
+        },
+      ) => {
+        const rule = await client().post<AlertRule>("/api/v1/alerts/rules", {
+          name,
+          metric: opts.metric,
+          threshold: opts.threshold,
+          agent: opts.agent,
+          project: opts.project,
+          windowMinutes: windowMinutes(opts.window),
+          minTraces: opts.minTraces,
+        });
+        if (opts.json) return json(rule);
+        out(
+          `created ${rule.id}: ${rule.name} fires when ${rule.metric} >= ${rule.threshold} over ${rule.windowMinutes}m`,
+        );
+      },
+    );
+
+  alerts
+    .command("remove")
+    .description("delete an alert rule by name or id")
+    .argument("<nameOrId>", "rule name or id")
+    .action(async (nameOrId: string) => {
+      const api = client();
+      let id = nameOrId;
+      if (!nameOrId.startsWith("alr_")) {
+        const page = await api.get<{ items: AlertRule[] }>("/api/v1/alerts/rules");
+        const match = page.items.find((r) => r.name === nameOrId);
+        if (!match) throw new CliError(`no alert rule named '${nameOrId}'`, EXIT.notFound);
+        id = match.id;
+      }
+      await api.delete(`/api/v1/alerts/rules/${encodeURIComponent(id)}`);
+      out(`deleted alert rule ${nameOrId}`);
+    });
+
+  alerts
+    .command("check")
+    .description("evaluate every rule now; exits 1 when any rule is firing (useful in CI)")
+    .option("--json", "print JSON")
+    .action(async (opts: { json?: boolean }) => {
+      const result = await client().post<{
+        items: { rule: AlertRule; transition: "fired" | "resolved" | "none" }[];
+      }>("/api/v1/alerts/evaluate", {});
+      const firing = result.items.filter((e) => e.rule.state === "firing");
+      if (opts.json) json(result);
+      else if (result.items.length === 0) out("no enabled alert rules");
+      else {
+        out(alertTable(result.items.map((e) => e.rule)));
+        out(`${firing.length} of ${result.items.length} rule(s) firing`);
+      }
+      if (firing.length > 0) {
+        throw new CliError(`firing: ${firing.map((e) => e.rule.name).join(", ")}`, EXIT.error);
+      }
+    });
 
   program
     .command("trend")
@@ -1976,6 +2074,44 @@ function auditDetail(entry: AuditEntry): string {
       .filter((x): x is string => x !== undefined)
       .join(" ") || JSON.stringify(d)
   );
+}
+
+function alertValue(rule: AlertRule, value: number | null): string {
+  if (value === null) return "-";
+  if (rule.metric === "failure_rate") return `${Math.round(value * 100)}%`;
+  if (rule.metric === "total_cost") return money(value);
+  if (rule.metric === "p95_duration_ms") return duration(value);
+  return String(value);
+}
+
+function alertTable(rules: AlertRule[]): string {
+  return table(
+    ["RULE", "STATE", "SCOPE", "METRIC", "THRESHOLD", "VALUE", "WINDOW", "TRACES", "EVALUATED"],
+    rules.map((r) => [
+      r.name,
+      r.enabled ? r.state : "disabled",
+      r.agent ?? r.project ?? "all agents",
+      r.metric,
+      alertValue(r, r.threshold),
+      alertValue(r, r.lastValue),
+      `${r.windowMinutes}m`,
+      r.lastTraces === null ? "-" : String(r.lastTraces),
+      r.lastEvaluatedAt ?? "never",
+    ]),
+  );
+}
+
+/** Parse a window such as `30m`, `6h` or `7d` into minutes (1 minute to 30 days). */
+function windowMinutes(value: string): number {
+  const match = /^(\d+)\s*(m|h|d)$/i.exec(value.trim());
+  if (!match)
+    throw new CliError(`--window expects an age such as 30m or 6h, got '${value}'`, EXIT.usage);
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? "m").toLowerCase();
+  const minutes = unit === "m" ? amount : unit === "h" ? amount * 60 : amount * 1440;
+  if (minutes < 1 || minutes > 43_200)
+    throw new CliError("--window must be between 1m and 30d", EXIT.usage);
+  return minutes;
 }
 
 const TREND_METRIC_KEYS = [

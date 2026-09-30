@@ -830,6 +830,96 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("manages alert rules and fails the check when one is firing", async () => {
+    const rule = (state: string, lastValue: number | null) => ({
+      id: "alr_1",
+      name: "refund failures",
+      agent: "refund-agent",
+      project: null,
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 360,
+      minTraces: 1,
+      enabled: true,
+      state,
+      lastValue,
+      lastTraces: lastValue === null ? null : 4,
+      lastEvaluatedAt: lastValue === null ? null : "2026-09-30T09:00:00.000Z",
+      lastTriggeredAt: null,
+      createdAt: "2026-09-30T08:00:00.000Z",
+      updatedAt: "2026-09-30T08:00:00.000Z",
+    });
+    let firing = true;
+    const api = fakeApi({
+      "POST /api/v1/alerts/rules": (body) => ({
+        status: 201,
+        body: { ...rule("ok", null), ...(body as object) },
+      }),
+      "GET /api/v1/alerts/rules": () => ({ body: { items: [rule("firing", 0.75)] } }),
+      "POST /api/v1/alerts/evaluate": () => ({
+        body: {
+          items: [
+            firing
+              ? { rule: rule("firing", 0.75), transition: "fired" }
+              : { rule: rule("ok", 0.25), transition: "resolved" },
+          ],
+        },
+      }),
+      "DELETE /api/v1/alerts/rules/alr_1": () => ({ status: 204, body: null }),
+    });
+    expect(
+      await runWith(api, [
+        "alerts",
+        "add",
+        "refund failures",
+        "--metric",
+        "failure_rate",
+        "--threshold",
+        "0.5",
+        "--agent",
+        "refund-agent",
+        "--window",
+        "6h",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      name: "refund failures",
+      metric: "failure_rate",
+      threshold: 0.5,
+      agent: "refund-agent",
+      windowMinutes: 360,
+      minTraces: 1,
+    });
+    expect(api.captured.out.join("\n")).toContain("fires when failure_rate >= 0.5 over 360m");
+
+    expect(await runWith(api, ["alerts", "list"])).toBe(0);
+    expect(api.captured.out.join("\n")).toMatch(
+      /refund failures\s+firing\s+refund-agent\s+failure_rate\s+50%\s+75%/,
+    );
+
+    expect(await runWith(api, ["alerts", "check"])).toBe(1);
+    expect(api.captured.err.join("\n")).toContain("firing: refund failures");
+    firing = false;
+    expect(await runWith(api, ["alerts", "check"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("0 of 1 rule(s) firing");
+
+    expect(await runWith(api, ["alerts", "remove", "refund failures"])).toBe(0);
+    expect(await runWith(api, ["alerts", "remove", "nope"])).toBe(4);
+    expect(
+      await runWith(api, [
+        "alerts",
+        "add",
+        "x",
+        "--metric",
+        "tool_errors",
+        "--threshold",
+        "1",
+        "--window",
+        "soon",
+      ]),
+    ).toBe(2);
+  });
+
   it("prints an agent trend as a sparkline and a table", async () => {
     const point = (start: string, traces: number, failed: number, cost: number) => ({
       start,

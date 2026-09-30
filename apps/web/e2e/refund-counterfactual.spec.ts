@@ -525,6 +525,45 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
   });
 
+  test("firing alert rules are shown on the agents page", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const created = await request.post(`${apiUrl}/api/v1/traces`, {
+      data: { project: "e2e", agent: "alert-bot", name: "alert e2e run" },
+    });
+    const { id } = (await created.json()) as { id: string };
+    await request.post(`${apiUrl}/api/v1/traces/${id}/events`, {
+      data: {
+        events: [
+          { eventType: "trace.started", name: "trace.started" },
+          {
+            eventType: "trace.failed",
+            name: "trace.failed",
+            severity: "error",
+            output: { error: { message: "boom" } },
+          },
+        ],
+      },
+    });
+    const name = `alert-bot failures ${Date.now()}`;
+    const rule = await request.post(`${apiUrl}/api/v1/alerts/rules`, {
+      data: { name, agent: "alert-bot", metric: "failure_rate", threshold: 0.5, windowMinutes: 60 },
+    });
+    expect(rule.status()).toBe(201);
+    const { id: ruleId } = (await rule.json()) as { id: string };
+    try {
+      await request.post(`${apiUrl}/api/v1/alerts/evaluate`, { data: {} });
+      await page.goto("/agents");
+      const row = page.locator('[data-testid="alert-row"]', { hasText: name });
+      await expect(row).toContainText("failure rate 100% (threshold 50%) over the last 1h");
+      await expect(row).toContainText("for alert-bot");
+    } finally {
+      await request.delete(`${apiUrl}/api/v1/alerts/rules/${ruleId}`);
+      await request.delete(`${apiUrl}/api/v1/traces/${id}`);
+    }
+    await page.reload();
+    await expect(page.locator('[data-testid="alert-row"]', { hasText: name })).toHaveCount(0);
+  });
+
   test("an agent's trend is charted with hover details and a table", async ({ page }) => {
     await page.goto("/agents");
     const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');

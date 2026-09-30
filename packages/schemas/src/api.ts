@@ -11,6 +11,7 @@ import {
   traceSchema,
   traceStatusSchema,
   BATCH_JOB_STATUSES,
+  alertMetricSchema,
 } from "./entities.js";
 import { eventSchema, ingestEventSchema } from "./events.js";
 import { idSchema } from "./ids.js";
@@ -272,6 +273,31 @@ export const batchCounterfactualBodySchema = z
     }
   });
 export type BatchCounterfactualBody = z.infer<typeof batchCounterfactualBodySchema>;
+
+export const createAlertRuleBodySchema = z.object({
+  name: z.string().trim().min(1).max(128),
+  agent: z.string().min(1).max(64).optional(),
+  project: z.string().min(1).max(64).optional(),
+  metric: alertMetricSchema,
+  threshold: z.number().nonnegative(),
+  /** 1 minute to 30 days (default 60 minutes). */
+  windowMinutes: z.number().int().min(1).max(43_200).default(60),
+  minTraces: z.number().int().min(1).max(100_000).default(1),
+  enabled: z.boolean().default(true),
+});
+export type CreateAlertRuleBody = z.infer<typeof createAlertRuleBodySchema>;
+
+export const updateAlertRuleBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(128),
+    threshold: z.number().nonnegative(),
+    windowMinutes: z.number().int().min(1).max(43_200),
+    minTraces: z.number().int().min(1).max(100_000),
+    enabled: z.boolean(),
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, { message: "nothing to update" });
+export type UpdateAlertRuleBody = z.infer<typeof updateAlertRuleBodySchema>;
 
 export const MAX_SHARE_HOURS = 24 * 30;
 

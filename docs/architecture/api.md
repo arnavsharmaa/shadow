@@ -566,6 +566,70 @@ stored `Artifact`.
 
 Returns one `Artifact` or `404`.
 
+## Alerts
+
+Threshold rules over recent traces, the first step towards anomaly alerting. A rule measures one
+metric over the traces that started inside its window, optionally scoped to an agent or project,
+and fires while the value is at or above its threshold.
+
+| Metric              | Value                                                     |
+| ------------------- | --------------------------------------------------------- |
+| `failure_rate`      | failed traces divided by finished traces (0 to 1)         |
+| `policy_violations` | traces whose outcome is a policy violation                |
+| `tool_errors`       | failed tool calls, summed                                 |
+| `total_cost`        | estimated cost, summed                                    |
+| `p95_duration_ms`   | 95th percentile duration of finished traces, milliseconds |
+
+### `GET /api/v1/alerts/rules`
+
+`{ items: [AlertRule] }` sorted by name. An `AlertRule` is `{ id, name, agent, project, metric,
+threshold, windowMinutes, minTraces, enabled, state, lastValue, lastTraces, lastEvaluatedAt,
+lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or `firing`.
+
+### `POST /api/v1/alerts/rules`
+
+Body `{ name, metric, threshold, agent?, project?, windowMinutes?, minTraces?, enabled? }`.
+`windowMinutes` is 1 to 43200 (default 60); `minTraces` (default 1) is how many traces the window
+must hold before the rule can fire, which keeps a single failed run from tripping a rate rule.
+Returns `201`; `409` for a duplicate name, `400` for a `failure_rate` threshold above 1. At most
+200 rules.
+
+### `GET | PATCH | DELETE /api/v1/alerts/rules/:ruleId`
+
+`PATCH` accepts `{ name?, threshold?, windowMinutes?, minTraces?, enabled? }`; disabling a rule
+resets it to `ok`. `DELETE` answers `204`. Creating, changing and deleting rules is audited.
+
+### `POST /api/v1/alerts/evaluate`
+
+Evaluates every enabled rule now and returns `{ items: [{ rule, transition }] }` with
+`transition` `fired`, `resolved` or `none`. The API also evaluates on a timer, every
+`SHADOW_ALERT_INTERVAL_MINUTES` (default 5; `0` turns the timer off). Only a change of state
+notifies: with `SHADOW_WEBHOOK_URL` set, the webhook receives `alert.firing` when a rule crosses
+its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHOOK_EVENTS`:
+
+```json
+{
+  "type": "alert.firing",
+  "sentAt": "2026-09-30T09:05:00.000Z",
+  "rule": {
+    "id": "alr_…",
+    "name": "refund failures",
+    "agent": "refund-agent",
+    "project": null,
+    "metric": "failure_rate",
+    "threshold": 0.5,
+    "windowMinutes": 360
+  },
+  "value": 0.75,
+  "traces": 4
+}
+```
+
+`shadow_alert_transitions_total{transition}` on `/metrics` counts state changes. The Agents page
+shows firing rules in a banner. CLI: `shadow alerts list`, `shadow alerts add <name> --metric
+failure_rate --threshold 0.5 --agent refund-agent --window 6h`, `shadow alerts remove
+<nameOrId>` and `shadow alerts check`, which evaluates and exits 1 while any rule is firing.
+
 ## Share links
 
 Read-only links that hand one trace to someone who has no API token, for example a vendor or a
@@ -730,6 +794,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`               |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)              |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                       |
+| `SHADOW_ALERT_INTERVAL_MINUTES`     | `5`                                           | how often alert rules are evaluated (`0` disables)       |
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables) |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set               |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                     |
@@ -771,7 +836,8 @@ includes policy violations), `policy_violations` only, or `all`. The body is:
 }
 ```
 
-Headers: `x-shadow-event: trace.finished`, `x-shadow-delivery: <traceId>:<sentAt>` and, when
+Headers: `x-shadow-event` (the notification type, `trace.finished` here or `alert.firing` /
+`alert.resolved` for [alerts](#alerts)), `x-shadow-delivery: <traceId or ruleId>:<sentAt>` and, when
 `SHADOW_WEBHOOK_SECRET` is set, `x-shadow-signature-256: sha256=<HMAC-SHA256 hex of the body>`
 so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
 are retried three times with backoff, other rejections are logged once. `/health` reports

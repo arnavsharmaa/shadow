@@ -91,6 +91,8 @@ const configSchema = z.object({
     .transform((v) => (v.trim().length > 0 ? v.trim() : undefined)),
   /** How often the retention sweep runs (minutes). */
   SHADOW_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(10_080).default(60),
+  /** How often alert rules are evaluated (minutes); 0 turns the timer off. */
+  SHADOW_ALERT_INTERVAL_MINUTES: z.coerce.number().int().min(0).max(1440).default(5),
   NODE_ENV: z.string().default("development"),
 });
 

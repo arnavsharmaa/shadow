@@ -149,6 +149,11 @@ export class ShadowMetrics {
     "Finished traces forwarded to the OTLP collector, by result.",
     ["result"],
   );
+  readonly alertTransitions = new Counter(
+    "shadow_alert_transitions_total",
+    "Alert rules that started firing or resolved.",
+    ["transition"],
+  );
   readonly pruned = new Counter(
     "shadow_traces_pruned_total",
     "Traces deleted by prune or retention.",
@@ -168,6 +173,7 @@ export class ShadowMetrics {
       this.comparisons,
       this.otlpRequests,
       this.otlpExports,
+      this.alertTransitions,
       this.pruned,
     ]) {
       lines.push(...metric.render());

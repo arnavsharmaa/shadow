@@ -11,6 +11,13 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules: thresholds on failure rate, policy violations, tool errors, estimated cost or p95
+  duration over a look-back window, optionally scoped to an agent or project and guarded by a
+  minimum trace count (new `alert_rules` table, migration `0006_alert_rules`). The API evaluates
+  them every `SHADOW_ALERT_INTERVAL_MINUTES` and on `POST /api/v1/alerts/evaluate`, and sends
+  `alert.firing` / `alert.resolved` to the webhook only when a rule changes state. Rules are
+  managed at `/api/v1/alerts/rules` and with `shadow alerts list|add|remove|check` (`check` exits
+  1 while anything is firing), and the Agents page shows firing rules in a banner.
 - Agent trends: `GET /api/v1/stats/agents/:agentSlug/timeseries` buckets one agent's traces by
   UTC day or hour with every bucket present (volume, completions, failures, policy violations,
   mean and p95 duration, estimated cost, tokens). The Agents page gains a "Trend" button that

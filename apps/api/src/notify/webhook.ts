@@ -21,6 +21,25 @@ export interface TraceFinishedNotification {
   reason: "failed" | "policy_violation" | "all";
 }
 
+/** An alert rule changed state (`alert.firing` when it crosses its threshold, `alert.resolved` after). */
+export interface AlertNotification {
+  type: "alert.firing" | "alert.resolved";
+  sentAt: string;
+  rule: {
+    id: string;
+    name: string;
+    agent: string | null;
+    project: string | null;
+    metric: string;
+    threshold: number;
+    windowMinutes: number;
+  };
+  value: number | null;
+  traces: number;
+}
+
+type Notification = TraceFinishedNotification | AlertNotification;
+
 export interface WebhookOptions {
   config: Pick<ApiConfig, "SHADOW_WEBHOOK_URL" | "SHADOW_WEBHOOK_SECRET" | "SHADOW_WEBHOOK_EVENTS">;
   logger: Logger;
@@ -36,6 +55,8 @@ export interface Webhook {
   traceFinished(
     input: Omit<TraceFinishedNotification, "type" | "sentAt" | "reason">,
   ): Promise<void>;
+  /** Send an alert state change; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
+  alert(input: Omit<AlertNotification, "sentAt">): Promise<void>;
   /** Outstanding deliveries, so shutdown can wait for them. */
   settle(): Promise<void>;
 }
@@ -71,14 +92,16 @@ export function createWebhook(options: WebhookOptions): Webhook {
   const backoffMs = options.backoffMs ?? 250;
   const inflight = new Set<Promise<void>>();
 
-  const deliver = async (notification: TraceFinishedNotification): Promise<void> => {
+  const deliver = async (notification: Notification): Promise<void> => {
     if (!url) return;
     const body = JSON.stringify(notification);
+    const subject =
+      notification.type === "trace.finished" ? notification.trace.id : notification.rule.id;
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "user-agent": "shadow-webhook",
       "x-shadow-event": notification.type,
-      "x-shadow-delivery": `${notification.trace.id}:${notification.sentAt}`,
+      "x-shadow-delivery": `${subject}:${notification.sentAt}`,
     };
     if (secret) headers["x-shadow-signature-256"] = sign(secret, body);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -90,29 +113,26 @@ export function createWebhook(options: WebhookOptions): Webhook {
           signal: AbortSignal.timeout(10_000),
         });
         if (response.ok) {
-          options.logger.debug({ traceId: notification.trace.id, attempt }, "webhook delivered");
+          options.logger.debug({ subject, attempt }, "webhook delivered");
           return;
         }
         if (response.status < 500 && response.status !== 429) {
           options.logger.warn(
-            { traceId: notification.trace.id, status: response.status },
+            { subject, status: response.status },
             "webhook rejected; not retrying",
           );
           return;
         }
         options.logger.warn(
-          { traceId: notification.trace.id, status: response.status, attempt },
+          { subject, status: response.status, attempt },
           "webhook delivery failed",
         );
       } catch (error) {
-        options.logger.warn(
-          { traceId: notification.trace.id, attempt, err: error },
-          "webhook delivery failed",
-        );
+        options.logger.warn({ subject, attempt, err: error }, "webhook delivery failed");
       }
       if (attempt < maxAttempts) await sleep(backoffMs * 2 ** (attempt - 1));
     }
-    options.logger.error({ traceId: notification.trace.id, url }, "webhook delivery gave up");
+    options.logger.error({ subject, url }, "webhook delivery gave up");
   };
 
   return {
@@ -131,6 +151,14 @@ export function createWebhook(options: WebhookOptions): Webhook {
       inflight.add(task);
       await task;
     },
+    async alert(input) {
+      if (!url) return;
+      const task = deliver({ ...input, sentAt: new Date().toISOString() }).finally(() =>
+        inflight.delete(task),
+      );
+      inflight.add(task);
+      await task;
+    },
     async settle() {
       await Promise.allSettled([...inflight]);
     },
@@ -141,5 +169,6 @@ export function createWebhook(options: WebhookOptions): Webhook {
 export const noopWebhook: Webhook = {
   enabled: false,
   traceFinished: async () => undefined,
+  alert: async () => undefined,
   settle: async () => undefined,
 };

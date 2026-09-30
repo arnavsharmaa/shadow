@@ -8,6 +8,7 @@ import { createWebhook } from "./notify/webhook.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
 import { failInterruptedJobs } from "./services/batch.js";
 import { createRetention } from "./retention.js";
+import { createAlertEvaluator } from "./alerts.js";
 import { isDatabaseEmpty, seedDemoData } from "./seed/seed.js";
 import { createServiceContext } from "./services/context.js";
 
@@ -78,6 +79,7 @@ async function main(): Promise<void> {
 
   const app = await buildApp({ config, services, logger });
   const retention = createRetention({ services, config, logger });
+  const alertEvaluator = createAlertEvaluator({ services, config, logger });
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -91,6 +93,7 @@ async function main(): Promise<void> {
     timer.unref();
     try {
       retention.stop();
+      alertEvaluator.stop();
       await app.close();
       await webhook.settle();
       await otlpForwarder.settle();
@@ -111,6 +114,7 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.SHADOW_API_HOST, port: config.SHADOW_API_PORT });
   retention.start();
+  alertEvaluator.start();
   logger.info(
     {
       url: `http://${config.SHADOW_API_HOST}:${config.SHADOW_API_PORT}`,

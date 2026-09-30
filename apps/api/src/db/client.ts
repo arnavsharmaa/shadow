@@ -52,7 +52,7 @@ export function migrationsFolder(): string {
 }
 
 const RESET_STATEMENTS = [
-  "DROP TABLE IF EXISTS trace_shares, audit_log, batch_jobs, saved_views, artifacts, comparisons, replays, forks, state_snapshots, events, branches, traces, agents, projects CASCADE",
+  "DROP TABLE IF EXISTS alert_rules, trace_shares, audit_log, batch_jobs, saved_views, artifacts, comparisons, replays, forks, state_snapshots, events, branches, traces, agents, projects CASCADE",
   "DROP SCHEMA IF EXISTS drizzle CASCADE",
 ];
 

@@ -25,6 +25,7 @@ export const ID_PREFIXES = {
   job: "job",
   audit: "aud",
   share: "shr",
+  alert: "alr",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

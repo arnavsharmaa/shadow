@@ -47,8 +47,9 @@ machine or inside a trusted network:
   anyone who can reach the API can create traces.
 - **Webhooks send trace summaries out.** With `SHADOW_WEBHOOK_URL` set, the API posts the id,
   name, project, agent, status, outcome, timestamps and tags of finished traces (never event
-  payloads) to that URL. Set `SHADOW_WEBHOOK_SECRET` so receivers can verify the HMAC signature,
-  and use HTTPS.
+  payloads) to that URL, plus alert state changes with the rule's name, scope, threshold and
+  measured value. Set `SHADOW_WEBHOOK_SECRET` so receivers can verify the HMAC signature, and
+  use HTTPS.
 - **OTLP forwarding sends full traces out.** With `SHADOW_OTLP_EXPORT_URL` set, every finished
   trace, including redacted model messages, tool arguments and results, is exported as
   OpenTelemetry spans to that collector. Point it only at infrastructure you trust, use HTTPS

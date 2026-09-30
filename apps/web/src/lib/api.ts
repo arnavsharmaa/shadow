@@ -1,4 +1,5 @@
 import type {
+  AlertRule,
   Artifact,
   AuditEntry,
   BatchJob,
@@ -324,6 +325,7 @@ export const api = {
       to: string;
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
+  alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
   /** A shared trace bundle; the token in the path is the credential. */
   sharedTrace: (token: string) =>
     request<TraceExport>("GET", `/api/v1/shared/${encodeURIComponent(token)}`),
