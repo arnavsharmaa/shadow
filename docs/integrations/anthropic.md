@@ -1,9 +1,81 @@
 # Anthropic tool-use traces
 
-> **Status: design proposal for v0.2. Not implemented in v0.1.** Presented for review; details
-> may change. Anthropic Messages API calls can be recorded today by wrapping them with
-> `trace.model()` and executing tool calls through `trace.tool()` (see
-> [custom-runtime.md](./custom-runtime.md)).
+> **Status: the importer for stored message histories is implemented** (`POST
+/api/v1/import/anthropic`, `shadow import anthropic <file>`). The live wrapper
+> (`traceAnthropic`, `runToolLoop`) and deterministic replay are still a design proposal; until
+> then, live Messages API calls can be recorded by wrapping them with `trace.model()` and
+> executing tool calls through `trace.tool()` (see [custom-runtime.md](./custom-runtime.md)).
+
+## Importing a conversation
+
+Save the conversation your application already has, the `messages` array it sends to the
+Messages API with every assistant turn appended, as JSON and import it:
+
+```bash
+shadow import anthropic examples/anthropic-messages/refund-conversation.json
+shadow import anthropic messages.json --agent claude-refund-agent --model claude-opus-5-5
+```
+
+The file is either a bare `messages` array or an object:
+
+```json
+{
+  "project": "support",
+  "agent": "claude-refund-agent",
+  "model": "claude-opus-5-5",
+  "system": "You are a customer-support agent…",
+  "tools": [{ "name": "lookup_order", "input_schema": {} }],
+  "messages": [
+    { "role": "user", "content": "My headphones arrived broken." },
+    {
+      "role": "assistant",
+      "content": [{ "type": "tool_use", "id": "toolu_1", "name": "lookup_order", "input": {} }]
+    },
+    {
+      "role": "user",
+      "content": [{ "type": "tool_result", "tool_use_id": "toolu_1", "content": "…" }]
+    }
+  ],
+  "responses": [
+    {
+      "id": "msg_1",
+      "stop_reason": "tool_use",
+      "usage": { "input_tokens": 412, "output_tokens": 58 }
+    }
+  ]
+}
+```
+
+`responses` is optional: one entry per assistant message, in order, carrying what the API
+returned next to the content (`stop_reason`, `usage`, `model`, `id`). Without it the stop reason
+is inferred (`tool_use` when the turn has `tool_use` blocks, otherwise `end_turn`) and flagged
+`metadata.anthropic.stopReasonInferred`, and the turn has no token usage. Everything else
+defaults: project `anthropic`, agent `claude-agent`, the trace name is the first user message.
+
+What the importer does today, relative to the mapping below:
+
+- Each assistant message is one model span named `turn-N`. Its `model.request` carries the
+  messages added since the previous call (the system prompt on the first), not the whole
+  history; the full conversation is the trace's state, appended message by message at
+  `/messages/-`, so the state inspector shows the history as of any event.
+- `tool_use` blocks open tool spans that the matching `tool_result` blocks of the next user
+  message close (`tool.error` when `is_error` is true). Server tools (`server_tool_use` with its
+  `*_tool_result` block in the same assistant message) become tool spans flagged
+  `metadata.anthropic.server`; an error object in the result becomes `tool.error`.
+- `thinking` blocks become `agent.note` events named `thinking` (severity `debug`);
+  `redacted_thinking` and thinking returned with empty text are noted as `{ redacted: true }`.
+- `usage.cache_read_input_tokens` becomes `cachedInputTokens`; cache creation tokens go to
+  `metadata.anthropic.usage`.
+- The system prompt and tool names are context (`system`, `tools`); a mid-conversation
+  `role: "system"` message updates the `system` context.
+- The trace ends `completed` with an outcome of `completed`, `truncated` (`max_tokens`),
+  `refusal` or `incomplete` (the history ends on a user message or an unanswered tool call).
+  The response reports `unmatchedToolUses` and `orphanToolResults` so gaps in a log are visible.
+- Timestamps are synthetic: the log has none, so events are one millisecond apart from
+  `startedAt` (default: the time of import) and durations are not meaningful.
+
+Imported conversations can be inspected, searched, compared and forked into what-if branches,
+but not replayed: there is no program to re-run.
 
 ## Goal
 

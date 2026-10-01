@@ -194,6 +194,7 @@ shadow traces list --project support-agent --status failed
 shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow agents --from 7d
 shadow otlp import ./collector-export.json
+shadow import anthropic examples/anthropic-messages/refund-conversation.json
 shadow otlp export trc_demo_refund_violation --collector http://localhost:4318/v1/traces
 shadow traces inspect trc_demo_refund_violation
 shadow traces inspect trc_demo_refund_violation --grep refund_order
@@ -254,6 +255,7 @@ GET  /api/v1/branches/:branchId           PATCH/DELETE /api/v1/branches/:branchI
 GET  /api/v1/branches/:branchId/state     POST /api/v1/branches/:branchId/replay
 GET  /api/v1/comparisons                  POST /api/v1/comparisons
 GET  /api/v1/comparisons/:comparisonId    POST /api/v1/otlp/v1/traces
+POST /api/v1/import/anthropic
 GET  /api/v1/views                        POST /api/v1/views   DELETE /api/v1/views/:viewId
 GET  /api/v1/batch/jobs                   GET  /api/v1/batch/jobs/:jobId   POST …/:jobId/cancel
 GET  /api/v1/audit                        POST /api/v1/traces/:traceId/shares

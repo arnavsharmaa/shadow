@@ -22,6 +22,7 @@ import { auditRoutes } from "./routes/audit.js";
 import { shareRoutes } from "./routes/shares.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { collectionRoutes } from "./routes/collections.js";
+import { importRoutes } from "./routes/import.js";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
@@ -297,6 +298,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(shareRoutes, { prefix: "/api/v1" });
   await app.register(alertRoutes, { prefix: "/api/v1" });
   await app.register(collectionRoutes, { prefix: "/api/v1" });
+  await app.register(importRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

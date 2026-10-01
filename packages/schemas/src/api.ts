@@ -334,6 +334,62 @@ export const updateAlertRuleBodySchema = z
   .refine((body) => Object.keys(body).length > 0, { message: "nothing to update" });
 export type UpdateAlertRuleBody = z.infer<typeof updateAlertRuleBodySchema>;
 
+/** Anthropic Messages API content: a plain string or a list of content blocks, kept verbatim. */
+const anthropicContentSchema = z.union([
+  z.string(),
+  z.array(z.looseObject({ type: z.string().min(1).max(64) })).max(2000),
+]);
+
+/**
+ * A stored Anthropic Messages API conversation to import as a trace: the `messages` array as it
+ * was sent to (and returned by) the API, plus the optional `system` prompt and `tools`. Response
+ * metadata (`stop_reason`, `usage`, `model`) can be supplied per assistant turn in `responses`,
+ * in the order the assistant messages appear.
+ */
+export const importAnthropicBodySchema = z.object({
+  project: z.string().min(1).max(64).default("anthropic"),
+  agent: z.string().min(1).max(64).default("claude-agent"),
+  name: z.string().min(1).max(256).optional(),
+  traceId: idSchema.optional(),
+  tags: z.array(z.string().min(1).max(64)).max(32).default([]),
+  metadata: jsonObjectSchema.optional(),
+  startedAt: z.iso.datetime({ offset: true }).optional(),
+  model: z.string().min(1).max(128).optional(),
+  system: anthropicContentSchema.optional(),
+  tools: z
+    .array(z.looseObject({ name: z.string().min(1).max(128) }))
+    .max(500)
+    .optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant", "system"]),
+        content: anthropicContentSchema,
+      }),
+    )
+    .min(1)
+    .max(2000),
+  responses: z
+    .array(
+      z.looseObject({
+        id: z.string().max(128).optional(),
+        model: z.string().max(128).optional(),
+        stop_reason: z.string().max(64).nullable().optional(),
+        usage: z
+          .looseObject({
+            input_tokens: z.number().int().nonnegative().optional(),
+            output_tokens: z.number().int().nonnegative().optional(),
+            cache_read_input_tokens: z.number().int().nonnegative().nullable().optional(),
+            cache_creation_input_tokens: z.number().int().nonnegative().nullable().optional(),
+          })
+          .optional(),
+      }),
+    )
+    .max(2000)
+    .optional(),
+});
+export type ImportAnthropicBody = z.infer<typeof importAnthropicBodySchema>;
+
 export const MAX_SHARE_HOURS = 24 * 30;
 
 export const createShareBodySchema = z.object({

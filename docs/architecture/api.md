@@ -751,6 +751,21 @@ validation_error`.
 <nameOrId>`, and `shadow traces list --view <name>` lists traces through a view (explicit options
 override its filters).
 
+## Conversation import
+
+### `POST /api/v1/import/anthropic`
+
+Imports a stored Anthropic Messages API conversation as a new trace (`source: "anthropic"`, tag
+`anthropic`). Body `{ messages, system?, tools?, model?, responses?, project?, agent?, name?,
+traceId?, tags?, metadata?, startedAt? }`: `messages` is the array as sent to the API (1 to 2000
+entries of `{ role: "user" | "assistant" | "system", content }` with content blocks kept
+verbatim), and `responses` optionally supplies `stop_reason`, `usage`, `model` and `id` per
+assistant message. Returns `201 { traceId, name, events, summary: { turns, toolCalls,
+serverToolCalls, unmatchedToolUses, orphanToolResults, stopReason } }`; `409` when `traceId`
+exists, `400` for malformed bodies. The mapping to model spans, tool spans, notes, context and
+state is described in [the Anthropic integration](../integrations/anthropic.md). CLI: `shadow
+import anthropic <file> [--agent …] [--model …] [--tag …]`.
+
 ## OpenTelemetry ingestion
 
 ### `POST /api/v1/otlp/v1/traces`

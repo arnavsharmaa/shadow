@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Anthropic Messages import: `POST /api/v1/import/anthropic` and `shadow import anthropic
+  <file>` turn a stored Messages API conversation (the `messages` array, plus optional `system`,
+  `tools` and per-turn `responses` metadata) into a trace: one model span per assistant turn,
+  tool spans paired through `tool_use` / `tool_result` ids, server tools, thinking notes, token
+  usage with cache reads, the system prompt and tool list as context, and the conversation as
+  state at `/messages`. `examples/anthropic-messages` has a sample conversation.
 - Trace collections: named groups of traces (incidents, experiments, review queues) stored in
   new `collections` and `collection_traces` tables (migration `0007_collections`). Collections are
   managed at `/api/v1/collections`, `GET /api/v1/traces?collection=<name>` filters by one (also

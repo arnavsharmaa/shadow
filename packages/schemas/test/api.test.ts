@@ -6,6 +6,7 @@ import {
   createCollectionBodySchema,
   createShareBodySchema,
   eventListQuerySchema,
+  importAnthropicBodySchema,
   pageSchema,
   updateAlertRuleBodySchema,
   updateCollectionBodySchema,
@@ -132,5 +133,39 @@ describe("createShareBodySchema", () => {
     expect(createShareBodySchema.parse({})).toEqual({ expiresInHours: 168 });
     expect(createShareBodySchema.safeParse({ expiresInHours: 721 }).success).toBe(false);
     expect(createShareBodySchema.safeParse({ expiresInHours: 0 }).success).toBe(false);
+  });
+});
+
+describe("importAnthropicBodySchema", () => {
+  it("defaults the project, agent and tags and keeps content blocks verbatim", () => {
+    const parsed = importAnthropicBodySchema.parse({
+      messages: [
+        { role: "user", content: "hi" },
+        {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_1", name: "t", input: { a: 1 }, extra: true }],
+        },
+      ],
+      responses: [
+        { stop_reason: "tool_use", usage: { input_tokens: 3, output_tokens: 4, speed: "fast" } },
+      ],
+    });
+    expect(parsed).toMatchObject({ project: "anthropic", agent: "claude-agent", tags: [] });
+    expect(parsed.messages[1]?.content).toEqual([
+      { type: "tool_use", id: "toolu_1", name: "t", input: { a: 1 }, extra: true },
+    ]);
+    expect(parsed.responses?.[0]?.usage).toMatchObject({ speed: "fast" });
+  });
+
+  it("rejects empty histories, unknown roles and blocks without a type", () => {
+    expect(importAnthropicBodySchema.safeParse({ messages: [] }).success).toBe(false);
+    expect(
+      importAnthropicBodySchema.safeParse({ messages: [{ role: "tool", content: "x" }] }).success,
+    ).toBe(false);
+    expect(
+      importAnthropicBodySchema.safeParse({
+        messages: [{ role: "user", content: [{ text: "x" }] }],
+      }).success,
+    ).toBe(false);
   });
 });

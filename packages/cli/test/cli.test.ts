@@ -830,6 +830,65 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("imports an Anthropic Messages conversation from a file", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-anthropic-"));
+    const messages = [
+      { role: "user", content: "refund ord_1" },
+      { role: "assistant", content: [{ type: "text", text: "done" }] },
+    ];
+    const bare = path.join(dir, "messages.json");
+    const full = path.join(dir, "conversation.json");
+    await writeFile(bare, JSON.stringify(messages));
+    await writeFile(full, JSON.stringify({ agent: "from-file", tags: ["a"], messages }));
+    const api = fakeApi({
+      "POST /api/v1/import/anthropic": () => ({
+        status: 201,
+        body: {
+          traceId: "trc_imported",
+          name: "refund ord_1",
+          events: 9,
+          summary: {
+            turns: 1,
+            toolCalls: 1,
+            serverToolCalls: 1,
+            unmatchedToolUses: 1,
+            orphanToolResults: 0,
+            stopReason: "end_turn",
+          },
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "import",
+        "anthropic",
+        bare,
+        "--agent",
+        "claude-bot",
+        "--model",
+        "claude-opus-5-5",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({
+      messages,
+      agent: "claude-bot",
+      model: "claude-opus-5-5",
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain(
+      "imported trc_imported: 1 turn(s), 2 tool call(s), 9 event(s), stop reason end_turn",
+    );
+    expect(text).toContain("1 tool call(s) have no result in the file");
+
+    expect(await runWith(api, ["import", "anthropic", full, "--tag", "b", "--json"])).toBe(0);
+    expect(api.captured.calls[1]?.body).toEqual({ agent: "from-file", tags: ["a", "b"], messages });
+
+    const notMessages = path.join(dir, "bad.json");
+    await writeFile(notMessages, JSON.stringify({ hello: "world" }));
+    expect(await runWith(api, ["import", "anthropic", notMessages])).toBe(2);
+    expect(await runWith(api, ["import", "anthropic", path.join(dir, "missing.json")])).toBe(2);
+  });
+
   it("manages collections and lists traces through one", async () => {
     const collection = (traceCount: number) => ({
       id: "col_1",
