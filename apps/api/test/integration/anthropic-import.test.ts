@@ -47,13 +47,25 @@ describe("POST /api/v1/import/anthropic", () => {
       modelCalls: 3,
       toolCalls: 3,
       toolErrors: 1,
-      inputTokens: 596,
+      inputTokens: 1660,
       outputTokens: 173,
-      totalTokens: 769,
+      totalTokens: 1833,
     });
+    // Priced from the built-in Anthropic table: cache reads at the cache rate.
+    expect(detail.trace.metrics.totalEstimatedCost).toBeCloseTo(0.0065128, 7);
 
     const events = await listAllEvents(t, "trc_anthropic_refund");
     expect(events.every((e: ShadowEvent) => e.source === "anthropic")).toBe(true);
+    expect(
+      events.find((e: ShadowEvent) => e.eventType === "model.response" && e.name === "turn-2")
+        ?.estimatedCost,
+    ).toEqual({
+      amount: 0.0024264,
+      currency: "USD",
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+      pricingVersion: "anthropic-2026-09-25",
+    });
     expect(events.map((e: ShadowEvent) => e.sequence)).toEqual([...events.keys()]);
 
     // The conversation is the trace's state, and the system prompt its context.

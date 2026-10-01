@@ -64,8 +64,11 @@ What the importer does today, relative to the mapping below:
   `metadata.anthropic.server`; an error object in the result becomes `tool.error`.
 - `thinking` blocks become `agent.note` events named `thinking` (severity `debug`);
   `redacted_thinking` and thinking returned with empty text are noted as `{ redacted: true }`.
-- `usage.cache_read_input_tokens` becomes `cachedInputTokens`; cache creation tokens go to
-  `metadata.anthropic.usage`.
+- Token usage follows Shadow's convention: `inputTokens` is the whole prompt (`input_tokens`
+  plus cache reads and cache writes, which the API reports separately) and `cachedInputTokens`
+  is `cache_read_input_tokens`; cache creation tokens are also kept in
+  `metadata.anthropic.usage`. Costs are estimated from the built-in Anthropic price table (see
+  [cost tracking](../concepts/cost-tracking.md)).
 - The system prompt and tool names are context (`system`, `tools`); a mid-conversation
   `role: "system"` message updates the `system` context.
 - The trace ends `completed` with an outcome of `completed`, `truncated` (`max_tokens`),

@@ -90,14 +90,16 @@ function usageOf(
   const usage = response?.usage;
   if (!usage || (usage.input_tokens === undefined && usage.output_tokens === undefined))
     return null;
-  const input = usage.input_tokens ?? 0;
+  // The API reports cache reads and cache writes outside `input_tokens`; in Shadow
+  // `inputTokens` is the whole prompt and `cachedInputTokens` the part served from cache.
+  const cached = usage.cache_read_input_tokens ?? 0;
+  const input = (usage.input_tokens ?? 0) + cached + (usage.cache_creation_input_tokens ?? 0);
   const output = usage.output_tokens ?? 0;
-  const cached = usage.cache_read_input_tokens ?? undefined;
   return {
     inputTokens: input,
     outputTokens: output,
     totalTokens: input + output,
-    ...(cached !== undefined && cached !== null ? { cachedInputTokens: cached } : {}),
+    ...(cached > 0 ? { cachedInputTokens: cached } : {}),
   };
 }
 

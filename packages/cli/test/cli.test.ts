@@ -830,6 +830,45 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("prints the price table", async () => {
+    const api = fakeApi({
+      "GET /api/v1/pricing": () => ({
+        body: {
+          version: "builtin",
+          items: [
+            {
+              provider: "anthropic",
+              model: "claude-opus-5-5",
+              inputPerMillion: 4,
+              outputPerMillion: 20,
+              cachedInputPerMillion: 0.2,
+              currency: "USD",
+              version: "anthropic-2026-09-25",
+            },
+            {
+              provider: "shadow-sim",
+              model: "sim-support-1",
+              inputPerMillion: 2.5,
+              outputPerMillion: 10,
+              currency: "USD",
+              version: "sim-2026.1",
+            },
+          ],
+        },
+      }),
+    });
+    expect(await runWith(api, ["pricing"])).toBe(0);
+    const text = api.captured.out.join("\n");
+    expect(text).toMatch(/anthropic\s+claude-opus-5-5\s+4\s+20\s+0\.2\s+USD/);
+    expect(text).toMatch(/shadow-sim\s+sim-support-1\s+2\.5\s+10\s+-/);
+    expect(text).toContain("2 model(s); prices are estimates");
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["pricing", "--provider", "anthropic"])).toBe(0);
+    expect(api.captured.out.join("\n")).not.toContain("shadow-sim");
+    expect(await runWith(api, ["pricing", "--provider", "nobody"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("no prices");
+  });
+
   it("imports an Anthropic Messages conversation from a file", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "shadow-anthropic-"));
     const messages = [

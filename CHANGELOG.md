@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Real model prices: the API now estimates costs at ingestion for model responses that arrive
+  with token usage but no cost (SDK, OTLP, imported conversations), using a built-in catalog
+  with Anthropic's list prices as of 2026-09-25 (cache reads priced separately). Lookups tolerate
+  platform prefixes and dated snapshot ids; `SHADOW_PRICING_FILE` adds or overrides entries;
+  `GET /api/v1/pricing` and `shadow pricing` show the table. Caller-supplied costs are never
+  replaced and unknown models stay unpriced.
 - Anthropic Messages import: `POST /api/v1/import/anthropic` and `shadow import anthropic
   <file>` turn a stored Messages API conversation (the `messages` array, plus optional `system`,
   `tools` and per-turn `responses` metadata) into a trace: one model span per assistant turn,
@@ -198,6 +204,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Fixed
 
+- Anthropic import: `inputTokens` now counts the whole prompt (uncached input plus cache reads
+  and cache writes), matching Shadow's convention that `cachedInputTokens` is a part of
+  `inputTokens`; previously cache reads could exceed the reported input.
 - The API no longer uses Fastify's deprecated `disableRequestLogging` option (`FSTDEP023` warning at
   startup); request logging is configured through `LogController`.
 

@@ -51,6 +51,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
     }),
   );
 
+  /** The price table used to estimate costs for events that arrive without one. */
+  app.get("/pricing", { schema: { tags: ["projects"] } }, async () => ({
+    version: app.services.pricing.version,
+    items: app.services.pricing.list(),
+  }));
+
   /** One agent's traces bucketed by hour or day (UTC), empty buckets included. */
   app.get(
     "/stats/agents/:agentSlug/timeseries",

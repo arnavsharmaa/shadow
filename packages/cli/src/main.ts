@@ -752,6 +752,48 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  program
+    .command("pricing")
+    .description("show the model price table the API uses to estimate costs")
+    .option("--provider <name>", "only this provider")
+    .option("--json", "print JSON")
+    .action(async (opts: { provider?: string; json?: boolean }) => {
+      const pricing = await client().get<{
+        version: string;
+        items: {
+          provider: string;
+          model: string;
+          inputPerMillion: number;
+          outputPerMillion: number;
+          cachedInputPerMillion?: number;
+          currency: string;
+          version: string;
+        }[];
+      }>("/api/v1/pricing");
+      const items = opts.provider
+        ? pricing.items.filter((p) => p.provider === opts.provider)
+        : pricing.items;
+      if (opts.json) return json({ ...pricing, items });
+      if (items.length === 0) return out("no prices");
+      out(
+        table(
+          ["PROVIDER", "MODEL", "INPUT / M", "OUTPUT / M", "CACHED / M", "CURRENCY", "VERSION"],
+          items.map((p) => [
+            p.provider,
+            p.model,
+            String(p.inputPerMillion),
+            String(p.outputPerMillion),
+            p.cachedInputPerMillion === undefined ? "-" : String(p.cachedInputPerMillion),
+            p.currency,
+            p.version,
+          ]),
+        ),
+      );
+      out(
+        `${items.length} model(s); prices are estimates, not invoices (table ${pricing.version})`,
+      );
+    });
+
   const collections = program
     .command("collections")
     .description("named groups of traces: incidents, experiments, review queues");

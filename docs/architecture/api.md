@@ -174,6 +174,12 @@ Per-agent aggregates over traces started in the range (both bounds optional, ISO
 Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
 constant in the number of events. CLI: `shadow agents --from 7d`.
 
+### `GET /api/v1/pricing`
+
+`{ version, items: [ModelPricing] }`: the price table used to estimate costs for model
+responses that arrive without one (see [cost tracking](../concepts/cost-tracking.md)), sorted by
+provider and model. CLI: `shadow pricing [--provider anthropic]`.
+
 ### `GET /api/v1/stats/agents/:agentSlug/timeseries?bucket=&from=&to=&project=`
 
 One agent's traces grouped into UTC buckets (`bucket=day`, the default, or `hour`):
@@ -824,34 +830,35 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 
 ## Configuration
 
-| Variable                            | Default                                       | Purpose                                                  |
-| ----------------------------------- | --------------------------------------------- | -------------------------------------------------------- |
-| `DATABASE_URL`                      | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://`          |
-| `SHADOW_DATA_DIR`                   | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset            |
-| `SHADOW_API_HOST`                   | `127.0.0.1`                                   |                                                          |
-| `SHADOW_API_PORT`                   | `4000`                                        |                                                          |
-| `SHADOW_LOG_LEVEL`                  | `info`                                        | pino level                                               |
-| `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                              |
-| `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty                |
-| `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                                       |
-| `SHADOW_RATE_LIMIT_PER_MINUTE`      | `0` (off)                                     | `/api/*` requests per client IP per minute               |
-| `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction          |
-| `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                          |
-| `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`      |
-| `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to |
-| `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated  |
-| `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                     |
-| `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                   |
-| `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`             |
-| `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`               |
-| `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)              |
-| `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                       |
-| `SHADOW_ALERT_INTERVAL_MINUTES`     | `5`                                           | how often alert rules are evaluated (`0` disables)       |
-| `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables) |
-| `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set               |
-| `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                     |
-| `NEXT_PUBLIC_SHADOW_ACTOR`          | `web`                                         | actor the web app reports in the audit log               |
-| `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                      |
+| Variable                            | Default                                       | Purpose                                                   |
+| ----------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| `DATABASE_URL`                      | unset (PGlite)                                | `postgres://…`, `pglite://<dir>` or `memory://`           |
+| `SHADOW_DATA_DIR`                   | `.shadow/data`                                | PGlite directory when `DATABASE_URL` is unset             |
+| `SHADOW_API_HOST`                   | `127.0.0.1`                                   |                                                           |
+| `SHADOW_API_PORT`                   | `4000`                                        |                                                           |
+| `SHADOW_LOG_LEVEL`                  | `info`                                        | pino level                                                |
+| `SHADOW_AUTO_MIGRATE`               | `true`                                        | apply migrations at startup                               |
+| `SHADOW_AUTO_SEED`                  | `true`                                        | seed demo data when the database is empty                 |
+| `SHADOW_MAX_BODY_BYTES`             | `10485760`                                    | request body limit                                        |
+| `SHADOW_RATE_LIMIT_PER_MINUTE`      | `0` (off)                                     | `/api/*` requests per client IP per minute                |
+| `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction           |
+| `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                           |
+| `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`       |
+| `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to  |
+| `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated   |
+| `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                      |
+| `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                    |
+| `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`              |
+| `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`                |
+| `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)               |
+| `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
+| `SHADOW_ALERT_INTERVAL_MINUTES`     | `5`                                           | how often alert rules are evaluated (`0` disables)        |
+| `SHADOW_PRICING_FILE`               | unset                                         | JSON price list that adds to or overrides built-in prices |
+| `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables)  |
+| `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set                |
+| `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                      |
+| `NEXT_PUBLIC_SHADOW_ACTOR`          | `web`                                         | actor the web app reports in the audit log                |
+| `NEXT_PUBLIC_SHADOW_API_URL`        | `http://localhost:4000`                       | used by the web app                                       |
 
 ### OTLP forwarding
 

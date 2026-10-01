@@ -6,6 +6,7 @@ import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { createWebhook } from "./notify/webhook.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
+import { loadPricing } from "./pricing.js";
 import { failInterruptedJobs } from "./services/batch.js";
 import { createRetention } from "./retention.js";
 import { createAlertEvaluator } from "./alerts.js";
@@ -50,6 +51,13 @@ async function main(): Promise<void> {
       "webhook enabled",
     );
   }
+  const pricing = await loadPricing(config.SHADOW_PRICING_FILE);
+  if (config.SHADOW_PRICING_FILE) {
+    logger.info(
+      { file: config.SHADOW_PRICING_FILE, models: pricing.list().length },
+      "pricing file loaded",
+    );
+  }
   const otlpForwarder = createOtlpForwarder({ config, logger });
   if (otlpForwarder.enabled) {
     logger.info(
@@ -66,6 +74,7 @@ async function main(): Promise<void> {
     }),
     webhook,
     otlpForwarder,
+    pricing,
   });
 
   const interrupted = await failInterruptedJobs(services);

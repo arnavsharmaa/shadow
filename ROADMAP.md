@@ -133,8 +133,9 @@ is welcome through GitHub issues; integration proposals have their own
   webhook notifications exist; baseline-relative anomaly detection remains).
 - Server-side sampling on ingestion (the SDK samples with `sampleRate`, and a per-client API
   rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).
-- Real pricing tables and per-provider cost providers; the bundled `shadow-sim` pricing remains
-  for demos.
+- Real pricing tables and per-provider cost providers (Anthropic list prices are built in and
+  applied at ingestion, and `SHADOW_PRICING_FILE` adds other providers; bundled tables for more
+  vendors remain). The `shadow-sim` pricing stays for demos.
 
 ### Ideas / under consideration
 

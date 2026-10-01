@@ -88,11 +88,17 @@ describe("convertAnthropicMessages", () => {
         },
       ],
     });
+    // input_tokens (96) plus cache reads (412) and cache writes (120): the whole prompt.
     expect(second?.tokenUsage).toEqual({
-      inputTokens: 96,
+      inputTokens: 628,
       outputTokens: 74,
-      totalTokens: 170,
+      totalTokens: 702,
       cachedInputTokens: 412,
+    });
+    expect(find("model.response", "turn-1")?.tokenUsage).toEqual({
+      inputTokens: 412,
+      outputTokens: 58,
+      totalTokens: 470,
     });
     expect(second?.metadata).toEqual({
       anthropic: { responseId: "msg_01b", usage: { cache_creation_input_tokens: 120 } },

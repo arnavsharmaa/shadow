@@ -1,8 +1,12 @@
 import type { ModelPricing } from "@shadow/schemas";
 import { describe, expect, it } from "vitest";
 import {
+  ANTHROPIC_MODEL_PRICING,
+  CatalogPricingProvider,
   SIMULATED_MODEL_PRICING,
   StaticPricingProvider,
+  builtinPricingProvider,
+  normalizeModelId,
   aggregateMetrics,
   defaultPricingProvider,
   estimateModelCost,
@@ -40,6 +44,61 @@ describe("StaticPricingProvider", () => {
       expect(defaultPricingProvider.lookup(entry.provider, entry.model)).toEqual(entry);
     }
     expect(defaultPricingProvider.lookup("shadow-sim", "does-not-exist")).toBeUndefined();
+  });
+});
+
+describe("CatalogPricingProvider", () => {
+  it("normalises platform prefixes and dated snapshots", () => {
+    expect(normalizeModelId("Claude-Opus-5-5")).toBe("claude-opus-5-5");
+    expect(normalizeModelId("anthropic.claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(normalizeModelId("claude-opus-4-5-20251101")).toBe("claude-opus-4-5");
+    expect(normalizeModelId("claude-opus-4-5@20251101")).toBe("claude-opus-4-5");
+    expect(normalizeModelId(" sim-support-1 ")).toBe("sim-support-1");
+  });
+
+  it("finds Anthropic prices by exact id, Bedrock id and snapshot id", () => {
+    const opus = builtinPricingProvider.lookup("anthropic", "claude-opus-5-5");
+    expect(opus).toMatchObject({
+      inputPerMillion: 4,
+      outputPerMillion: 20,
+      cachedInputPerMillion: 0.2,
+      currency: "USD",
+      version: "anthropic-2026-09-25",
+    });
+    expect(builtinPricingProvider.lookup("anthropic", "anthropic.claude-opus-5-5")).toBe(opus);
+    expect(builtinPricingProvider.lookup("Anthropic", "claude-opus-5-5-20260901")).toBe(opus);
+    // Cache reads default to a tenth of the input price where no rate is published.
+    expect(builtinPricingProvider.lookup("anthropic", "claude-haiku-4-5")).toMatchObject({
+      inputPerMillion: 1,
+      outputPerMillion: 5,
+      cachedInputPerMillion: 0.1,
+    });
+    expect(builtinPricingProvider.lookup("anthropic", "claude-unknown-9")).toBeUndefined();
+    expect(builtinPricingProvider.version).toBe("builtin-anthropic-2026-09-25");
+  });
+
+  it("falls back to the model id only when the provider is unknown to the table", () => {
+    const opus = builtinPricingProvider.lookup("anthropic", "claude-opus-5-5");
+    expect(builtinPricingProvider.lookup("unknown", "claude-opus-5-5")).toBe(opus);
+    expect(builtinPricingProvider.lookup("aws.bedrock", "anthropic.claude-opus-5-5")).toBe(opus);
+    // A known provider never borrows another provider's price.
+    expect(builtinPricingProvider.lookup("shadow-sim", "claude-opus-5-5")).toBeUndefined();
+    const ambiguous = new CatalogPricingProvider([
+      { ...pricing, provider: "a", model: "shared" },
+      { ...pricing, provider: "b", model: "shared" },
+    ]);
+    expect(ambiguous.lookup("c", "shared")).toBeUndefined();
+    expect(ambiguous.version).toBe("catalog");
+  });
+
+  it("lets later entries override earlier ones and lists the table sorted", () => {
+    const custom = { ...pricing, provider: "anthropic", model: "claude-opus-5-5", version: "mine" };
+    const provider = new CatalogPricingProvider([...ANTHROPIC_MODEL_PRICING, custom], "v");
+    expect(provider.lookup("anthropic", "claude-opus-5-5")).toBe(custom);
+    const listed = provider.list();
+    expect(listed).toHaveLength(ANTHROPIC_MODEL_PRICING.length);
+    expect(listed.map((e) => e.model)).toEqual([...listed.map((e) => e.model)].sort());
+    expect(builtinPricingProvider.list().map((e) => e.provider)).toContain("shadow-sim");
   });
 });
 

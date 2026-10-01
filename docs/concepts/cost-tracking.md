@@ -78,9 +78,45 @@ for the bundled simulator**:
 | `shadow-sim` | `sim-support-1`    | 2.50      | 10.00      | sim-2026.1 |
 | `shadow-sim` | `sim-support-mini` | 0.40      | 1.60       | sim-2026.1 |
 
-These numbers are invented for the demo and are not any vendor's prices. Real provider pricing
-tables are a roadmap item; until then, supply your own table or compute costs in your model
-implementation.
+These numbers are invented for the demo and are not any vendor's prices.
+
+### Prices for traces recorded elsewhere
+
+Events that reach the API with token usage but no cost (SDK callers without a price table, OTLP
+spans, imported conversations) are priced at ingestion. The API finds the `model.request` that
+opened the response's span, in the same batch or already stored, and looks its `provider` and
+`model` up in a `CatalogPricingProvider`. A cost supplied by the caller is never replaced, and
+an unknown model stays unpriced (`estimatedCost: null`).
+
+The built-in catalog (`builtinPricingProvider`) holds the simulator's prices and **Anthropic's
+first-party API list prices as published on 2026-09-25**, in USD per million tokens:
+
+| Model               | Input | Output | Cache read |
+| ------------------- | ----- | ------ | ---------- |
+| `claude-fable-5-1`  | 10.00 | 50.00  | 0.25       |
+| `claude-fable-5`    | 10.00 | 50.00  | 1.00       |
+| `claude-opus-5-5`   | 4.00  | 20.00  | 0.20       |
+| `claude-opus-5`     | 5.00  | 25.00  | 0.50       |
+| `claude-opus-4-8`   | 5.00  | 25.00  | 0.50       |
+| `claude-opus-4-7`   | 5.00  | 25.00  | 0.50       |
+| `claude-opus-4-6`   | 5.00  | 25.00  | 0.50       |
+| `claude-sonnet-5-5` | 2.00  | 10.00  | 0.20       |
+| `claude-sonnet-5`   | 2.00  | 10.00  | 0.20       |
+| `claude-sonnet-4-6` | 3.00  | 15.00  | 0.30       |
+| `claude-haiku-4-5`  | 1.00  | 5.00   | 0.10       |
+
+Cache reads use the published rate where one is listed and a tenth of the input price
+otherwise. Lookups ignore case, a platform prefix (`anthropic.claude-opus-5-5`) and a dated
+snapshot suffix (`claude-haiku-4-5-20251001`); when the event's provider is not in the catalog
+at all (`unknown`, `aws.bedrock`), the model id alone is used if only one provider lists it.
+
+These are list prices at one point in time. Batch discounts, cache writes (billed above the
+input rate, counted here at the input rate), long-context or fast-mode premiums and partner
+platform pricing are not modelled, so treat the result as an estimate. To correct or extend the
+table, point `SHADOW_PRICING_FILE` at a JSON array of
+`{ provider, model, inputPerMillion, outputPerMillion, cachedInputPerMillion?, currency?,
+version? }`; its entries add to or replace the built-in ones. `GET /api/v1/pricing` and `shadow
+pricing` show the table in use. No other vendor's prices are bundled.
 
 ## Costs supplied by the caller
 

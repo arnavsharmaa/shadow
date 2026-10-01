@@ -1,6 +1,8 @@
 import {
+  builtinPricingProvider,
   randomIdGenerator,
   systemClock,
+  type CatalogPricingProvider,
   type Clock,
   type IdGenerator,
   type Redactor,
@@ -29,6 +31,8 @@ export interface ServiceContext {
   otlpForwarder: OtlpForwarder;
   /** Background jobs (large batch counterfactuals), one at a time. */
   jobs: JobRunner;
+  /** Price table used to estimate costs for events that arrive without one. */
+  pricing: CatalogPricingProvider;
 }
 
 /** A forwarder that does nothing; used when no collector is configured and in tests. */
@@ -41,7 +45,10 @@ export const noopOtlpForwarder: OtlpForwarder = {
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
     Partial<
-      Pick<ServiceContext, "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder" | "jobs">
+      Pick<
+        ServiceContext,
+        "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder" | "jobs" | "pricing"
+      >
     >,
 ): ServiceContext {
   return {
@@ -51,6 +58,7 @@ export function createServiceContext(
     metrics: input.metrics ?? new ShadowMetrics(),
     webhook: input.webhook ?? noopWebhook,
     otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
+    pricing: input.pricing ?? builtinPricingProvider,
     jobs:
       input.jobs ??
       createJobRunner((jobId, error) => input.logger.error({ jobId, err: error }, "job crashed")),

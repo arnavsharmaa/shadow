@@ -20,6 +20,7 @@ import {
 import { and, asc, desc, eq, gt, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 import { agents, branches, events, projects, stateSnapshots, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
+import { applyPricing, missingOpeners } from "../pricing.js";
 import { chunk, decodeCursor, encodeCursor, type ServiceContext } from "./context.js";
 import {
   iso,
@@ -247,6 +248,23 @@ export async function ingestEvents(
       event.metadata = ctx.redactor.redact(event.metadata);
       prepared.push(event);
     }
+    // Price responses that came without a cost; their request may be in an earlier batch.
+    const openerSpans = missingOpeners(prepared);
+    const openers = new Map<string, ShadowEvent>();
+    if (openerSpans.length > 0) {
+      const rows = await tx
+        .select()
+        .from(events)
+        .where(
+          and(
+            eq(events.traceId, traceId),
+            eq(events.eventType, "model.request"),
+            inArray(events.spanId, openerSpans),
+          ),
+        );
+      for (const row of rows) if (row.spanId) openers.set(row.spanId, toEvent(row));
+    }
+    applyPricing(ctx.pricing, prepared, openers);
     for (const part of chunk(prepared)) {
       try {
         await tx.insert(events).values(part.map(toEventRow));
