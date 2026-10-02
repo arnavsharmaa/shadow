@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Baseline alert rules: `mode: "baseline"` (CLI `--baseline`) makes a rule's threshold a
+  multiple of the metric's own recent baseline, measured over the `baselineWindows` windows
+  before the current one (sums averaged per window, rates and percentiles over the whole
+  period), so a rule can say "cost is three times its usual" without a hand-picked number. Rules
+  with no history or a zero baseline stay ok. Migration `0008_alert_baselines`; the webhook
+  payload and the Agents banner show the baseline.
 - Anthropic recording in the SDK: `traceAnthropic(trace, client)` wraps an Anthropic client so
   `messages.create` and `messages.stream` (also under `client.beta`) are recorded as model spans
   with content blocks, stop reasons, token usage, thinking notes and system/tool context, and

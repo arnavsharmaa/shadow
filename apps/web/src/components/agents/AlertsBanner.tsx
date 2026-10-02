@@ -66,8 +66,11 @@ export function AlertsBanner() {
           </span>
           <span className="font-semibold">Firing: {r.name}</span>
           <span>
-            {METRIC_LABEL[r.metric]} {formatValue(r, r.lastValue)} (threshold{" "}
-            {formatValue(r, r.threshold)}) over the last {windowLabel(r.windowMinutes)}
+            {METRIC_LABEL[r.metric]} {formatValue(r, r.lastValue)}{" "}
+            {r.mode === "baseline"
+              ? `(${r.threshold}× the baseline of ${formatValue(r, r.lastBaseline)})`
+              : `(threshold ${formatValue(r, r.threshold)})`}{" "}
+            over the last {windowLabel(r.windowMinutes)}
             {r.agent ? ` for ${r.agent}` : ""}
           </span>
           <span className="text-fg-muted">

@@ -631,15 +631,27 @@ lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or `firing`.
 
 ### `POST /api/v1/alerts/rules`
 
-Body `{ name, metric, threshold, agent?, project?, windowMinutes?, minTraces?, enabled? }`.
+Body `{ name, metric, threshold, mode?, baselineWindows?, agent?, project?, windowMinutes?,
+minTraces?, enabled? }`.
 `windowMinutes` is 1 to 43200 (default 60); `minTraces` (default 1) is how many traces the window
 must hold before the rule can fire, which keeps a single failed run from tripping a rate rule.
 Returns `201`; `409` for a duplicate name, `400` for a `failure_rate` threshold above 1. At most
 200 rules.
 
+`mode` is `threshold` (default) or `baseline`. A baseline rule compares the metric with its own
+recent history instead of a fixed number: `threshold` is then a multiplier (above 1) and the rule
+fires while the current window's value is at least `threshold` times the baseline. The baseline
+is the same metric over the `baselineWindows` windows (1 to 90, default 7) immediately before
+the current one: sums (`policy_violations`, `tool_errors`, `total_cost`) are averaged per
+window, while `failure_rate` and `p95_duration_ms` are taken over the whole baseline period. A
+rule with no baseline data, or a baseline of zero, stays `ok`, since there is nothing to
+compare against. The window plus its baseline may span at most 90 days. `lastBaseline` on the
+rule and `baseline` in the webhook payload carry the value used.
+
 ### `GET | PATCH | DELETE /api/v1/alerts/rules/:ruleId`
 
-`PATCH` accepts `{ name?, threshold?, windowMinutes?, minTraces?, enabled? }`; disabling a rule
+`PATCH` accepts `{ name?, threshold?, baselineWindows?, windowMinutes?, minTraces?, enabled? }`
+(the metric and mode are fixed; delete and recreate to change them); disabling a rule
 resets it to `ok`. `DELETE` answers `204`. Creating, changing and deleting rules is audited.
 
 ### `POST /api/v1/alerts/evaluate`
@@ -660,17 +672,20 @@ its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHO
     "agent": "refund-agent",
     "project": null,
     "metric": "failure_rate",
+    "mode": "threshold",
     "threshold": 0.5,
     "windowMinutes": 360
   },
   "value": 0.75,
+  "baseline": null,
   "traces": 4
 }
 ```
 
 `shadow_alert_transitions_total{transition}` on `/metrics` counts state changes. The Agents page
 shows firing rules in a banner. CLI: `shadow alerts list`, `shadow alerts add <name> --metric
-failure_rate --threshold 0.5 --agent refund-agent --window 6h`, `shadow alerts remove
+failure_rate --threshold 0.5 --agent refund-agent --window 6h` (add `--baseline
+[--baseline-windows 14]` to make `--threshold` a multiple of the baseline), `shadow alerts remove
 <nameOrId>` and `shadow alerts check`, which evaluates and exits 1 while any rule is firing.
 
 ## Share links

@@ -990,6 +990,9 @@ describe("shadow cli", () => {
       agent: "refund-agent",
       project: null,
       metric: "failure_rate",
+      mode: "threshold",
+      baselineWindows: 7,
+      lastBaseline: null,
       threshold: 0.5,
       windowMinutes: 360,
       minTraces: 1,
@@ -1055,6 +1058,37 @@ describe("shadow cli", () => {
     firing = false;
     expect(await runWith(api, ["alerts", "check"])).toBe(0);
     expect(api.captured.out.join("\n")).toContain("0 of 1 rule(s) firing");
+
+    // Baseline rules send the mode and print the multiplier next to the measured baseline.
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, [
+        "alerts",
+        "add",
+        "cost spike",
+        "--metric",
+        "total_cost",
+        "--threshold",
+        "3",
+        "--baseline",
+        "--baseline-windows",
+        "14",
+        "--window",
+        "1d",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      name: "cost spike",
+      metric: "total_cost",
+      threshold: 3,
+      mode: "baseline",
+      baselineWindows: 14,
+      windowMinutes: 1440,
+      minTraces: 1,
+    });
+    expect(api.captured.out.join("\n")).toContain(
+      "fires when total_cost over 1440m >= 3x its baseline (previous 14 windows)",
+    );
 
     expect(await runWith(api, ["alerts", "remove", "refund failures"])).toBe(0);
     expect(await runWith(api, ["alerts", "remove", "nope"])).toBe(4);

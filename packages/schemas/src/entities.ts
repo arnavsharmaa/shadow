@@ -312,10 +312,21 @@ export const ALERT_METRICS = [
 export const alertMetricSchema = z.enum(ALERT_METRICS);
 export type AlertMetric = z.infer<typeof alertMetricSchema>;
 
-/** A threshold on one metric; it fires while the value is at or above the threshold. */
+export const ALERT_MODES = ["threshold", "baseline"] as const;
+
+/**
+ * A rule on one metric. In `threshold` mode it fires while the value is at or above
+ * `threshold`. In `baseline` mode `threshold` is a multiplier: it fires while the value is at
+ * or above `threshold` times the metric's own baseline, measured over the `baselineWindows`
+ * windows immediately before the current one.
+ */
 export const alertRuleSchema = z.object({
   id: idSchema,
   name: z.string().min(1).max(128),
+  mode: z.enum(ALERT_MODES),
+  baselineWindows: z.number().int().positive(),
+  /** The baseline the last evaluation compared against (baseline mode only). */
+  lastBaseline: z.number().nullable(),
   /** Agent slug the rule is scoped to, or `null` for every agent. */
   agent: z.string().max(64).nullable(),
   project: z.string().max(64).nullable(),

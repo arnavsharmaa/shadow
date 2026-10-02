@@ -105,10 +105,29 @@ describe("alert rule bodies", () => {
       name: "refund failures",
       metric: "failure_rate",
       threshold: 0.5,
+      mode: "threshold",
+      baselineWindows: 7,
       windowMinutes: 60,
       minTraces: 1,
       enabled: true,
     });
+    expect(
+      createAlertRuleBodySchema.parse({
+        name: "cost spike",
+        metric: "total_cost",
+        threshold: 3,
+        mode: "baseline",
+        baselineWindows: 14,
+      }),
+    ).toMatchObject({ mode: "baseline", baselineWindows: 14 });
+    expect(
+      createAlertRuleBodySchema.safeParse({
+        name: "x",
+        metric: "total_cost",
+        threshold: 3,
+        mode: "seasonal",
+      }).success,
+    ).toBe(false);
     expect(
       createAlertRuleBodySchema.safeParse({ name: "x", metric: "vibes", threshold: 1 }).success,
     ).toBe(false);

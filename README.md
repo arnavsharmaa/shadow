@@ -220,6 +220,7 @@ shadow batch --agent refund-agent --at refund_order --set refundLimit=100 --limi
 shadow jobs list
 shadow trend refund-agent --metric failed --from 14d
 shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h
+shadow alerts add "cost spike" --metric total_cost --threshold 3 --baseline --window 1d
 shadow alerts check
 shadow collections create incident-42 trc_demo_refund_violation --description "refund limit incident"
 shadow traces list --collection incident-42

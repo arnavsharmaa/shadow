@@ -4,7 +4,7 @@ import type {
   CreateAlertRuleBody,
   UpdateAlertRuleBody,
 } from "@shadow/schemas";
-import { and, asc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { agents, alertRules, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -21,6 +21,9 @@ function toAlertRule(row: AlertRuleRow): AlertRule {
     agent: row.agent,
     project: row.project,
     metric: row.metric as AlertMetric,
+    mode: row.mode === "baseline" ? "baseline" : "threshold",
+    baselineWindows: row.baselineWindows,
+    lastBaseline: row.lastBaseline,
     threshold: row.threshold,
     windowMinutes: row.windowMinutes,
     minTraces: row.minTraces,
@@ -66,8 +69,16 @@ export async function createAlertRule(
   ctx: ServiceContext,
   body: CreateAlertRuleBody,
 ): Promise<AlertRule> {
-  if (body.metric === "failure_rate" && body.threshold > 1) {
+  if (body.mode === "threshold" && body.metric === "failure_rate" && body.threshold > 1) {
     throw ApiError.badRequest("failure_rate is a fraction; the threshold must be between 0 and 1");
+  }
+  if (body.mode === "baseline" && body.threshold <= 1) {
+    throw ApiError.badRequest(
+      "in baseline mode the threshold is a multiplier of the baseline and must be above 1",
+    );
+  }
+  if (body.mode === "baseline" && body.windowMinutes * (body.baselineWindows + 1) > 129_600) {
+    throw ApiError.badRequest("the window plus its baseline may span at most 90 days");
   }
   const existing = await ctx.handle.db
     .select({ id: alertRules.id, name: alertRules.name })
@@ -86,6 +97,9 @@ export async function createAlertRule(
     agent: body.agent ?? null,
     project: body.project ?? null,
     metric: body.metric,
+    mode: body.mode,
+    baselineWindows: body.baselineWindows,
+    lastBaseline: null,
     threshold: body.threshold,
     windowMinutes: body.windowMinutes,
     minTraces: body.minTraces,
@@ -108,8 +122,21 @@ export async function updateAlertRule(
   body: UpdateAlertRuleBody,
 ): Promise<AlertRule> {
   const current = await getRow(ctx, ruleId);
-  if (current.metric === "failure_rate" && body.threshold !== undefined && body.threshold > 1) {
+  const threshold = body.threshold ?? current.threshold;
+  if (current.mode !== "baseline" && current.metric === "failure_rate" && threshold > 1) {
     throw ApiError.badRequest("failure_rate is a fraction; the threshold must be between 0 and 1");
+  }
+  if (current.mode === "baseline") {
+    if (threshold <= 1) {
+      throw ApiError.badRequest(
+        "in baseline mode the threshold is a multiplier of the baseline and must be above 1",
+      );
+    }
+    const windows = body.baselineWindows ?? current.baselineWindows;
+    const minutes = body.windowMinutes ?? current.windowMinutes;
+    if (minutes * (windows + 1) > 129_600) {
+      throw ApiError.badRequest("the window plus its baseline may span at most 90 days");
+    }
   }
   if (body.name !== undefined && body.name !== current.name) {
     const [clash] = await ctx.handle.db
@@ -139,13 +166,29 @@ export async function deleteAlertRule(ctx: ServiceContext, ruleId: string): Prom
   return toAlertRule(row);
 }
 
-/** The rule's metric over traces started in its window, and how many traces that covers. */
+/** Metrics that add up over time; their baseline is averaged per window. */
+const ADDITIVE: ReadonlySet<AlertMetric> = new Set([
+  "policy_violations",
+  "tool_errors",
+  "total_cost",
+]);
+
+/**
+ * The rule's metric over traces started in `[from, to)`, and how many traces that covers.
+ * Defaults to the rule's current window, ending now.
+ */
 export async function measure(
   ctx: ServiceContext,
   rule: Pick<AlertRule, "agent" | "project" | "metric" | "windowMinutes">,
+  range: { from: number; to: number } = {
+    from: ctx.clock.now() - rule.windowMinutes * 60_000,
+    to: ctx.clock.now() + 1,
+  },
 ): Promise<{ value: number | null; traces: number }> {
-  const since = new Date(ctx.clock.now() - rule.windowMinutes * 60_000).toISOString();
-  const filters: SQL[] = [gte(traces.startedAt, since)];
+  const filters: SQL[] = [
+    gte(traces.startedAt, new Date(range.from).toISOString()),
+    lt(traces.startedAt, new Date(range.to).toISOString()),
+  ];
   if (rule.agent) filters.push(eq(agents.slug, rule.agent));
   if (rule.project) filters.push(eq(projects.slug, rule.project));
   const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
@@ -191,9 +234,30 @@ export interface AlertEvaluation {
 }
 
 /**
- * Evaluate every enabled rule once. A rule fires while its value is at or above the threshold
- * and the window holds at least `minTraces` traces; only the change of state (ok to firing, or
- * back) notifies the webhook, so a rule that stays over its threshold does not repeat itself.
+ * The value a baseline rule compares against: the metric over the `baselineWindows` windows
+ * before the current one. Sums are averaged per window; rates and percentiles are taken over
+ * the whole baseline period. `null` when the period has no usable data.
+ */
+export async function baselineFor(
+  ctx: ServiceContext,
+  rule: Pick<AlertRule, "agent" | "project" | "metric" | "windowMinutes" | "baselineWindows">,
+): Promise<number | null> {
+  const windowMs = rule.windowMinutes * 60_000;
+  const to = ctx.clock.now() - windowMs;
+  const { value, traces: count } = await measure(ctx, rule, {
+    from: to - rule.baselineWindows * windowMs,
+    to,
+  });
+  if (value === null || count === 0) return null;
+  return ADDITIVE.has(rule.metric) ? value / rule.baselineWindows : value;
+}
+
+/**
+ * Evaluate every enabled rule once. A threshold rule fires while its value is at or above the
+ * threshold; a baseline rule fires while its value is at or above `threshold` times a baseline
+ * that is above zero (with no history there is nothing to compare against, so it stays ok).
+ * Either way the window must hold at least `minTraces` traces. Only the change of state (ok to
+ * firing, or back) notifies the webhook, so a rule that stays firing does not repeat itself.
  */
 export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEvaluation[]> {
   const rows = await ctx.handle.db
@@ -205,7 +269,14 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
   for (const row of rows) {
     const rule = toAlertRule(row);
     const { value, traces: count } = await measure(ctx, rule);
-    const firing = value !== null && count >= rule.minTraces && value >= rule.threshold;
+    const baseline = rule.mode === "baseline" ? await baselineFor(ctx, rule) : null;
+    const limit =
+      rule.mode === "baseline"
+        ? baseline !== null && baseline > 0
+          ? baseline * rule.threshold
+          : null
+        : rule.threshold;
+    const firing = value !== null && limit !== null && count >= rule.minTraces && value >= limit;
     const transition =
       firing && rule.state === "ok"
         ? "fired"
@@ -218,6 +289,7 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
       .set({
         state: firing ? "firing" : "ok",
         lastValue: value,
+        lastBaseline: baseline,
         lastTraces: count,
         lastEvaluatedAt: at,
         ...(transition === "fired" ? { lastTriggeredAt: at } : {}),
@@ -240,10 +312,12 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
           agent: next.agent,
           project: next.project,
           metric: next.metric,
+          mode: next.mode,
           threshold: next.threshold,
           windowMinutes: next.windowMinutes,
         },
         value,
+        baseline,
         traces: count,
       });
     }

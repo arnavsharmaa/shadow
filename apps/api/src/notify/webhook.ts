@@ -31,10 +31,14 @@ export interface AlertNotification {
     agent: string | null;
     project: string | null;
     metric: string;
+    mode: "threshold" | "baseline";
+    /** A value in threshold mode, a multiplier of `baseline` in baseline mode. */
     threshold: number;
     windowMinutes: number;
   };
   value: number | null;
+  /** The baseline the value was compared against (baseline mode), otherwise `null`. */
+  baseline: number | null;
   traces: number;
 }
 

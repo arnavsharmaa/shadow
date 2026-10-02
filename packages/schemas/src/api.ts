@@ -10,6 +10,7 @@ import {
   replaySchema,
   traceSchema,
   traceStatusSchema,
+  ALERT_MODES,
   BATCH_JOB_STATUSES,
   alertMetricSchema,
 } from "./entities.js";
@@ -314,7 +315,11 @@ export const createAlertRuleBodySchema = z.object({
   agent: z.string().min(1).max(64).optional(),
   project: z.string().min(1).max(64).optional(),
   metric: alertMetricSchema,
+  /** A value in `threshold` mode, a multiplier of the baseline in `baseline` mode. */
   threshold: z.number().nonnegative(),
+  mode: z.enum(ALERT_MODES).default("threshold"),
+  /** How many preceding windows form the baseline (baseline mode; default 7). */
+  baselineWindows: z.number().int().min(1).max(90).default(7),
   /** 1 minute to 30 days (default 60 minutes). */
   windowMinutes: z.number().int().min(1).max(43_200).default(60),
   minTraces: z.number().int().min(1).max(100_000).default(1),
@@ -326,6 +331,7 @@ export const updateAlertRuleBodySchema = z
   .object({
     name: z.string().trim().min(1).max(128),
     threshold: z.number().nonnegative(),
+    baselineWindows: z.number().int().min(1).max(90),
     windowMinutes: z.number().int().min(1).max(43_200),
     minTraces: z.number().int().min(1).max(100_000),
     enabled: z.boolean(),

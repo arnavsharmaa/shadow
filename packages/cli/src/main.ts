@@ -910,7 +910,21 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "--metric <metric>",
       "failure_rate | policy_violations | tool_errors | total_cost | p95_duration_ms",
     )
-    .requiredOption("--threshold <n>", "fire at or above this value", nonNegative)
+    .requiredOption(
+      "--threshold <n>",
+      "fire at or above this value; with --baseline, at or above this multiple of the baseline",
+      nonNegative,
+    )
+    .option(
+      "--baseline",
+      "compare against the metric's own recent baseline instead of a fixed value",
+    )
+    .option(
+      "--baseline-windows <n>",
+      "how many preceding windows form the baseline",
+      positiveInt,
+      7,
+    )
     .option("--agent <slug>", "only this agent's traces")
     .option("--project <slug>", "only this project's traces")
     .option("--window <age>", "look-back window such as 30m, 6h or 7d", "1h")
@@ -922,6 +936,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         opts: {
           metric: string;
           threshold: number;
+          baseline?: boolean;
+          baselineWindows: number;
           agent?: string;
           project?: string;
           window: string;
@@ -933,6 +949,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           name,
           metric: opts.metric,
           threshold: opts.threshold,
+          ...(opts.baseline ? { mode: "baseline", baselineWindows: opts.baselineWindows } : {}),
           agent: opts.agent,
           project: opts.project,
           windowMinutes: windowMinutes(opts.window),
@@ -940,7 +957,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         });
         if (opts.json) return json(rule);
         out(
-          `created ${rule.id}: ${rule.name} fires when ${rule.metric} >= ${rule.threshold} over ${rule.windowMinutes}m`,
+          rule.mode === "baseline"
+            ? `created ${rule.id}: ${rule.name} fires when ${rule.metric} over ${rule.windowMinutes}m >= ${rule.threshold}x its baseline (previous ${rule.baselineWindows} windows)`
+            : `created ${rule.id}: ${rule.name} fires when ${rule.metric} >= ${rule.threshold} over ${rule.windowMinutes}m`,
         );
       },
     );
@@ -2317,7 +2336,9 @@ function alertTable(rules: AlertRule[]): string {
       r.enabled ? r.state : "disabled",
       r.agent ?? r.project ?? "all agents",
       r.metric,
-      alertValue(r, r.threshold),
+      r.mode === "baseline"
+        ? `${r.threshold}x ${r.lastBaseline === null ? "baseline" : alertValue(r, r.lastBaseline)}`
+        : alertValue(r, r.threshold),
       alertValue(r, r.lastValue),
       `${r.windowMinutes}m`,
       r.lastTraces === null ? "-" : String(r.lastTraces),
