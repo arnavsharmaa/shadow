@@ -41,6 +41,15 @@ export interface Redactor {
   isSensitiveValue(value: string): boolean;
 }
 
+/**
+ * Token *counts* are not secrets: a numeric value under a key ending in `tokens`
+ * (`max_tokens`, `input_tokens`, `totalTokens`) is kept even though the key matches `token`.
+ * Strings, objects and arrays under such keys are still redacted.
+ */
+export function isTokenCount(key: string, value: JsonValue | undefined): boolean {
+  return typeof value === "number" && /tokens$/i.test(key);
+}
+
 /** Parse a comma-separated list of patterns (from configuration). */
 export function parsePatternList(list: string | undefined): RegExp[] {
   if (!list) return [];
@@ -72,7 +81,10 @@ export function createRedactor(options: RedactionOptions = {}): Redactor {
     if (Array.isArray(value)) return value.map((v) => walk(v, depth + 1) as JsonValue);
     const out: Record<string, JsonValue> = {};
     for (const [key, child] of Object.entries(value)) {
-      out[key] = isSensitiveKey(key) ? replacement : (walk(child, depth + 1) as JsonValue);
+      out[key] =
+        isSensitiveKey(key) && !isTokenCount(key, child)
+          ? replacement
+          : (walk(child, depth + 1) as JsonValue);
     }
     return out;
   };

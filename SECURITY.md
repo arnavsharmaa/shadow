@@ -99,7 +99,10 @@ Shadow redacts sensitive values in two places:
 - **Client-side** (`@shadow/sdk`), before events leave the process, by key name. Defaults match
   `password`, `passwd`, `api_key`/`apikey`, `authorization`, `secret`, `token`, `cookie`,
   `credential` and `private_key` (case-insensitive). Extra patterns can be passed via the
-  `redact` option; `redact: false` disables client-side redaction.
+  `redact` option; `redact: false` disables client-side redaction. One exception keeps usage
+  data readable: a **numeric** value under a key ending in `tokens` (`max_tokens`,
+  `input_tokens`, `totalTokens`) is a count, not a credential, and is kept. Strings, arrays and
+  objects under such keys, and anything under `token`, are still redacted.
 - **Server-side** (`apps/api`), on ingestion and in structured logs, using the same key patterns
   plus `client_secret` and `set-cookie`, value patterns for common credential shapes (bearer
   tokens, `sk-` style keys, GitHub and Slack tokens, AWS access key ids, PEM private keys), and

@@ -68,6 +68,14 @@ describe("POST /api/v1/import/anthropic", () => {
     });
     expect(events.map((e: ShadowEvent) => e.sequence)).toEqual([...events.keys()]);
 
+    // Token counts in metadata survive server-side redaction.
+    expect(
+      events.find((e: ShadowEvent) => e.eventType === "model.response" && e.name === "turn-2")
+        ?.metadata,
+    ).toEqual({
+      anthropic: { responseId: "msg_01b", usage: { cache_creation_input_tokens: 120 } },
+    });
+
     // The conversation is the trace's state, and the system prompt its context.
     const state = json<{
       state: { messages: { role: string }[] };

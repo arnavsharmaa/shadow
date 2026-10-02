@@ -157,6 +157,25 @@ describe("Shadow SDK", () => {
     expect(response?.output).toEqual({ result: { token: "[REDACTED]" } });
   });
 
+  it("keeps numeric token counts while redacting token values", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({ name: "t" });
+    await trace.tool({
+      name: "usage",
+      arguments: { max_tokens: 16000, token: 123456, tokens: "abc" },
+      execute: async () => ({ input_tokens: 12, totalTokens: 20, refresh_tokens: ["x"] }),
+    });
+    await trace.end();
+    const events = transport.eventsFor(trace.id);
+    expect(events.find((e) => e.eventType === "tool.request")?.input).toEqual({
+      tool: "usage",
+      arguments: { max_tokens: 16000, token: "[REDACTED]", tokens: "[REDACTED]" },
+    });
+    expect(events.find((e) => e.eventType === "tool.response")?.output).toEqual({
+      result: { input_tokens: 12, totalTokens: 20, refresh_tokens: "[REDACTED]" },
+    });
+  });
+
   it("runs a program and records its outcome and input", async () => {
     const transport = new MemoryTransport();
     const trace = client(transport).startTrace({ name: "t" });

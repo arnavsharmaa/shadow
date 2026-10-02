@@ -41,6 +41,30 @@ describe("default key patterns", () => {
   });
 });
 
+describe("token counts", () => {
+  it("keeps numeric counts under keys ending in tokens and redacts everything else", () => {
+    expect(
+      defaultRedactor.redact({
+        max_tokens: 16000,
+        usage: { input_tokens: 412, cache_read_input_tokens: 0, totalTokens: 470 },
+        token: 123456,
+        access_token: "abc",
+        tokens: ["a", "b"],
+        refresh_tokens: { current: "abc" },
+        session_tokens: "abc",
+      }),
+    ).toEqual({
+      max_tokens: 16000,
+      usage: { input_tokens: 412, cache_read_input_tokens: 0, totalTokens: 470 },
+      token: DEFAULT_REPLACEMENT,
+      access_token: DEFAULT_REPLACEMENT,
+      tokens: DEFAULT_REPLACEMENT,
+      refresh_tokens: DEFAULT_REPLACEMENT,
+      session_tokens: DEFAULT_REPLACEMENT,
+    });
+  });
+});
+
 describe("default value patterns", () => {
   it("detect bearer tokens, API keys, GitHub/Slack/AWS credentials and private keys", () => {
     const secrets = [

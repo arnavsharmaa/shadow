@@ -191,6 +191,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Changed
 
+- Redaction keeps token counts: a numeric value under a key ending in `tokens` (`max_tokens`,
+  `input_tokens`, `totalTokens`) is no longer replaced with `[REDACTED]`, in the SDK and on the
+  server. Strings, arrays and objects under such keys, and everything under `token`, are still
+  redacted.
 - CI builds both Docker images, smoke-tests the API and web containers, and brings the full
   `docker compose` stack (PostgreSQL, API, web) up on every push.
 - `GET /api/v1/comparisons` is now keyset-paginated (`nextCursor` was always `null` before).
