@@ -184,6 +184,8 @@ await trace.end({ outcome: { kind: "refunded", label: "Refund issued" } });
 
 Events are buffered, redacted (passwords, API keys, tokens, cookies, …) and sent in batches. Transport failures never throw into agent code. See [packages/sdk](packages/sdk/README.md) and [examples/](examples/).
 
+Agents built on the Anthropic Messages API need no manual spans: `traceAnthropic(trace, new Anthropic())` records every `messages.create` and `messages.stream` call, and `runAnthropicToolLoop` runs the tool-use loop with each tool call recorded. See [docs/integrations/anthropic.md](docs/integrations/anthropic.md).
+
 ## CLI
 
 ```bash

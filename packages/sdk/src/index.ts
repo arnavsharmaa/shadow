@@ -10,6 +10,16 @@ export {
   type HttpTransportOptions,
 } from "./transport.js";
 export { createRedactor, DEFAULT_KEY_PATTERNS, type RedactOptions } from "./redact.js";
+export {
+  anthropicTokenUsage,
+  runAnthropicToolLoop,
+  traceAnthropic,
+  type AnthropicCreateParamsLike,
+  type AnthropicMessageLike,
+  type AnthropicToolLoopOptions,
+  type AnthropicToolLoopResult,
+  type TraceAnthropicOptions,
+} from "./anthropic.js";
 export type {
   AgentHost,
   AgentProgram,

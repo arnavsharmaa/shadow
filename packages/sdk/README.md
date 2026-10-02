@@ -92,6 +92,31 @@ the outcome `trace.run()` returned) are sent immediately.
 
 `trace.run(program, input)` runs an `AgentProgram` (the same contract used by Shadow's deterministic replay engine) and ends or fails the trace automatically.
 
+## Anthropic Messages API
+
+`traceAnthropic` wraps an Anthropic client so its calls are recorded without manual spans, and
+`runAnthropicToolLoop` runs the tool-use loop with every tool execution recorded:
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { Shadow, traceAnthropic, runAnthropicToolLoop } from "@shadow/sdk";
+
+const trace = new Shadow({ project: "support", agent: "claude-agent" }).startTrace({
+  name: "ticket-1234",
+});
+const client = traceAnthropic(trace, new Anthropic());
+
+const { message, messages } = await runAnthropicToolLoop(trace, client, {
+  params: { model: "claude-opus-5-5", max_tokens: 16000, tools, messages: history },
+  tools: { lookup_order: (input) => lookupOrder(input) },
+});
+await trace.end();
+```
+
+The wrapper returns the client's own type and has no dependency on `@anthropic-ai/sdk`. Details,
+options and the event mapping are in
+[docs/integrations/anthropic.md](../../docs/integrations/anthropic.md).
+
 ## Behaviour
 
 - Events are buffered and flushed every `flushIntervalMs` (default 1000 ms), when `maxBatchSize` events are queued, and on `end()`/`fail()`.

@@ -1,10 +1,74 @@
 # Anthropic tool-use traces
 
-> **Status: the importer for stored message histories is implemented** (`POST
-/api/v1/import/anthropic`, `shadow import anthropic <file>`). The live wrapper
-> (`traceAnthropic`, `runToolLoop`) and deterministic replay are still a design proposal; until
-> then, live Messages API calls can be recorded by wrapping them with `trace.model()` and
-> executing tool calls through `trace.tool()` (see [custom-runtime.md](./custom-runtime.md)).
+> **Status: implemented for recording and import.** `traceAnthropic` and
+> `runAnthropicToolLoop` in `@shadow/sdk` record live Messages API calls, and `POST
+/api/v1/import/anthropic` / `shadow import anthropic <file>` import stored histories.
+> Deterministic replay of these traces is still a design proposal (see [Replay](#replay)).
+
+## Recording live calls
+
+Wrap the client once per trace. The wrapper returns the same client type, so the rest of the
+code keeps using the Anthropic SDK as before:
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { Shadow, traceAnthropic, runAnthropicToolLoop } from "@shadow/sdk";
+
+const shadow = new Shadow({ project: "support", agent: "claude-refund-agent" });
+const trace = shadow.startTrace({ name: "ticket-1234" });
+const client = traceAnthropic(trace, new Anthropic());
+
+const { message } = await runAnthropicToolLoop(trace, client.beta, {
+  params: {
+    model: "claude-opus-5-5",
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    // Server-side fallback: a policy decline is re-run on a fallback model in the same call.
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: "You are a customer-support agent.",
+    tools: [lookupOrderTool, refundOrderTool],
+    messages: [{ role: "user", content: "My headphones (order ord_5001) arrived broken." }],
+  },
+  tools: {
+    lookup_order: (input) => orders.get((input as { orderId: string }).orderId),
+    refund_order: (input) => payments.refund(input),
+  },
+  guard: (tool, input) =>
+    tool === "refund_order"
+      ? { policy: "refund.autonomous_limit", subject: input, evaluate: checkRefundLimit }
+      : undefined,
+});
+if (message.stop_reason === "refusal") {
+  // every model in the fallback chain declined
+}
+await trace.end();
+```
+
+- **`traceAnthropic(trace, client, options?)`** records `messages.create(...)` (non-streaming)
+  and `messages.stream(...)`, on `client.messages` and `client.beta.messages`, as model spans
+  named `turn-N`: model id, request parameters (`max_tokens`, `thinking`, `tool_choice`,
+  `output_config`, tool names), content blocks, stop reason and token usage. Streams are recorded
+  from their final message while the caller consumes them as usual; `create({ stream: true })`
+  returns the raw event stream and is passed through unrecorded. `thinking` blocks become
+  `thinking` notes, the system prompt and tool names become context when they change, and a
+  failed request is noted as `anthropic.request_failed` and re-thrown. With the default
+  `recordMessages: "new"`, a history that was extended in place records only the turns added
+  since the previous call (`metadata.anthropic.skippedMessages` says how many were left out);
+  `"all"` records the full array every time.
+- **`runAnthropicToolLoop(trace, client, { params, tools, guard?, maxTurns? })`** runs the
+  tool-use loop on a wrapped client: each `tool_use` block is executed through `trace.tool`, so
+  it is a tool span with an optional policy guard, and every result goes back in one user
+  message. A tool that throws, is not registered or is blocked by its guard returns an
+  `is_error` result so the model can react. `pause_turn` continues the turn, `max_tokens` and
+  `refusal` end the loop without running tools, and `maxTurns` (default 20) bounds it. Tools run
+  one after another so their spans nest correctly. Code that prefers the Anthropic SDK's own
+  tool runner can pass it a wrapped client instead; model calls are then recorded, tool
+  executions are not.
+
+The adapter has no dependency on `@anthropic-ai/sdk`: it matches the client structurally and
+never calls the API itself. Costs are estimated by the API at ingestion from the built-in price
+table (see [cost tracking](../concepts/cost-tracking.md)).
 
 ## Importing a conversation
 
@@ -87,28 +151,14 @@ Record agent loops built directly on the Anthropic Messages API, where the model
 the loop continues until `end_turn`. Provide both a live wrapper and an importer for message
 histories so that an existing conversation log can be inspected and forked.
 
-## Proposed surface
+## Surface
 
-```ts
-import Anthropic from "@anthropic-ai/sdk";
-import { Shadow } from "@shadow/sdk";
-import { traceAnthropic } from "@shadow/adapter-anthropic";
-
-const shadow = new Shadow({ project: "support", agent: "claude-refund-agent" });
-const trace = shadow.startTrace({ name: "ticket-1234" });
-const client = traceAnthropic(trace, new Anthropic());
-// client.messages.create(...) is recorded; the tool loop helper records tool execution
-```
-
-Two entry points:
-
-- `traceAnthropic(trace, client)`: wraps `messages.create` (and streaming) so each call is a
-  model span.
-- `runToolLoop(trace, client, { tools, executeTool, guard? })`: a small helper that runs the
-  standard tool-use loop through the host, recording tool calls as tool spans with optional
-  policy guards.
-- `importMessages(messages, options)`: converts a stored `messages[]` array (plus optional
-  response metadata) into a `shadow.trace` bundle for offline import.
+- `traceAnthropic(trace, client)` and `runAnthropicToolLoop(trace, client, options)` in
+  `@shadow/sdk` (implemented; see [Recording live calls](#recording-live-calls)). They live in
+  the SDK rather than a separate adapter package because they add no dependency.
+- `POST /api/v1/import/anthropic` and `shadow import anthropic` for stored histories
+  (implemented; see [Importing a conversation](#importing-a-conversation)).
+- `recordedModelAdapter(events)` for deterministic replay (proposed; see [Replay](#replay)).
 
 ## Mapping
 

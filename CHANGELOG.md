@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Anthropic recording in the SDK: `traceAnthropic(trace, client)` wraps an Anthropic client so
+  `messages.create` and `messages.stream` (also under `client.beta`) are recorded as model spans
+  with content blocks, stop reasons, token usage, thinking notes and system/tool context, and
+  `runAnthropicToolLoop` runs the tool-use loop with every tool execution recorded as a tool
+  span with an optional policy guard. No dependency on `@anthropic-ai/sdk`; the wrapper keeps the
+  client's own types.
 - Real model prices: the API now estimates costs at ingestion for model responses that arrive
   with token usage but no cost (SDK, OTLP, imported conversations), using a built-in catalog
   with Anthropic's list prices as of 2026-09-25 (cache reads priced separately). Lookups tolerate

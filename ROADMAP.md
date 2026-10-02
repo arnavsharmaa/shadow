@@ -59,8 +59,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **MCP tracing**: record Model Context Protocol tool and resource calls between hosts and servers
   ([proposal](./docs/integrations/mcp.md)).
 - **Anthropic tool-use traces**: import Messages API tool-use loops as model and tool spans
-  ([details](./docs/integrations/anthropic.md)); the importer for stored message histories is
-  done, the live wrapper and replay remain.
+  ([details](./docs/integrations/anthropic.md)); the SDK's live wrapper and tool loop and the
+  importer for stored message histories are done, deterministic replay remains.
 - **Exporters**: push traces to external destinations in addition to the existing bundle export
   (OTLP is done: `GET /traces/:id/export?format=otlp`, `shadow otlp export --collector <url>`
   and automatic forwarding of finished traces with `SHADOW_OTLP_EXPORT_URL`; file and other
