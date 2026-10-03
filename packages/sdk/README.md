@@ -127,7 +127,8 @@ options and the event mapping are in
   with an explicit `id` are sampled deterministically from it. `sampler: (input) => boolean`
   replaces the rate with your own rule, and `startTrace({ sample: true | false })` forces the
   decision for one trace. A sampled-out trace behaves normally but discards its events
-  (`trace.recorded === false`).
+  (`trace.recorded === false`). The API can sample too (`SHADOW_INGEST_SAMPLE_RATE`), with the
+  same hash of the trace id, so the two agree on which traces to keep.
 - `enabled: false` turns the SDK into a no-op; so does `SHADOW_ENABLED=false` (or `0`, `no`,
   `off`) in the environment, which lets a deployment switch recording off without a code change.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,

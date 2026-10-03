@@ -14,6 +14,7 @@ import {
 import type { Logger } from "pino";
 import { ZodError, z } from "zod";
 import { corsOrigins, type ApiConfig } from "../config.js";
+import { createSampler, type Sampler } from "../sampling.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "../services/context.js";
 import { batchRoutes } from "./routes/batch.js";
@@ -37,6 +38,7 @@ declare module "fastify" {
   interface FastifyInstance {
     services: ServiceContext;
     apiConfig: ApiConfig;
+    sampler: Sampler;
   }
 }
 
@@ -59,6 +61,7 @@ export async function buildApp(options: BuildAppOptions) {
   });
   app.decorate("services", options.services);
   app.decorate("apiConfig", options.config);
+  app.decorate("sampler", createSampler(options.config.SHADOW_INGEST_SAMPLE_RATE));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 

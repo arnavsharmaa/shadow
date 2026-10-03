@@ -42,6 +42,7 @@ describe("health and error envelope", () => {
     expect(body.features).toEqual({
       auth: false,
       retention: { enabled: false },
+      sampling: { enabled: false, rate: 1 },
       otlp: {
         path: "/api/v1/otlp/v1/traces",
         defaultProject: "otel",
@@ -60,6 +61,7 @@ describe("health and error envelope", () => {
         SHADOW_WEBHOOK_EVENTS: "all",
         SHADOW_OTLP_EXPORT_URL: "http://collector.example.com:4318/v1/traces",
         SHADOW_OTLP_EXPORT_ENCODING: "json",
+        SHADOW_INGEST_SAMPLE_RATE: "0.25",
       },
     });
     try {
@@ -69,6 +71,7 @@ describe("health and error envelope", () => {
       expect(enabled.features).toEqual({
         auth: true,
         retention: { enabled: true, days: 30, intervalMinutes: 15, keepTag: "keep" },
+        sampling: { enabled: true, rate: 0.25 },
         otlp: {
           path: "/api/v1/otlp/v1/traces",
           defaultProject: "ingest",

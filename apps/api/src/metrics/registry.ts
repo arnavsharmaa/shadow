@@ -132,6 +132,10 @@ export class ShadowMetrics {
   readonly tracesCreated = new Counter("shadow_traces_created_total", "Traces created.", [
     "source",
   ]);
+  readonly tracesSampledOut = new Counter(
+    "shadow_traces_sampled_out_total",
+    "Traces discarded by server-side sampling (SHADOW_INGEST_SAMPLE_RATE).",
+  );
   readonly eventsIngested = new Counter("shadow_events_ingested_total", "Events stored.", [
     "source",
   ]);
@@ -167,6 +171,7 @@ export class ShadowMetrics {
       this.httpRequests,
       this.httpDuration,
       this.tracesCreated,
+      this.tracesSampledOut,
       this.eventsIngested,
       this.forks,
       this.replays,

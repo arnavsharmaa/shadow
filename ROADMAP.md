@@ -132,8 +132,8 @@ is welcome through GitHub issues; integration proposals have their own
 - Alerting on anomalies in cost, tool failures and policy decisions (done: threshold rules and
   baseline-relative rules, with webhook notifications; seasonality-aware detection is not
   planned yet).
-- Server-side sampling on ingestion (the SDK samples with `sampleRate`, and a per-client API
-  rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).
+- Server-side sampling on ingestion (done: `SHADOW_INGEST_SAMPLE_RATE`, aligned with the SDK's
+  `sampleRate`; a per-client API rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).
 - Real pricing tables and per-provider cost providers (Anthropic list prices are built in and
   applied at ingestion, and `SHADOW_PRICING_FILE` adds other providers; bundled tables for more
   vendors remain). The `shadow-sim` pricing stays for demos.

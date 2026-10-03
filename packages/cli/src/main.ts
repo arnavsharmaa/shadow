@@ -171,6 +171,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         features?: {
           auth: boolean;
           retention: { enabled: boolean; days?: number; intervalMinutes?: number };
+          sampling?: { enabled: boolean; rate: number };
           otlp: {
             path: string;
             defaultProject: string;
@@ -217,7 +218,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             ? `retention ${summary.features.retention.days}d every ${summary.features.retention.intervalMinutes}m`
             : "retention off";
           out(
-            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; otlp at ${summary.features.otlp.path}${summary.features.otlp.export?.enabled ? `; otlp export on (${summary.features.otlp.export.encoding ?? "protobuf"})` : ""}`,
+            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; ${summary.features.sampling?.enabled ? `sampling ${Math.round(summary.features.sampling.rate * 100)}% of traces` : "sampling off"}; otlp at ${summary.features.otlp.path}${summary.features.otlp.export?.enabled ? `; otlp export on (${summary.features.otlp.export.encoding ?? "protobuf"})` : ""}`,
           );
         }
       }

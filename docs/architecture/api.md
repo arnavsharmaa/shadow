@@ -869,6 +869,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
 | `SHADOW_ALERT_INTERVAL_MINUTES`     | `5`                                           | how often alert rules are evaluated (`0` disables)        |
 | `SHADOW_PRICING_FILE`               | unset                                         | JSON price list that adds to or overrides built-in prices |
+| `SHADOW_INGEST_SAMPLE_RATE`         | `1`                                           | fraction of new traces the API stores (0 to 1)            |
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables)  |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set                |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                      |
@@ -916,6 +917,21 @@ Headers: `x-shadow-event` (the notification type, `trace.finished` here or `aler
 so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
 are retried three times with backoff, other rejections are logged once. `/health` reports
 whether the webhook is enabled.
+
+### Sampling
+
+`SHADOW_INGEST_SAMPLE_RATE` below `1` makes the API keep only that fraction of new traces. The
+decision is a deterministic function of the trace id, the same FNV-1a hash the SDK uses for
+`sampleRate`, so retries of a run decide the same way, and a client and a server sampling at
+the same rate keep the same traces rather than thinning twice; with different rates the lower
+one wins. A sampled-out trace is never stored: `POST /traces` answers `202 { id, rootBranchId,
+sampled: false }` with a handle the client can keep using, and the trace's later
+`POST …/events`, `PATCH /traces/:id` and `POST …/artifacts` answer `202 { sampled: false }`
+instead of `404`, so SDKs do not retry. `GET` requests for such a trace are `404`. A request can
+force a trace through with the header `x-shadow-sample: keep`; a trace that exists (forced, or
+created before sampling was turned on) is always served. Explicit imports (`/traces/import`,
+`/import/anthropic`, the OTLP endpoint) are not sampled. `shadow_traces_sampled_out_total` on
+`/metrics` counts discarded traces and `/health` reports `features.sampling`.
 
 ### Retention
 

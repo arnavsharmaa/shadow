@@ -91,6 +91,8 @@ const configSchema = z.object({
     .transform((v) => (v.trim().length > 0 ? v.trim() : undefined)),
   /** How often the retention sweep runs (minutes). */
   SHADOW_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(10_080).default(60),
+  /** Fraction of new traces the API stores, 0 to 1 (default 1: everything). */
+  SHADOW_INGEST_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1),
   /** JSON price list that adds to or overrides the built-in model prices. */
   SHADOW_PRICING_FILE: z
     .string()

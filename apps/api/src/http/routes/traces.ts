@@ -37,6 +37,7 @@ import {
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
 import { audit } from "../audit.js";
+import { forcedKeep, unlessSampledOut } from "../../sampling.js";
 import { exportTraceToOtlp } from "../../otlp/export.js";
 import { encodeOtlpProtobuf } from "../../otlp/protobuf.js";
 
@@ -63,7 +64,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     "/traces",
     { schema: { tags: ["traces"], body: createTraceBodySchema } },
     async (request, reply) => {
-      const trace = await createTrace(app.services, request.body);
+      const id = request.body.id ?? app.services.ids.next("trc");
+      if (app.sampler.enabled && !forcedKeep(request) && !app.sampler.keeps(id)) {
+        // Sampled out: nothing is stored, and the caller gets a handle it can keep using.
+        app.services.metrics.tracesSampledOut.inc();
+        return reply.status(202).send({ id, rootBranchId: `${id}_unsampled`, sampled: false });
+      }
+      const trace = await createTrace(app.services, { ...request.body, id });
       return reply.status(201).send(trace);
     },
   );
@@ -120,8 +127,12 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     "/traces/:traceId",
     { schema: { tags: ["traces"], params: traceParams, body: updateTraceBodySchema } },
-    async (request) => {
-      const trace = await updateTrace(app.services, request.params.traceId, request.body);
+    async (request, reply) => {
+      const outcome = await unlessSampledOut(app.sampler, request, request.params.traceId, () =>
+        updateTrace(app.services, request.params.traceId, request.body),
+      );
+      if (!outcome.sampled) return reply.status(202).send({ sampled: false });
+      const trace = outcome.value;
       await audit(app, request, {
         action: "trace.updated",
         targetType: "trace",
@@ -160,7 +171,11 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     "/traces/:traceId/events",
     { schema: { tags: ["events"], params: traceParams, body: ingestEventsBodySchema } },
     async (request, reply) => {
-      const result = await ingestEvents(app.services, request.params.traceId, request.body);
+      const outcome = await unlessSampledOut(app.sampler, request, request.params.traceId, () =>
+        ingestEvents(app.services, request.params.traceId, request.body),
+      );
+      if (!outcome.sampled) return reply.status(202).send({ accepted: 0, sampled: false });
+      const result = outcome.value;
       return reply.status(201).send({
         accepted: result.events.length,
         branch: result.branch,
@@ -307,7 +322,11 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     "/traces/:traceId/artifacts",
     { schema: { tags: ["artifacts"], params: traceParams, body: createArtifactBodySchema } },
     async (request, reply) => {
-      const artifact = await createArtifact(app.services, request.params.traceId, request.body);
+      const outcome = await unlessSampledOut(app.sampler, request, request.params.traceId, () =>
+        createArtifact(app.services, request.params.traceId, request.body),
+      );
+      if (!outcome.sampled) return reply.status(202).send({ sampled: false });
+      const artifact = outcome.value;
       await audit(app, request, {
         action: "artifact.created",
         targetType: "artifact",

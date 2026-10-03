@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Server-side sampling: `SHADOW_INGEST_SAMPLE_RATE` keeps only a fraction of new traces,
+  decided from the trace id with the same hash the SDK uses, so client and server sampling at
+  the same rate agree. Sampled-out traces are acknowledged with `202 { sampled: false }` on
+  creation and on their later events, updates and artifacts, never stored, and counted in
+  `shadow_traces_sampled_out_total`; `x-shadow-sample: keep` forces a trace through; imports are
+  never sampled. `/health` and `shadow status` report the rate.
 - Baseline alert rules: `mode: "baseline"` (CLI `--baseline`) makes a rule's threshold a
   multiple of the metric's own recent baseline, measured over the `baselineWindows` windows
   before the current one (sums averaged per window, rates and percentiles over the whole
