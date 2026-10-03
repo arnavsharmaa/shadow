@@ -2,7 +2,7 @@ import { createProjectBodySchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
-import { agentStats, agentTrend } from "../../services/stats.js";
+import { agentStats, agentTrend, overview } from "../../services/stats.js";
 
 const agentStatsQuerySchema = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
@@ -14,6 +14,11 @@ const agentTrendQuerySchema = agentStatsQuerySchema.extend({
   bucket: z.enum(["hour", "day"]).default("day"),
 });
 const agentParams = z.object({ agentSlug: z.string().min(1).max(64) });
+const overviewQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(90).default(14),
+  to: z.iso.datetime({ offset: true }).optional(),
+  project: z.string().max(64).optional(),
+});
 
 export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get("/projects", { schema: { tags: ["projects"] } }, async () => ({
@@ -49,6 +54,13 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
       to: request.query.to ?? null,
       items: await agentStats(app.services, request.query),
     }),
+  );
+
+  /** Totals, deltas, a daily series and the busiest agents for the overview page. */
+  app.get(
+    "/stats/overview",
+    { schema: { tags: ["projects"], querystring: overviewQuerySchema } },
+    async (request) => overview(app.services, request.query),
   );
 
   /** The price table used to estimate costs for events that arrive without one. */

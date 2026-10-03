@@ -189,6 +189,30 @@ export interface BatchResult {
   results: BatchItem[];
 }
 
+export interface OverviewTotals {
+  traces: number;
+  completed: number;
+  failed: number;
+  running: number;
+  failureRate: number | null;
+  policyViolations: number;
+  toolErrors: number;
+  totalEstimatedCost: number;
+  totalTokens: number;
+  p95DurationMs: number | null;
+  agents: number;
+}
+
+export interface Overview {
+  from: string;
+  to: string;
+  previousFrom: string;
+  totals: OverviewTotals;
+  previous: OverviewTotals;
+  daily: TrendPoint[];
+  topAgents: AgentStatsRow[];
+}
+
 export interface AgentStatsRow {
   agentId: string;
   agentSlug: string;
@@ -215,6 +239,8 @@ export const api = {
     request<SharedView>("POST", "/api/v1/views", body),
   deleteView: (viewId: string) =>
     request<void>("DELETE", `/api/v1/views/${encodeURIComponent(viewId)}`),
+  overview: (filter: { days?: number; project?: string; to?: string } = {}) =>
+    request<Overview>("GET", `/api/v1/stats/overview${query(filter)}`),
   agentStats: (filter: { from?: string; to?: string; project?: string } = {}) =>
     request<{ from: string | null; to: string | null; items: AgentStatsRow[] }>(
       "GET",

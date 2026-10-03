@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { AgentTrend } from "../../src/services/stats.js";
+import type { AgentTrend, Overview } from "../../src/services/stats.js";
 import { createTestApp, json, type TestApp } from "../helpers.js";
 
 let t: TestApp;
@@ -81,5 +81,51 @@ describe("GET /stats/agents/:agentSlug/timeseries", () => {
       url: "/api/v1/stats/agents/refund-agent/timeseries?bucket=week",
     });
     expect(badBucket.statusCode).toBe(400);
+  });
+});
+
+describe("GET /stats/overview", () => {
+  it("summarises a window, the window before it and the daily series across agents", async () => {
+    const response = await t.app.inject({
+      url: "/api/v1/stats/overview?days=3&to=2026-09-03T00:00:00.000Z",
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    const body = json<Overview>(response);
+    expect(body).toMatchObject({
+      from: "2026-08-31T00:00:00.000Z",
+      to: "2026-09-03T00:00:00.000Z",
+      previousFrom: "2026-08-28T00:00:00.000Z",
+    });
+    expect(body.totals.traces).toBe(7);
+    expect(body.totals.failed).toBeGreaterThanOrEqual(1);
+    expect(body.totals.failureRate).toBeCloseTo(body.totals.failed / 7, 6);
+    expect(body.totals.policyViolations).toBeGreaterThanOrEqual(1);
+    expect(body.totals.totalEstimatedCost).toBeGreaterThan(0);
+    expect(body.totals.p95DurationMs).toBeGreaterThan(0);
+    expect(body.totals.agents).toBeGreaterThanOrEqual(3);
+    expect(body.previous).toMatchObject({ traces: 0, failed: 0, failureRate: null, agents: 0 });
+    // One point per day the window touches, in order, adding up to every trace.
+    expect(body.daily.map((p) => p.start)).toEqual([
+      "2026-08-31T00:00:00.000Z",
+      "2026-09-01T00:00:00.000Z",
+      "2026-09-02T00:00:00.000Z",
+      "2026-09-03T00:00:00.000Z",
+    ]);
+    expect(body.daily.reduce((sum, p) => sum + p.traces, 0)).toBe(7);
+    expect(body.topAgents.length).toBeGreaterThanOrEqual(3);
+    expect(body.topAgents.length).toBeLessThanOrEqual(5);
+    expect(body.topAgents[0]?.traces).toBeGreaterThanOrEqual(body.topAgents[1]?.traces ?? 0);
+
+    const scoped = json<Overview>(
+      await t.app.inject({
+        url: "/api/v1/stats/overview?days=3&to=2026-09-03T00:00:00.000Z&project=support-agent",
+      }),
+    );
+    expect(scoped.totals.traces).toBeLessThan(7);
+    expect(scoped.topAgents.every((a) => a.projectSlug === "support-agent")).toBe(true);
+    expect(scoped.daily.reduce((sum, p) => sum + p.traces, 0)).toBe(scoped.totals.traces);
+
+    expect((await t.app.inject({ url: "/api/v1/stats/overview?days=0" })).statusCode).toBe(400);
+    expect((await t.app.inject({ url: "/api/v1/stats/overview" })).statusCode).toBe(200);
   });
 });

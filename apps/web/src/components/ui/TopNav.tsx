@@ -56,6 +56,16 @@ export function TopNav() {
           Traces
         </Link>
         <Link
+          href="/overview"
+          className={classNames(
+            "text-[12px] text-fg-muted hover:text-fg",
+            pathname === "/overview" && "text-fg font-medium",
+          )}
+          data-testid="nav-overview"
+        >
+          Overview
+        </Link>
+        <Link
           href="/agents"
           className={classNames(
             "text-[12px] text-fg-muted hover:text-fg",

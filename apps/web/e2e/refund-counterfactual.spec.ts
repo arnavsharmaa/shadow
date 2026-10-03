@@ -525,6 +525,32 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
   });
 
+  test("the overview page summarises a period with tiles, charts and lists", async ({ page }) => {
+    await page.goto("/overview?days=7&to=2026-09-03T00:00:00.000Z");
+    const tile = (metric: string) =>
+      page.locator(`[data-testid="stat-tile"][data-metric="${metric}"]`);
+    await expect(page.locator('[data-testid="stat-tile"]')).toHaveCount(6);
+    // The seeded demo has seven traces in this window; earlier tests may import more.
+    const total = Number(await tile("traces").getByTestId("tile-value").innerText());
+    expect(total).toBeGreaterThanOrEqual(7);
+    await expect(tile("failureRate")).toContainText("%");
+    await expect(tile("totalEstimatedCost")).toContainText("$");
+    // The period before has no traces, so no delta can be shown.
+    await expect(tile("traces")).toContainText("no previous period");
+    await expect(page.getByTestId("overview-traces-chart")).toBeVisible();
+    await expect(page.getByTestId("overview-failed-max-label")).toHaveText(/^\d+$/);
+    await expect(page.getByTestId("top-agents").locator("tbody tr").first()).toContainText(/Agent/);
+    const failures = page.getByTestId("recent-failures");
+    await expect(failures).toContainText("refund-request: defective headphones");
+    await failures.getByRole("link", { name: "refund-request: defective headphones" }).click();
+    await expect(page.getByTestId("trace-header")).toBeVisible();
+    await page.goto("/overview?days=7&to=2026-09-03T00:00:00.000Z&project=support-agent");
+    await expect(page.getByTestId("overview-project")).toHaveValue("support-agent");
+    await expect(tile("traces").getByTestId("tile-value")).not.toHaveText(String(total));
+    await page.getByTestId("nav-overview").click();
+    await expect(page.getByTestId("overview")).toBeVisible();
+  });
+
   test("firing alert rules are shown on the agents page", async ({ page, request }) => {
     const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
     const created = await request.post(`${apiUrl}/api/v1/traces`, {

@@ -127,8 +127,8 @@ is welcome through GitHub issues; integration proposals have their own
 - Metrics and dashboards: per-agent cost, latency, error and policy-violation trends (the API
   exposes operational counters at `GET /metrics` and per-agent aggregates at
   `GET /api/v1/stats/agents`, per-agent daily or hourly series at
-  `GET /api/v1/stats/agents/:agentSlug/timeseries`, charted on the Agents page; cross-agent
-  dashboards remain).
+  `GET /api/v1/stats/agents/:agentSlug/timeseries`, charted on the Agents page, and the
+  Overview page with totals, deltas and daily charts across agents).
 - Alerting on anomalies in cost, tool failures and policy decisions (done: threshold rules and
   baseline-relative rules, with webhook notifications; seasonality-aware detection is not
   planned yet).

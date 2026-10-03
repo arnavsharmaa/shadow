@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Overview page (`/overview`): totals for the last 7, 14 or 30 days with deltas against the
+  period before (traces, failure rate, policy violations, tool errors, estimated cost, p95
+  duration), traces and failures per day as charts, the busiest agents, recent failures and
+  firing alerts, optionally per project. Backed by `GET /api/v1/stats/overview`. The column
+  chart is now a shared component used by the Agents page's trends too.
 - Server-side sampling: `SHADOW_INGEST_SAMPLE_RATE` keeps only a fraction of new traces,
   decided from the trace id with the same hash the SDK uses, so client and server sampling at
   the same rate agree. Sampled-out traces are acknowledged with `202 { sampled: false }` on

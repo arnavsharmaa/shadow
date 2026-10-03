@@ -174,6 +174,16 @@ Per-agent aggregates over traces started in the range (both bounds optional, ISO
 Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
 constant in the number of events. CLI: `shadow agents --from 7d`.
 
+### `GET /api/v1/stats/overview?days=&to=&project=`
+
+Everything the Overview page shows in one call, for the window of `days` days (1 to 90, default 14) ending at `to` (default now), optionally for one project: `{ from, to, previousFrom,
+totals, previous, daily, topAgents }`. `totals` is `{ traces, completed, failed, running,
+failureRate, policyViolations, toolErrors, totalEstimatedCost, totalTokens, p95DurationMs,
+agents }`; `previous` is the same for the window of the same length just before `from`, so
+deltas can be shown; `daily` is the per-day series across all agents (every day the window
+touches, as in the timeseries endpoint); `topAgents` is the five busiest agents of the window,
+as `GET /stats/agents` rows.
+
 ### `GET /api/v1/pricing`
 
 `{ version, items: [ModelPricing] }`: the price table used to estimate costs for model

@@ -156,7 +156,21 @@ export async function agentTrend(
     .innerJoin(projects, eq(projects.id, agents.projectId))
     .where(and(...agentFilters));
   if (matching.length === 0) throw ApiError.notFound("agent", agentSlug);
+  const series = await trendSeries(ctx, query, [
+    inArray(
+      traces.agentId,
+      matching.map((m) => m.id),
+    ),
+  ]);
+  return { agent: agentSlug, project: query.project ?? null, ...series };
+}
 
+/** Bucketed series over the traces matching `scope` (an agent, a project, or everything). */
+async function trendSeries(
+  ctx: ServiceContext,
+  query: AgentTrendQuery,
+  scope: SQL[],
+): Promise<Pick<AgentTrend, "bucket" | "from" | "to" | "points">> {
   const step = BUCKET_MS[query.bucket];
   const toMs = query.to ? Date.parse(query.to) : ctx.clock.now();
   const fromMs = query.from ? Date.parse(query.from) : toMs - DEFAULT_SPAN[query.bucket] * step;
@@ -191,10 +205,7 @@ export async function agentTrend(
     .from(traces)
     .where(
       and(
-        inArray(
-          traces.agentId,
-          matching.map((m) => m.id),
-        ),
+        ...scope,
         gte(traces.startedAt, new Date(first).toISOString()),
         lt(traces.startedAt, new Date(last + step).toISOString()),
       ),
@@ -218,11 +229,127 @@ export async function agentTrend(
     });
   }
   return {
-    agent: agentSlug,
-    project: query.project ?? null,
     bucket: query.bucket,
     from: new Date(first).toISOString(),
     to: new Date(last + step).toISOString(),
     points,
+  };
+}
+
+export interface OverviewTotals {
+  traces: number;
+  completed: number;
+  failed: number;
+  running: number;
+  /** Failed divided by finished traces, or `null` with nothing finished. */
+  failureRate: number | null;
+  policyViolations: number;
+  toolErrors: number;
+  totalEstimatedCost: number;
+  totalTokens: number;
+  p95DurationMs: number | null;
+  agents: number;
+}
+
+export interface OverviewQuery {
+  /** Window length in days (1 to 90, default 14), ending at `to` (default now). */
+  days: number;
+  to?: string;
+  project?: string;
+}
+
+export interface Overview {
+  from: string;
+  to: string;
+  previousFrom: string;
+  totals: OverviewTotals;
+  /** The same totals for the window of the same length just before `from`. */
+  previous: OverviewTotals;
+  daily: AgentTrendPoint[];
+  topAgents: AgentStats[];
+}
+
+async function totalsBetween(
+  ctx: ServiceContext,
+  from: string,
+  to: string,
+  project: string | undefined,
+): Promise<OverviewTotals> {
+  const filters: SQL[] = [gte(traces.startedAt, from), lt(traces.startedAt, to)];
+  if (project) filters.push(eq(projects.slug, project));
+  const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
+  const [row] = await ctx.handle.db
+    .select({
+      traces: sql<number>`count(*)`,
+      completed: sql<number>`count(*) filter (where ${traces.status} = 'completed')`,
+      failed: sql<number>`count(*) filter (where ${traces.status} = 'failed')`,
+      running: sql<number>`count(*) filter (where ${traces.status} = 'running')`,
+      policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
+      toolErrors: sql<number>`coalesce(sum((${traces.metrics}->>'toolErrors')::float), 0)`,
+      totalEstimatedCost: sql<number>`coalesce(sum((${traces.metrics}->>'totalEstimatedCost')::float), 0)`,
+      totalTokens: sql<number>`coalesce(sum((${traces.metrics}->>'totalTokens')::float), 0)`,
+      p95DurationMs: sql<
+        number | null
+      >`percentile_cont(0.95) within group (order by ${durationMs}) filter (where ${traces.status} <> 'running')`,
+      agents: sql<number>`count(distinct ${traces.agentId})`,
+    })
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .where(and(...filters));
+  const completed = num(row?.completed);
+  const failed = num(row?.failed);
+  return {
+    traces: num(row?.traces),
+    completed,
+    failed,
+    running: num(row?.running),
+    failureRate: completed + failed > 0 ? failed / (completed + failed) : null,
+    policyViolations: num(row?.policyViolations),
+    toolErrors: num(row?.toolErrors),
+    totalEstimatedCost: num(row?.totalEstimatedCost),
+    totalTokens: num(row?.totalTokens),
+    p95DurationMs: nullableNum(row?.p95DurationMs),
+    agents: num(row?.agents),
+  };
+}
+
+/**
+ * Everything the overview page needs in one call: totals for the window and for the window
+ * before it (so the page can show deltas), a daily series across all agents, and the busiest
+ * agents of the window.
+ */
+export async function overview(ctx: ServiceContext, query: OverviewQuery): Promise<Overview> {
+  const toMs = query.to ? Date.parse(query.to) : ctx.clock.now();
+  const windowMs = query.days * BUCKET_MS.day;
+  const to = new Date(toMs).toISOString();
+  const from = new Date(toMs - windowMs).toISOString();
+  const previousFrom = new Date(toMs - 2 * windowMs).toISOString();
+  const scope: SQL[] = [];
+  if (query.project) {
+    const matching = await ctx.handle.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, query.project));
+    scope.push(
+      inArray(
+        traces.projectId,
+        matching.map((m) => m.id),
+      ),
+    );
+  }
+  const [totals, previous, daily, agentsInWindow] = await Promise.all([
+    totalsBetween(ctx, from, to, query.project),
+    totalsBetween(ctx, previousFrom, from, query.project),
+    trendSeries(ctx, { bucket: "day", from, to, project: query.project }, scope),
+    agentStats(ctx, { from, to, project: query.project }),
+  ]);
+  return {
+    from,
+    to,
+    previousFrom,
+    totals,
+    previous,
+    daily: daily.points,
+    topAgents: agentsInWindow.slice(0, 5),
   };
 }
