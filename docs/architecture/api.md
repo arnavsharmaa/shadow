@@ -881,6 +881,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_PRICING_FILE`               | unset                                         | JSON price list that adds to or overrides built-in prices |
 | `SHADOW_INGEST_SAMPLE_RATE`         | `1`                                           | fraction of new traces the API stores (0 to 1)            |
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables)  |
+| `SHADOW_AUDIT_RETENTION_DAYS`       | unset                                         | delete audit entries older than N days                    |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set                |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                      |
 | `NEXT_PUBLIC_SHADOW_ACTOR`          | `web`                                         | actor the web app reports in the audit log                |
