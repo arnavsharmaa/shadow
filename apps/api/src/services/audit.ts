@@ -83,6 +83,15 @@ function toAuditEntry(row: AuditRow): AuditEntry {
   };
 }
 
+/** Delete entries recorded before `before`; returns how many went. */
+export async function pruneAudit(ctx: ServiceContext, before: string): Promise<number> {
+  const rows = await ctx.handle.db
+    .delete(auditLog)
+    .where(lt(auditLog.at, before))
+    .returning({ id: auditLog.id });
+  return rows.length;
+}
+
 /** Newest first, keyset-paginated on the insertion sequence. */
 export async function listAudit(
   ctx: ServiceContext,

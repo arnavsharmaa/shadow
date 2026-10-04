@@ -158,6 +158,7 @@ describe("audit log", () => {
         SHADOW_RETENTION_DAYS: 365,
         SHADOW_RETENTION_INTERVAL_MINUTES: 60,
         SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
       },
       logger: t.services.logger,
     });

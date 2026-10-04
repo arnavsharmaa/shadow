@@ -1,6 +1,7 @@
 import { VirtualClock } from "@shadow/core";
 import type { Trace, TraceSummary } from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { auditLog } from "../../src/db/schema.js";
 import { createRetention } from "../../src/retention.js";
 import { createTestApp, json, type TestApp } from "../helpers.js";
 
@@ -45,6 +46,7 @@ describe("retention", () => {
         SHADOW_RETENTION_DAYS: undefined,
         SHADOW_RETENTION_INTERVAL_MINUTES: 60,
         SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
       },
       logger: t.services.logger,
     });
@@ -66,12 +68,18 @@ describe("retention", () => {
         SHADOW_RETENTION_DAYS: 30,
         SHADOW_RETENTION_INTERVAL_MINUTES: 60,
         SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
       },
       logger: t.services.logger,
     });
     expect(retention.enabled).toBe(true);
     const sweep = await retention.runOnce();
-    expect(sweep).toEqual({ cutoff: "2026-08-12T12:00:00.000Z", deleted: 2, truncated: false });
+    expect(sweep).toEqual({
+      cutoff: "2026-08-12T12:00:00.000Z",
+      deleted: 2,
+      truncated: false,
+      auditDeleted: 0,
+    });
     // The kept trace survives although it is the oldest of all.
     expect(await listNames()).toEqual(["old-kept", "edge-30d", "fresh"]);
 
@@ -81,6 +89,7 @@ describe("retention", () => {
         SHADOW_RETENTION_DAYS: 30,
         SHADOW_RETENTION_INTERVAL_MINUTES: 60,
         SHADOW_RETENTION_KEEP_TAG: undefined,
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
       },
       logger: t.services.logger,
     });
@@ -98,11 +107,58 @@ describe("retention", () => {
         SHADOW_RETENTION_DAYS: 2,
         SHADOW_RETENTION_INTERVAL_MINUTES: 60,
         SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
       },
       logger: t.services.logger,
     });
     const [a, b] = await Promise.all([retention.runOnce(), retention.runOnce()]);
     expect(a).toBe(b);
     expect(await listNames()).toEqual(["fresh"]);
+  });
+});
+
+describe("audit retention", () => {
+  it("prunes old audit entries on the sweep, with or without trace retention", async () => {
+    // Two entries: one recorded "now", one back-dated beyond the window.
+    await t.app.inject({
+      method: "POST",
+      url: "/api/v1/views",
+      payload: { name: "audit-retention-view", query: "status=failed" },
+    });
+    const old = new Date(NOW - 400 * 86_400_000).toISOString();
+    await t.handle.db.insert(auditLog).values({
+      id: "aud_ancient",
+      at: old,
+      actor: "ghost",
+      action: "trace.deleted",
+      targetType: "trace",
+      targetId: "trc_gone",
+      traceId: null,
+      details: {},
+      requestId: null,
+    });
+    const auditOnly = createRetention({
+      services: t.services,
+      config: {
+        SHADOW_RETENTION_DAYS: undefined,
+        SHADOW_RETENTION_INTERVAL_MINUTES: 60,
+        SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: 365,
+      },
+      logger: t.services.logger,
+    });
+    expect(auditOnly.enabled).toBe(true);
+    expect(await auditOnly.runOnce()).toEqual({
+      cutoff: null,
+      deleted: 0,
+      truncated: false,
+      auditDeleted: 1,
+    });
+    const remaining = json<{ items: { id: string }[] }>(
+      await t.app.inject({ url: "/api/v1/audit?limit=500" }),
+    ).items.map((e) => e.id);
+    expect(remaining).not.toContain("aud_ancient");
+    expect(remaining.length).toBeGreaterThan(0);
+    expect((await auditOnly.runOnce())?.auditDeleted).toBe(0);
   });
 });

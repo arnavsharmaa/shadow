@@ -2,7 +2,7 @@ import type { Logger } from "pino";
 import type { ApiConfig } from "./config.js";
 import type { ServiceContext } from "./services/context.js";
 import { pruneTraces } from "./services/traces.js";
-import { recordAudit } from "./services/audit.js";
+import { pruneAudit, recordAudit } from "./services/audit.js";
 
 const DAY_MS = 86_400_000;
 /** Traces deleted per prune call; keeps each transaction short. */
@@ -11,10 +11,13 @@ const BATCH = 500;
 const MAX_BATCHES = 20;
 
 export interface RetentionSweep {
-  cutoff: string;
+  /** Traces that started before this were deleted; `null` when trace retention is off. */
+  cutoff: string | null;
   deleted: number;
   /** More traces remained after MAX_BATCHES; the next sweep continues. */
   truncated: boolean;
+  /** Audit entries deleted under SHADOW_AUDIT_RETENTION_DAYS. */
+  auditDeleted: number;
 }
 
 export interface Retention {
@@ -35,17 +38,29 @@ export function createRetention(input: {
   services: ServiceContext;
   config: Pick<
     ApiConfig,
-    "SHADOW_RETENTION_DAYS" | "SHADOW_RETENTION_INTERVAL_MINUTES" | "SHADOW_RETENTION_KEEP_TAG"
+    | "SHADOW_RETENTION_DAYS"
+    | "SHADOW_RETENTION_INTERVAL_MINUTES"
+    | "SHADOW_RETENTION_KEEP_TAG"
+    | "SHADOW_AUDIT_RETENTION_DAYS"
   >;
   logger: Logger;
 }): Retention {
   const { services, config, logger } = input;
   const days = config.SHADOW_RETENTION_DAYS;
+  const auditDays = config.SHADOW_AUDIT_RETENTION_DAYS;
+  const enabled = days !== undefined || auditDays !== undefined;
   let timer: ReturnType<typeof setInterval> | null = null;
   let running: Promise<RetentionSweep | null> | null = null;
 
   const sweep = async (): Promise<RetentionSweep | null> => {
-    if (days === undefined) return null;
+    if (!enabled) return null;
+    let auditDeleted = 0;
+    if (auditDays !== undefined) {
+      const before = new Date(services.clock.now() - auditDays * DAY_MS).toISOString();
+      auditDeleted = await pruneAudit(services, before);
+      if (auditDeleted > 0) logger.info({ before, auditDeleted }, "audit log pruned");
+    }
+    if (days === undefined) return { cutoff: null, deleted: 0, truncated: false, auditDeleted };
     const cutoff = new Date(services.clock.now() - days * DAY_MS).toISOString();
     let deleted = 0;
     let truncated = false;
@@ -86,7 +101,7 @@ export function createRetention(input: {
         "retention sweep",
       );
     }
-    return { cutoff, deleted, truncated };
+    return { cutoff, deleted, truncated, auditDeleted };
   };
 
   const runOnce = (): Promise<RetentionSweep | null> => {
@@ -98,10 +113,10 @@ export function createRetention(input: {
   };
 
   return {
-    enabled: days !== undefined,
+    enabled,
     runOnce,
     start() {
-      if (days === undefined || timer) return;
+      if (!enabled || timer) return;
       const intervalMs = config.SHADOW_RETENTION_INTERVAL_MINUTES * 60_000;
       const tick = () => {
         runOnce().catch((error: unknown) => {
@@ -112,7 +127,8 @@ export function createRetention(input: {
       timer.unref();
       logger.info(
         {
-          retentionDays: days,
+          retentionDays: days ?? null,
+          auditRetentionDays: auditDays ?? null,
           intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
           keepTag: config.SHADOW_RETENTION_KEEP_TAG,
         },

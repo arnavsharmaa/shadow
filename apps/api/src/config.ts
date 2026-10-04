@@ -83,6 +83,19 @@ const configSchema = z.object({
       }
       return n;
     }),
+  /** Delete audit entries older than this many days (unset keeps them forever). */
+  SHADOW_AUDIT_RETENTION_DAYS: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined || (typeof v === "string" && v.trim() === "")) return undefined;
+      const n = typeof v === "number" ? v : Number(v);
+      if (!Number.isFinite(n) || n <= 0) {
+        ctx.addIssue({ code: "custom", message: "must be a positive number of days" });
+        return z.NEVER;
+      }
+      return n;
+    }),
   /** Traces tagged with this are exempt from retention (empty disables the exemption). */
   SHADOW_RETENTION_KEEP_TAG: z
     .string()
