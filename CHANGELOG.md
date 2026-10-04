@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_AUDIT_RETENTION_DAYS` ages audit entries out on the retention sweep, independently of
+  trace retention.
 - API keys: with `SHADOW_API_TOKEN` set, `POST /api/v1/keys` issues `shk_…` keys with `ingest`,
   `read` or `admin` scope that work as bearer tokens, so an SDK deployment can record traces
   without the admin token. Only hashes are stored, keys can be listed and revoked, scope

@@ -981,3 +981,7 @@ empty.
 Logs are structured JSON (pretty-printed on a TTY outside production) and redact
 `authorization`, `cookie`, `password`, `apiKey`, `token`, `secret` and any key matching
 `SHADOW_REDACT_PATTERNS`.
+
+The audit log has its own clock: `SHADOW_AUDIT_RETENTION_DAYS` deletes audit entries older than
+that many days on the same sweep (and enables the sweep on its own when trace retention is
+off). Unset, audit entries are kept forever.
