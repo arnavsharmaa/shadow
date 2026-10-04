@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
 import type {
   AlertRule,
+  ApiKey,
   Artifact,
   AuditEntry,
   BatchJob,
@@ -752,6 +753,73 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }
       },
     );
+
+  const keys = program
+    .command("keys")
+    .description(
+      "API keys with ingest, read or admin scope (needs SHADOW_API_TOKEN or an admin key)",
+    );
+
+  keys
+    .command("list")
+    .description("list API keys (secrets are never shown again)")
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { json?: boolean }) => {
+      const page = await client().get<{ items: ApiKey[] }>("/api/v1/keys");
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no API keys");
+      out(
+        table(
+          ["KEY", "NAME", "SCOPE", "PREFIX", "STATE", "LAST USED", "CREATED"],
+          page.items.map((k) => [
+            k.id,
+            k.name,
+            k.scope,
+            `${k.prefix}…`,
+            k.revokedAt ? `revoked ${k.revokedAt}` : "active",
+            k.lastUsedAt ?? "never",
+            k.createdAt,
+          ]),
+        ),
+      );
+    });
+
+  keys
+    .command("create")
+    .description("create an API key; the secret is printed once")
+    .argument("<name>", "key name, e.g. ci-ingest")
+    .option(
+      "--scope <scope>",
+      "ingest | read | admin",
+      (value: string) => {
+        if (!["ingest", "read", "admin"].includes(value)) {
+          throw new InvalidArgumentError("expected ingest, read or admin");
+        }
+        return value;
+      },
+      "ingest",
+    )
+    .option("--json", "print JSON")
+    .action(async (name: string, opts: { scope: string; json?: boolean }) => {
+      const result = await client().post<{ key: ApiKey; secret: string }>("/api/v1/keys", {
+        name,
+        scope: opts.scope,
+      });
+      if (opts.json) return json(result);
+      out(result.secret);
+      out(
+        `created ${result.key.id} (${result.key.name}, scope ${result.key.scope}). Store the secret now: it cannot be shown again. Use it as --token or SHADOW_TOKEN.`,
+      );
+    });
+
+  keys
+    .command("revoke")
+    .description("revoke an API key by name or id")
+    .argument("<nameOrId>", "key name or id")
+    .action(async (nameOrId: string) => {
+      const key = await client().delete<ApiKey>(`/api/v1/keys/${encodeURIComponent(nameOrId)}`);
+      out(`revoked ${key.name} (${key.id})`);
+    });
 
   program
     .command("pricing")

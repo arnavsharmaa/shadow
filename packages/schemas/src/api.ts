@@ -13,6 +13,7 @@ import {
   ALERT_MODES,
   BATCH_JOB_STATUSES,
   alertMetricSchema,
+  apiKeyScopeSchema,
 } from "./entities.js";
 import { eventSchema, ingestEventSchema } from "./events.js";
 import { idSchema } from "./ids.js";
@@ -395,6 +396,17 @@ export const importAnthropicBodySchema = z.object({
     .optional(),
 });
 export type ImportAnthropicBody = z.infer<typeof importAnthropicBodySchema>;
+
+export const createApiKeyBodySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[\w][\w .:-]*$/, "use letters, digits, spaces and _ . : -"),
+  scope: apiKeyScopeSchema.default("ingest"),
+});
+export type CreateApiKeyBody = z.infer<typeof createApiKeyBodySchema>;
 
 export const MAX_SHARE_HOURS = 24 * 30;
 

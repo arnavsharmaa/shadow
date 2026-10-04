@@ -928,6 +928,28 @@ so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 
 are retried three times with backoff, other rejections are logged once. `/health` reports
 whether the webhook is enabled.
 
+### Authentication and API keys
+
+With `SHADOW_API_TOKEN` set, every `/api/*` request and `/metrics` needs `Authorization: Bearer
+<credential>`, where the credential is the token itself or an API key. Keys are created with
+`POST /api/v1/keys` (`{ name, scope? }`, scope `ingest` by default) by a request authenticated
+with the token or an `admin` key; the response `{ key, secret }` is the only time the secret
+(`shk_…`) is shown, since only its hash is stored. `GET /api/v1/keys` lists keys
+(`{ id, name, scope, prefix, createdAt, lastUsedAt, revokedAt }`, never secrets) and
+`DELETE /api/v1/keys/:nameOrId` revokes one, effective from the next request.
+
+| Scope    | Allowed requests                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ingest` | `POST /traces`, `POST /traces/:id/events`, `POST /traces/:id/artifacts`, `PATCH /traces/:id`, `POST /traces/import`, `POST /otlp/v1/traces`, `POST /import/*` |
+| `read`   | every `GET`                                                                                                                                                   |
+| `admin`  | everything, like the token                                                                                                                                    |
+
+A request outside a key's scope is `403 forbidden`; an unknown or revoked key is `401`. Audit
+entries for requests made with a key use `key:<name>` as the actor regardless of
+`x-shadow-actor`. Without `SHADOW_API_TOKEN` the API is open and keys are not consulted. CLI:
+`shadow keys list|create <name> --scope ingest|read|admin|revoke <nameOrId>`; pass a key as
+`--token` or `SHADOW_TOKEN`.
+
 ### Sampling
 
 `SHADOW_INGEST_SAMPLE_RATE` below `1` makes the API keep only that fraction of new traces. The

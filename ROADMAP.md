@@ -79,7 +79,8 @@ is welcome through GitHub issues; integration proposals have their own
 ### Committed
 
 - Authentication and per-project authorisation (API keys and single sign-on), the prerequisite
-  for any shared deployment.
+  for any shared deployment: scoped API keys (`ingest`, `read`, `admin`) exist; per-project
+  scoping and single sign-on remain.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing (event,
   branch and comparison permalinks and expiring read-only share links with a web viewer are
   done).

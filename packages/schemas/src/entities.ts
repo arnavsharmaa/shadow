@@ -263,6 +263,8 @@ export const AUDIT_ACTIONS = [
   "collection.deleted",
   "collection.traces_added",
   "collection.traces_removed",
+  "key.created",
+  "key.revoked",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -357,3 +359,24 @@ export const collectionSchema = z.object({
   updatedAt: timestamp,
 });
 export type Collection = z.infer<typeof collectionSchema>;
+
+/**
+ * What an API key may do: `ingest` records traces (create, events, updates, artifacts and
+ * imports), `read` reads everything, `admin` does anything the API token can.
+ */
+export const API_KEY_SCOPES = ["ingest", "read", "admin"] as const;
+export const apiKeyScopeSchema = z.enum(API_KEY_SCOPES);
+export type ApiKeyScope = z.infer<typeof apiKeyScopeSchema>;
+
+/** An API key; the secret is shown once, on creation, and only its hash is stored. */
+export const apiKeySchema = z.object({
+  id: idSchema,
+  name: z.string().min(1).max(64),
+  scope: apiKeyScopeSchema,
+  /** The first characters of the secret, to tell keys apart in logs and lists. */
+  prefix: z.string().max(16),
+  createdAt: timestamp,
+  lastUsedAt: timestamp.nullable(),
+  revokedAt: timestamp.nullable(),
+});
+export type ApiKey = z.infer<typeof apiKeySchema>;

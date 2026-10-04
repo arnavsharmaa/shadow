@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- API keys: with `SHADOW_API_TOKEN` set, `POST /api/v1/keys` issues `shk_…` keys with `ingest`,
+  `read` or `admin` scope that work as bearer tokens, so an SDK deployment can record traces
+  without the admin token. Only hashes are stored, keys can be listed and revoked, scope
+  violations are `403`, requests made with a key are audited as `key:<name>`, and `shadow keys
+  create|list|revoke` manage them (new `api_keys` table, migration `0009_api_keys`).
 - Overview page (`/overview`): totals for the last 7, 14 or 30 days with deltas against the
   period before (traces, failure rate, policy violations, tool errors, estimated cost, p95
   duration), traces and failures per day as charts, the busiest agents, recent failures and

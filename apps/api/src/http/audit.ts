@@ -7,9 +7,10 @@ export async function audit(
   request: FastifyRequest,
   entry: Omit<AuditInput, "actor" | "requestId">,
 ): Promise<void> {
-  await recordAudit(app.services, {
-    ...entry,
-    actor: actorFrom(request.headers["x-shadow-actor"]),
-    requestId: request.id,
-  });
+  // A request authenticated with an API key is attributed to the key, not to what it claims.
+  const actor =
+    request.auth?.kind === "key"
+      ? `key:${request.auth.key.name}`
+      : actorFrom(request.headers["x-shadow-actor"]);
+  await recordAudit(app.services, { ...entry, actor, requestId: request.id });
 }

@@ -222,6 +222,7 @@ shadow trend refund-agent --metric failed --from 14d
 shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h
 shadow alerts add "cost spike" --metric total_cost --threshold 3 --baseline --window 1d
 shadow alerts check
+shadow keys create ci-ingest --scope ingest
 shadow collections create incident-42 trc_demo_refund_violation --description "refund limit incident"
 shadow traces list --collection incident-42
 shadow audit --trace trc_demo_refund_violation
@@ -262,6 +263,7 @@ POST /api/v1/import/anthropic
 GET  /api/v1/views                        POST /api/v1/views   DELETE /api/v1/views/:viewId
 GET  /api/v1/batch/jobs                   GET  /api/v1/batch/jobs/:jobId   POST …/:jobId/cancel
 GET  /api/v1/audit                        POST /api/v1/traces/:traceId/shares
+GET  /api/v1/keys                         POST /api/v1/keys   DELETE /api/v1/keys/:nameOrId
 GET  /api/v1/shared/:token                (no API token: the link is the credential)
 ```
 
@@ -324,7 +326,7 @@ v0.1 (this release) delivers local time travel: schema, ingestion, explorer, sta
 
 ## Security
 
-Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. Authentication is a single optional bearer token (`SHADOW_API_TOKEN`, forwarded by the SDK, CLI and web app, and required for `/metrics` when set); an optional per-client rate limit (`SHADOW_RATE_LIMIT_PER_MINUTE`), retention (`SHADOW_RETENTION_DAYS`, with a `keep` tag exemption) and a signed outgoing webhook (`SHADOW_WEBHOOK_URL`) round out the operational controls. There is no per-user authorisation, so run Shadow locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+Trace data can contain sensitive customer and business data. Shadow validates and bounds all input, redacts common secret fields on both the SDK and the server (configurable with `SHADOW_REDACT_PATTERNS`), never executes uploaded content, and logs with redaction. Authentication is an optional bearer token (`SHADOW_API_TOKEN`, forwarded by the SDK, CLI and web app, and required for `/metrics` when set) plus API keys with `ingest`, `read` or `admin` scope (`shadow keys create`), so deployments can record traces without holding the admin token; an optional per-client rate limit (`SHADOW_RATE_LIMIT_PER_MINUTE`), retention (`SHADOW_RETENTION_DAYS`, with a `keep` tag exemption) and a signed outgoing webhook (`SHADOW_WEBHOOK_URL`) round out the operational controls. There is no per-user authorisation, so run Shadow locally or on a trusted network. Production multi-tenant authentication and encryption controls are roadmap items. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Contributing
 

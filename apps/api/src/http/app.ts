@@ -24,6 +24,9 @@ import { shareRoutes } from "./routes/shares.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { collectionRoutes } from "./routes/collections.js";
 import { importRoutes } from "./routes/import.js";
+import { keyRoutes } from "./routes/keys.js";
+import { KEY_PREFIX, authenticateApiKey, scopeAllows } from "../services/keys.js";
+import type { ApiKey } from "@shadow/schemas";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
 import { otlpRoutes } from "./routes/otlp.js";
@@ -34,11 +37,17 @@ import { traceRoutes } from "./routes/traces.js";
 
 export const API_VERSION = "0.1.0";
 
+/** How a request was authenticated, once `SHADOW_API_TOKEN` is set. */
+export type RequestAuth = { kind: "token" } | { kind: "key"; key: ApiKey };
+
 declare module "fastify" {
   interface FastifyInstance {
     services: ServiceContext;
     apiConfig: ApiConfig;
     sampler: Sampler;
+  }
+  interface FastifyRequest {
+    auth: RequestAuth | null;
   }
 }
 
@@ -62,6 +71,7 @@ export async function buildApp(options: BuildAppOptions) {
   app.decorate("services", options.services);
   app.decorate("apiConfig", options.config);
   app.decorate("sampler", createSampler(options.config.SHADOW_INGEST_SAMPLE_RATE));
+  app.decorateRequest("auth", null);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
@@ -79,12 +89,29 @@ export async function buildApp(options: BuildAppOptions) {
       const header = request.headers.authorization ?? "";
       const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
       const digest = createHash("sha256").update(presented).digest();
-      if (presented.length === 0 || !timingSafeEqual(digest, expectedDigest)) {
+      if (presented.length > 0 && timingSafeEqual(digest, expectedDigest)) {
+        request.auth = { kind: "token" };
+        return;
+      }
+      const key = presented.startsWith(KEY_PREFIX)
+        ? await authenticateApiKey(options.services, presented)
+        : null;
+      if (!key) {
         reply.header("www-authenticate", 'Bearer realm="shadow"');
         return reply.status(401).send({
           error: {
             code: "unauthorized",
-            message: "a valid bearer token is required (SHADOW_API_TOKEN)",
+            message: "a valid bearer token is required (SHADOW_API_TOKEN or an API key)",
+            requestId: request.id,
+          },
+        });
+      }
+      request.auth = { kind: "key", key };
+      if (!scopeAllows(key.scope, request.method, request.url)) {
+        return reply.status(403).send({
+          error: {
+            code: "forbidden",
+            message: `API key '${key.name}' has scope '${key.scope}', which does not allow ${request.method} ${request.url.split("?")[0]}`,
             requestId: request.id,
           },
         });
@@ -164,6 +191,7 @@ export async function buildApp(options: BuildAppOptions) {
         { name: "sharing" },
         { name: "alerts" },
         { name: "collections" },
+        { name: "keys" },
       ],
     },
     transform: jsonSchemaTransform,
@@ -302,6 +330,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(alertRoutes, { prefix: "/api/v1" });
   await app.register(collectionRoutes, { prefix: "/api/v1" });
   await app.register(importRoutes, { prefix: "/api/v1" });
+  await app.register(keyRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

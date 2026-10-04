@@ -10,7 +10,15 @@ export interface AuditInput {
   actor: string;
   action: AuditAction;
   targetType:
-    "trace" | "branch" | "comparison" | "artifact" | "job" | "view" | "alert" | "collection";
+    | "trace"
+    | "branch"
+    | "comparison"
+    | "artifact"
+    | "job"
+    | "view"
+    | "alert"
+    | "collection"
+    | "key";
   targetId: string;
   traceId?: string | null;
   details?: Record<string, unknown>;

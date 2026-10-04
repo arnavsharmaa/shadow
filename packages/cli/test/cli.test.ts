@@ -831,6 +831,39 @@ describe("shadow cli", () => {
     expect(await runWith(fakeApi({}), ["otlp", "import", bad])).toBe(2);
   });
 
+  it("creates, lists and revokes API keys", async () => {
+    const key = {
+      id: "key_1",
+      name: "ci-ingest",
+      scope: "ingest",
+      prefix: "shk_abcdefgh",
+      createdAt: "2026-10-04T09:00:00.000Z",
+      lastUsedAt: null,
+      revokedAt: null,
+    };
+    const api = fakeApi({
+      "POST /api/v1/keys": (body) => ({
+        status: 201,
+        body: { key: { ...key, ...(body as object) }, secret: "shk_abcdefghSECRET" },
+      }),
+      "GET /api/v1/keys": () => ({ body: { items: [key] } }),
+      "DELETE /api/v1/keys/ci-ingest": () => ({
+        body: { ...key, revokedAt: "2026-10-04T10:00:00.000Z" },
+      }),
+    });
+    expect(await runWith(api, ["keys", "create", "ci-ingest", "--scope", "ingest"])).toBe(0);
+    expect(api.captured.calls[0]?.body).toEqual({ name: "ci-ingest", scope: "ingest" });
+    expect(api.captured.out[0]).toBe("shk_abcdefghSECRET");
+    expect(api.captured.out.join("\n")).toContain("cannot be shown again");
+    expect(await runWith(api, ["keys", "list"])).toBe(0);
+    expect(api.captured.out.join("\n")).toMatch(
+      /key_1\s+ci-ingest\s+ingest\s+shk_abcdefgh…\s+active\s+never/,
+    );
+    expect(await runWith(api, ["keys", "revoke", "ci-ingest"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("revoked ci-ingest (key_1)");
+    expect(await runWith(api, ["keys", "create", "x", "--scope", "root"])).toBe(2);
+  });
+
   it("prints the price table", async () => {
     const api = fakeApi({
       "GET /api/v1/pricing": () => ({

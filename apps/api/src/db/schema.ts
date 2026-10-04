@@ -384,6 +384,25 @@ export const collectionTraces = pgTable(
   ],
 );
 
+/** API keys; only the SHA-256 hash of the secret is stored. */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    scope: text("scope").notNull(),
+    prefix: text("prefix").notNull(),
+    secretHash: text("secret_hash").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastUsedAt: ts("last_used_at"),
+    revokedAt: ts("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("api_keys_name_idx").on(t.name),
+    uniqueIndex("api_keys_secret_idx").on(t.secretHash),
+  ],
+);
+
 export const schema = {
   projects,
   agents,
@@ -402,6 +421,7 @@ export const schema = {
   alertRules,
   collections,
   collectionTraces,
+  apiKeys,
 };
 
 export const nowSql = sql`now()`;

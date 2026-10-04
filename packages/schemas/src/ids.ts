@@ -27,6 +27,7 @@ export const ID_PREFIXES = {
   share: "shr",
   alert: "alr",
   collection: "col",
+  apiKey: "key",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

@@ -34,13 +34,18 @@ you prefer to remain anonymous.
 Shadow v0.1 is a **local, single-user developer tool**. It is designed to run on a developer
 machine or inside a trusted network:
 
-- **A single shared token, no per-user authorisation.** By default the API (`apps/api`) and the
-  web app accept every request. Setting `SHADOW_API_TOKEN` requires `Authorization: Bearer
-<token>` on every `/api/*` request and on `/metrics` (the SDK, CLI and web app forward it),
-  which keeps unauthenticated clients out but does not distinguish users or projects. The web
-  app embeds its copy of the token in the browser bundle, so anyone who can load the web app
-  can use the API. `/health`, `/docs` and `/openapi.json` stay open; `/health` reports which
-  features are enabled but no secrets.
+- **One admin token plus scoped API keys, no per-user authorisation.** By default the API
+  (`apps/api`) and the web app accept every request. Setting `SHADOW_API_TOKEN` requires
+  `Authorization: Bearer <token>` on every `/api/*` request and on `/metrics` (the SDK, CLI and
+  web app forward it). With the token set, API keys (`shadow keys create`, `POST /api/v1/keys`)
+  are accepted as bearer tokens too: an `ingest` key can only record traces (create, events,
+  updates, artifacts, imports), a `read` key can only read, and an `admin` key can do anything
+  the token can, including managing keys. Give SDK deployments an `ingest` key rather than the
+  token. Only a hash of each secret is stored, revocation takes effect on the next request, and
+  changes made with a key are audited as `key:<name>`. Keys do not distinguish projects, and
+  the web app still embeds its own credential in the browser bundle, so anyone who can load the
+  web app can use the API with that credential's scope. `/health`, `/docs` and `/openapi.json`
+  stay open; `/health` reports which features are enabled but no secrets.
 - **The OpenTelemetry endpoint accepts foreign data.** `POST /api/v1/otlp/v1/traces` turns any
   OTLP JSON export into traces under the project named by its resource attributes. It is
   covered by the same token, body limit and redaction as ingestion, but with the token unset
