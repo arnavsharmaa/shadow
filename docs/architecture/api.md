@@ -954,7 +954,8 @@ different one, all with `403`. `read` and `admin` keys cannot be pinned.
 A request outside a key's scope is `403 forbidden`; an unknown or revoked key is `401`. Audit
 entries for requests made with a key use `key:<name>` as the actor regardless of
 `x-shadow-actor`. Without `SHADOW_API_TOKEN` the API is open and keys are not consulted. CLI:
-`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`; pass a key as
+`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`, or the
+web app's Settings page; pass a key as
 `--token` or `SHADOW_TOKEN`.
 
 ### Sampling

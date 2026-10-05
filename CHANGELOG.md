@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Settings page (`/settings`) for API keys: list, create with scope and project pin (the secret
+  is shown once with a copy button) and revoke.
 - Project-pinned ingest keys: `POST /api/v1/keys` (and `shadow keys create --project`) accepts a
   project slug for an `ingest` key, which then records only into that project across trace
   creation, events, updates, artifacts, bundle and conversation imports and the OTLP endpoint

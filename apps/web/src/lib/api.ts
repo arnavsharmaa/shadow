@@ -1,5 +1,7 @@
 import type {
   AlertRule,
+  ApiKey,
+  ApiKeyScope,
   Artifact,
   AuditEntry,
   BatchJob,
@@ -353,6 +355,11 @@ export const api = {
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
   alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
+  apiKeys: () => request<{ items: ApiKey[] }>("GET", "/api/v1/keys"),
+  createApiKey: (body: { name: string; scope: ApiKeyScope; project?: string }) =>
+    request<{ key: ApiKey; secret: string }>("POST", "/api/v1/keys", body),
+  revokeApiKey: (nameOrId: string) =>
+    request<ApiKey>("DELETE", `/api/v1/keys/${encodeURIComponent(nameOrId)}`),
   collections: (traceId?: string) =>
     request<{ items: Collection[] }>("GET", `/api/v1/collections${query({ traceId })}`),
   addToCollection: (collection: string, traceIds: string[]) =>
@@ -406,5 +413,6 @@ export const api = {
       status: string;
       database: { kind: string; location: string; healthy: boolean };
       agents?: { replayable: string[] };
+      features?: { auth: boolean };
     }>("GET", "/health"),
 };

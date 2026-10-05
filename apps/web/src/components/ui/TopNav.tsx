@@ -75,6 +75,16 @@ export function TopNav() {
         >
           Agents
         </Link>
+        <Link
+          href="/settings"
+          className={classNames(
+            "text-[12px] text-fg-muted hover:text-fg",
+            pathname === "/settings" && "text-fg font-medium",
+          )}
+          data-testid="nav-settings"
+        >
+          Settings
+        </Link>
         <a
           href={api.docsUrl()}
           target="_blank"

@@ -551,6 +551,31 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("overview")).toBeVisible();
   });
 
+  test("API keys can be issued and revoked from settings", async ({ page }) => {
+    const name = `e2e-key-${Date.now()}`;
+    await page.goto("/settings");
+    await expect(page.getByTestId("auth-state")).toContainText("SHADOW_API_TOKEN is not set");
+    await page.getByTestId("key-name").fill(name);
+    await page.getByTestId("key-scope").selectOption("ingest");
+    await page.getByTestId("key-project").fill("support-agent");
+    await page.getByTestId("create-key").click();
+    const issued = page.getByTestId("issued-key");
+    await expect(issued).toContainText(`Key ${name} created`);
+    await expect(page.getByTestId("issued-secret")).toHaveText(/^shk_[A-Za-z0-9_-]{43}$/);
+    const row = page.locator(`[data-testid="key-row"][data-key-name="${name}"]`);
+    await expect(row).toContainText("ingest");
+    await expect(row).toContainText("support-agent");
+    await expect(row).toContainText("never");
+    await row.getByTestId("revoke-key").click();
+    await expect(row).toContainText("revoked");
+    await page.reload();
+    await expect(page.locator(`[data-testid="key-row"][data-key-name="${name}"]`)).toContainText(
+      "revoked",
+    );
+    await page.getByTestId("nav-settings").click();
+    await expect(page.getByTestId("settings")).toBeVisible();
+  });
+
   test("firing alert rules are shown on the agents page", async ({ page, request }) => {
     const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
     const created = await request.post(`${apiUrl}/api/v1/traces`, {
