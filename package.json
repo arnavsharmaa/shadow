@@ -39,9 +39,9 @@
   },
   "devDependencies": {
     "@shadow/config": "workspace:*",
-    "eslint": "10.10.0",
-    "prettier": "3.9.7",
-    "turbo": "2.10.13",
+    "eslint": "10.11.0",
+    "prettier": "3.9.9",
+    "turbo": "2.11.6",
     "typescript": "5.9.3"
   },
   "pnpm": {
