@@ -857,8 +857,16 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toContain("cannot be shown again");
     expect(await runWith(api, ["keys", "list"])).toBe(0);
     expect(api.captured.out.join("\n")).toMatch(
-      /key_1\s+ci-ingest\s+ingest\s+shk_abcdefgh…\s+active\s+never/,
+      /key_1\s+ci-ingest\s+ingest\s+any\s+shk_abcdefgh…\s+active\s+never/,
     );
+    expect(await runWith(api, ["keys", "create", "support-ingest", "--project", "support"])).toBe(
+      0,
+    );
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      name: "support-ingest",
+      scope: "ingest",
+      project: "support",
+    });
     expect(await runWith(api, ["keys", "revoke", "ci-ingest"])).toBe(0);
     expect(api.captured.out.join("\n")).toContain("revoked ci-ingest (key_1)");
     expect(await runWith(api, ["keys", "create", "x", "--scope", "root"])).toBe(2);

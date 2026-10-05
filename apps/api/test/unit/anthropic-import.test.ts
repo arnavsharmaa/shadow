@@ -145,7 +145,8 @@ describe("convertAnthropicMessages", () => {
         { role: "system", content: "Terse mode enabled." },
       ],
     });
-    expect(body).toMatchObject({ project: "anthropic", agent: "claude-agent", tags: [] });
+    expect(body).toMatchObject({ agent: "claude-agent", tags: [] });
+    expect(body.project).toBeUndefined();
     const { events, summary, name } = convertAnthropicMessages(body, { ...ids(), now: 1000 });
     expect(name).toBe("What is the weather in Paris?");
     expect(events[0]?.timestamp).toBe("1970-01-01T00:00:01.000Z");

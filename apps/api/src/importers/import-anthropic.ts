@@ -13,6 +13,8 @@ export interface AnthropicImportResult {
 }
 
 /** Store a Messages API conversation as a new trace of `source: "anthropic"`. */
+export const DEFAULT_IMPORT_PROJECT = "anthropic";
+
 export async function importAnthropicMessages(
   ctx: ServiceContext,
   body: ImportAnthropicBody,
@@ -29,7 +31,7 @@ export async function importAnthropicMessages(
     ctx,
     {
       id: body.traceId,
-      project: body.project,
+      project: body.project ?? DEFAULT_IMPORT_PROJECT,
       agent: body.agent,
       name: converted.name,
       startedAt: converted.startedAt,

@@ -42,8 +42,9 @@ machine or inside a trusted network:
   updates, artifacts, imports), a `read` key can only read, and an `admin` key can do anything
   the token can, including managing keys. Give SDK deployments an `ingest` key rather than the
   token. Only a hash of each secret is stored, revocation takes effect on the next request, and
-  changes made with a key are audited as `key:<name>`. Keys do not distinguish projects, and
-  the web app still embeds its own credential in the browser bundle, so anyone who can load the
+  changes made with a key are audited as `key:<name>`. An `ingest` key can be pinned to one
+  project, which is the only per-project authorisation so far: reads and administration are
+  still all-or-nothing, and the web app still embeds its own credential in the browser bundle, so anyone who can load the
   web app can use the API with that credential's scope. `/health`, `/docs` and `/openapi.json`
   stay open; `/health` reports which features are enabled but no secrets.
 - **The OpenTelemetry endpoint accepts foreign data.** `POST /api/v1/otlp/v1/traces` turns any

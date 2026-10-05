@@ -71,6 +71,13 @@
       "when": 1791143050297,
       "tag": "0009_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791188806399,
+      "tag": "0010_api_key_projects",
+      "breakpoints": true
     }
   ]
 }

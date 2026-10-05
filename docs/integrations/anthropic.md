@@ -114,7 +114,8 @@ The file is either a bare `messages` array or an object:
 returned next to the content (`stop_reason`, `usage`, `model`, `id`). Without it the stop reason
 is inferred (`tool_use` when the turn has `tool_use` blocks, otherwise `end_turn`) and flagged
 `metadata.anthropic.stopReasonInferred`, and the turn has no token usage. Everything else
-defaults: project `anthropic`, agent `claude-agent`, the trace name is the first user message.
+defaults: project `anthropic` (or the project an ingest key is pinned to), agent `claude-agent`,
+the trace name is the first user message.
 
 What the importer does today, relative to the mapping below:
 

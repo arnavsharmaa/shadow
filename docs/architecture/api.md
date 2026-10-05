@@ -933,7 +933,7 @@ whether the webhook is enabled.
 
 With `SHADOW_API_TOKEN` set, every `/api/*` request and `/metrics` needs `Authorization: Bearer
 <credential>`, where the credential is the token itself or an API key. Keys are created with
-`POST /api/v1/keys` (`{ name, scope? }`, scope `ingest` by default) by a request authenticated
+`POST /api/v1/keys` (`{ name, scope?, project? }`, scope `ingest` by default) by a request authenticated
 with the token or an `admin` key; the response `{ key, secret }` is the only time the secret
 (`shk_…`) is shown, since only its hash is stored. `GET /api/v1/keys` lists keys
 (`{ id, name, scope, prefix, createdAt, lastUsedAt, revokedAt }`, never secrets) and
@@ -945,10 +945,16 @@ with the token or an `admin` key; the response `{ key, secret }` is the only tim
 | `read`   | every `GET`                                                                                                                                                   |
 | `admin`  | everything, like the token                                                                                                                                    |
 
+An `ingest` key may be pinned to a project (`project`): it then records only into that project.
+`POST /traces` and `POST /traces/import` must name it, requests about an existing trace must
+concern one of its traces, `POST /import/anthropic` defaults to it and refuses another, and the
+OTLP endpoint uses it as the default project and refuses exports whose resource names a
+different one, all with `403`. `read` and `admin` keys cannot be pinned.
+
 A request outside a key's scope is `403 forbidden`; an unknown or revoked key is `401`. Audit
 entries for requests made with a key use `key:<name>` as the actor regardless of
 `x-shadow-actor`. Without `SHADOW_API_TOKEN` the API is open and keys are not consulted. CLI:
-`shadow keys list|create <name> --scope ingest|read|admin|revoke <nameOrId>`; pass a key as
+`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`; pass a key as
 `--token` or `SHADOW_TOKEN`.
 
 ### Sampling

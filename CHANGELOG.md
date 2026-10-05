@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Project-pinned ingest keys: `POST /api/v1/keys` (and `shadow keys create --project`) accepts a
+  project slug for an `ingest` key, which then records only into that project across trace
+  creation, events, updates, artifacts, bundle and conversation imports and the OTLP endpoint
+  (migration `0010_api_key_projects`). The conversation importer's `project` now defaults in the
+  service rather than the schema.
 - `SHADOW_AUDIT_RETENTION_DAYS` ages audit entries out on the retention sweep, independently of
   trace retention.
 - API keys: with `SHADOW_API_TOKEN` set, `POST /api/v1/keys` issues `shk_…` keys with `ingest`,

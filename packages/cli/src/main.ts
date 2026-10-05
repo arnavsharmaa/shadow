@@ -770,11 +770,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       if (page.items.length === 0) return out("no API keys");
       out(
         table(
-          ["KEY", "NAME", "SCOPE", "PREFIX", "STATE", "LAST USED", "CREATED"],
+          ["KEY", "NAME", "SCOPE", "PROJECT", "PREFIX", "STATE", "LAST USED", "CREATED"],
           page.items.map((k) => [
             k.id,
             k.name,
             k.scope,
+            k.project ?? "any",
             `${k.prefix}…`,
             k.revokedAt ? `revoked ${k.revokedAt}` : "active",
             k.lastUsedAt ?? "never",
@@ -799,16 +800,18 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
       "ingest",
     )
+    .option("--project <slug>", "pin an ingest key to one project")
     .option("--json", "print JSON")
-    .action(async (name: string, opts: { scope: string; json?: boolean }) => {
+    .action(async (name: string, opts: { scope: string; project?: string; json?: boolean }) => {
       const result = await client().post<{ key: ApiKey; secret: string }>("/api/v1/keys", {
         name,
         scope: opts.scope,
+        ...(opts.project ? { project: opts.project } : {}),
       });
       if (opts.json) return json(result);
       out(result.secret);
       out(
-        `created ${result.key.id} (${result.key.name}, scope ${result.key.scope}). Store the secret now: it cannot be shown again. Use it as --token or SHADOW_TOKEN.`,
+        `created ${result.key.id} (${result.key.name}, scope ${result.key.scope}${result.key.project ? `, project ${result.key.project}` : ""}). Store the secret now: it cannot be shown again. Use it as --token or SHADOW_TOKEN.`,
       );
     });
 

@@ -29,9 +29,20 @@ export interface OtlpImportResult {
 export async function importOtlpTraces(
   ctx: ServiceContext,
   payload: OtlpTracesPayload,
-  options: { defaultProject: string },
+  options: { defaultProject: string; onlyProject?: string },
 ): Promise<OtlpImportResult> {
-  const converted = convertOtlpTraces(payload, options);
+  const converted = convertOtlpTraces(payload, { defaultProject: options.defaultProject });
+  const foreign = options.onlyProject
+    ? converted.filter((trace) => trace.project !== options.onlyProject)
+    : [];
+  if (foreign.length > 0) {
+    throw new ApiError(
+      403,
+      "forbidden",
+      `this API key is pinned to project '${options.onlyProject}'; the export names '${foreign[0]?.project}'`,
+      { projects: [...new Set(foreign.map((t) => t.project))] },
+    );
+  }
   const result: OtlpImportResult = { traces: [] };
   ctx.metrics.otlpRequests.inc();
   for (const trace of converted) {

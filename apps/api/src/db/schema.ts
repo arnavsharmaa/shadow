@@ -391,6 +391,7 @@ export const apiKeys = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     scope: text("scope").notNull(),
+    project: text("project"),
     prefix: text("prefix").notNull(),
     secretHash: text("secret_hash").notNull(),
     createdAt: ts("created_at").notNull().defaultNow(),

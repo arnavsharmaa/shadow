@@ -26,6 +26,7 @@ import { collectionRoutes } from "./routes/collections.js";
 import { importRoutes } from "./routes/import.js";
 import { keyRoutes } from "./routes/keys.js";
 import { KEY_PREFIX, authenticateApiKey, scopeAllows } from "../services/keys.js";
+import { enforceProjectScope } from "./project-scope.js";
 import type { ApiKey } from "@shadow/schemas";
 import { branchRoutes } from "./routes/branches.js";
 import { comparisonRoutes } from "./routes/comparisons.js";
@@ -72,6 +73,9 @@ export async function buildApp(options: BuildAppOptions) {
   app.decorate("apiConfig", options.config);
   app.decorate("sampler", createSampler(options.config.SHADOW_INGEST_SAMPLE_RATE));
   app.decorateRequest("auth", null);
+  app.addHook("preHandler", (request, reply) =>
+    enforceProjectScope(options.services, request, reply),
+  );
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 

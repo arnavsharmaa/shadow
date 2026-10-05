@@ -22,6 +22,7 @@ function toApiKey(row: KeyRow): ApiKey {
     id: row.id,
     name: row.name,
     scope: row.scope as ApiKeyScope,
+    project: row.project,
     prefix: row.prefix,
     createdAt: iso(row.createdAt),
     lastUsedAt: row.lastUsedAt ? iso(row.lastUsedAt) : null,
@@ -49,6 +50,9 @@ export async function createApiKey(
     .where(eq(apiKeys.name, body.name))
     .limit(1);
   if (clash) throw ApiError.conflict(`an API key named '${body.name}' already exists`);
+  if (body.project && body.scope !== "ingest") {
+    throw ApiError.badRequest("only ingest keys can be pinned to a project");
+  }
   const [counted] = await ctx.handle.db.select({ count: sql<number>`count(*)::int` }).from(apiKeys);
   if (Number(counted?.count ?? 0) >= MAX_API_KEYS) {
     throw ApiError.badRequest(`at most ${MAX_API_KEYS} API keys can be stored`);
@@ -58,6 +62,7 @@ export async function createApiKey(
     id: ctx.ids.next("key"),
     name: body.name,
     scope: body.scope,
+    project: body.project ?? null,
     prefix: secret.slice(0, KEY_PREFIX.length + 8),
     secretHash: hashSecret(secret),
     createdAt: iso(new Date(ctx.clock.now())),

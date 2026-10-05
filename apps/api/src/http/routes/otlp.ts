@@ -3,6 +3,7 @@ import { z } from "zod";
 import { importOtlpTraces } from "../../otlp/import.js";
 import type { OtlpTracesPayload } from "../../otlp/convert.js";
 import { decodeOtlpProtobuf, OtlpDecodeError } from "../../otlp/protobuf.js";
+import { projectOf } from "../project-scope.js";
 
 /** OTLP/HTTP JSON `ExportTraceServiceRequest`; validated structurally during conversion. */
 const otlpTracesBodySchema = z.looseObject({
@@ -38,10 +39,12 @@ export const otlpRoutes: FastifyPluginAsyncZod<OtlpRouteOptions> = async (app, o
     "/otlp/v1/traces",
     { schema: { tags: ["otlp"], body: otlpTracesBodySchema } },
     async (request) => {
+      // A key pinned to a project makes that project the default and the only one allowed.
+      const pinned = projectOf(request);
       const result = await importOtlpTraces(
         app.services,
         request.body as unknown as OtlpTracesPayload,
-        { defaultProject: options.defaultProject },
+        { defaultProject: pinned ?? options.defaultProject, onlyProject: pinned ?? undefined },
       );
       // `partialSuccess` is the OTLP success envelope; `shadow` reports what was stored.
       return { partialSuccess: {}, shadow: result };

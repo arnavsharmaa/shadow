@@ -169,7 +169,8 @@ describe("importAnthropicBodySchema", () => {
         { stop_reason: "tool_use", usage: { input_tokens: 3, output_tokens: 4, speed: "fast" } },
       ],
     });
-    expect(parsed).toMatchObject({ project: "anthropic", agent: "claude-agent", tags: [] });
+    expect(parsed).toMatchObject({ agent: "claude-agent", tags: [] });
+    expect(parsed.project).toBeUndefined();
     expect(parsed.messages[1]?.content).toEqual([
       { type: "tool_use", id: "toolu_1", name: "t", input: { a: 1 }, extra: true },
     ]);

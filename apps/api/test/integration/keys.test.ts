@@ -1,18 +1,23 @@
 import type { ApiKey, AuditEntry } from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scopeAllows } from "../../src/services/keys.js";
+import { refundPayload } from "../fixtures/otlp.js";
 import { createTestApp, json, type ErrorEnvelope, type TestApp } from "../helpers.js";
 
 const TOKEN = "admin-token";
 const admin = { authorization: `Bearer ${TOKEN}` };
 let t: TestApp;
 
-async function createKey(name: string, scope: string): Promise<{ key: ApiKey; secret: string }> {
+async function createKey(
+  name: string,
+  scope: string,
+  project?: string,
+): Promise<{ key: ApiKey; secret: string }> {
   const response = await t.app.inject({
     method: "POST",
     url: "/api/v1/keys",
     headers: { ...admin, "x-shadow-actor": "arnav" },
-    payload: { name, scope },
+    payload: { name, scope, ...(project ? { project } : {}) },
   });
   expect(response.statusCode, response.body).toBe(201);
   return json(response);
@@ -179,5 +184,139 @@ describe("API keys", () => {
       (await t.app.inject({ method: "POST", url: "/api/v1/keys", payload: { name: "y" } }))
         .statusCode,
     ).toBe(401);
+  });
+
+  it("keeps an ingest key pinned to a project inside that project", async () => {
+    const pinned = await createKey("support-ingest", "ingest", "support");
+    expect(pinned.key.project).toBe("support");
+    const h = bearer(pinned.secret);
+
+    const own = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      headers: h,
+      payload: { project: "support", agent: "a", name: "ours" },
+    });
+    expect(own.statusCode).toBe(201);
+    const { id } = json<{ id: string }>(own);
+    const other = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      headers: h,
+      payload: { project: "billing", agent: "a", name: "theirs" },
+    });
+    expect(other.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(other).error.message).toContain("pinned to project 'support'");
+
+    // Requests about an existing trace must concern the key's project.
+    const foreign = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      headers: admin,
+      payload: { project: "billing", agent: "a", name: "not ours" },
+    });
+    const foreignId = json<{ id: string }>(foreign).id;
+    const ownEvents = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/traces/${id}/events`,
+      headers: h,
+      payload: { events: [{ eventType: "trace.started", name: "trace.started" }] },
+    });
+    expect(ownEvents.statusCode).toBe(201);
+    const foreignEvents = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/traces/${foreignId}/events`,
+      headers: h,
+      payload: { events: [{ eventType: "trace.started", name: "trace.started" }] },
+    });
+    expect(foreignEvents.statusCode).toBe(403);
+    expect(
+      (
+        await t.app.inject({
+          method: "PATCH",
+          url: `/api/v1/traces/${foreignId}`,
+          headers: h,
+          payload: { tags: ["x"] },
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await t.app.inject({
+          method: "POST",
+          url: "/api/v1/traces/trc_does_not_exist/events",
+          headers: h,
+          payload: { events: [{ eventType: "trace.started", name: "trace.started" }] },
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    // Importers default to the pinned project and refuse another one.
+    const imported = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/import/anthropic",
+      headers: h,
+      payload: { messages: [{ role: "user", content: "hi" }] },
+    });
+    expect(imported.statusCode).toBe(201);
+    const importedId = json<{ traceId: string }>(imported).traceId;
+    expect(
+      json<{ trace: { projectSlug: string } }>(
+        await t.app.inject({ url: `/api/v1/traces/${importedId}`, headers: admin }),
+      ).trace.projectSlug,
+    ).toBe("support");
+    expect(
+      (
+        await t.app.inject({
+          method: "POST",
+          url: "/api/v1/import/anthropic",
+          headers: h,
+          payload: { project: "billing", messages: [{ role: "user", content: "hi" }] },
+        })
+      ).statusCode,
+    ).toBe(403);
+    // The OTLP fixture names project "support" in its resource, so it passes; a payload without
+    // a namespace lands in the pinned project, and another namespace is refused.
+    const otlp = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/otlp/v1/traces",
+      headers: h,
+      payload: refundPayload(),
+    });
+    expect(otlp.statusCode, otlp.body).toBe(200);
+    const twin = JSON.parse(
+      JSON.stringify(refundPayload())
+        .replace(/4bf92f3577b34da6a3ce929d0e0e4736/g, "00000000000000000000000000000009")
+        .replace('"support"', '"billing"'),
+    ) as ReturnType<typeof refundPayload>;
+    const refused = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/otlp/v1/traces",
+      headers: h,
+      payload: twin,
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(
+      (
+        await t.app.inject({
+          url: "/api/v1/traces/trc_otel_00000000000000000000000000000009",
+          headers: admin,
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    // Only ingest keys can be pinned, and the pin shows in the listing.
+    const bad = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/keys",
+      headers: admin,
+      payload: { name: "pinned-reader", scope: "read", project: "support" },
+    });
+    expect(bad.statusCode).toBe(400);
+    const listed = json<{ items: ApiKey[] }>(
+      await t.app.inject({ url: "/api/v1/keys", headers: admin }),
+    );
+    expect(listed.items.find((k) => k.name === "support-ingest")?.project).toBe("support");
+    expect(listed.items.find((k) => k.name === "ci-ingest")?.project).toBeNull();
   });
 });
