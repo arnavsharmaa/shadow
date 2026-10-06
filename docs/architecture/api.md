@@ -754,7 +754,7 @@ The `actor` is whatever the client sends in the `x-shadow-actor` header: the CLI
 `_.@:+/-`, up to 128 characters) are stored as `anonymous`; retention sweeps are recorded as
 `system:retention`. The actor is self-reported until Shadow has per-user authentication, so
 treat the log as an operational record, not as proof of identity. CLI: `shadow audit [--trace
-<traceId>] [--action <action>] [--by <actor>]`.
+<traceId>] [--action <action>] [--by <actor>]`; the web app lists it at `/audit`.
 
 ## Shared saved views
 

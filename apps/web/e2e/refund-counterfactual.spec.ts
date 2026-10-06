@@ -551,6 +551,41 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("overview")).toBeVisible();
   });
 
+  test("the audit log page lists and filters recorded changes", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const name = `audit-view-${Date.now()}`;
+    const saved = await request.post(`${apiUrl}/api/v1/views`, {
+      headers: { "x-shadow-actor": "auditor" },
+      data: { name, query: "status=failed" },
+    });
+    expect(saved.status()).toBe(201);
+    const { id } = (await saved.json()) as { id: string };
+    try {
+      await page.goto("/audit");
+      const rows = page.locator('[data-testid="audit-row"]');
+      await expect(rows.first()).toBeVisible();
+      await expect(rows.first()).toContainText(`saved a shared view: ${name}`);
+      await expect(rows.first()).toContainText("auditor");
+      await rows.first().getByTestId("audit-details").click();
+      await expect(page.getByText("status=failed").first()).toBeVisible();
+
+      await page.getByTestId("audit-action").selectOption("view.saved");
+      await expect(page).toHaveURL(/action=view\.saved/);
+      for (const action of await rows.evaluateAll((els) =>
+        els.map((e) => e.getAttribute("data-action")),
+      )) {
+        expect(action).toBe("view.saved");
+      }
+      await page.getByTestId("audit-actor").fill("nobody-here");
+      await page.getByTestId("audit-actor").press("Enter");
+      await expect(page.getByText("Nothing recorded")).toBeVisible();
+    } finally {
+      await request.delete(`${apiUrl}/api/v1/views/${id}`);
+    }
+    await page.getByTestId("nav-audit").click();
+    await expect(page.getByTestId("audit-log")).toBeVisible();
+  });
+
   test("API keys can be issued and revoked from settings", async ({ page }) => {
     const name = `e2e-key-${Date.now()}`;
     await page.goto("/settings");

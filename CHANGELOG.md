@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Audit log page (`/audit`): every recorded change newest first with action and actor filters,
+  a details panel, trace links and paging; requests made with an API key are marked.
 - MCP recording in the SDK: `traceMcpClient(trace, client, { server })` wraps a Model Context
   Protocol client so `callTool` is a tool span (server error results as `tool.error`, optional
   policy guard), `readResource` a span named after the resource with capped contents, and

@@ -382,6 +382,11 @@ export const api = {
   /** A shared trace bundle; the token in the path is the credential. */
   sharedTrace: (token: string) =>
     request<TraceExport>("GET", `/api/v1/shared/${encodeURIComponent(token)}`),
+  auditLog: (filter: { action?: string; actor?: string; cursor?: string; limit?: number }) =>
+    request<{ items: AuditEntry[]; nextCursor: string | null }>(
+      "GET",
+      `/api/v1/audit${query(filter)}`,
+    ),
   audit: (traceId: string) =>
     request<{ items: AuditEntry[]; nextCursor: string | null }>(
       "GET",
