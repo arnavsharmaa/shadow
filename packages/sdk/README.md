@@ -117,6 +117,20 @@ The wrapper returns the client's own type and has no dependency on `@anthropic-a
 options and the event mapping are in
 [docs/integrations/anthropic.md](../../docs/integrations/anthropic.md).
 
+## MCP clients
+
+`traceMcpClient` wraps a Model Context Protocol client so tool calls, resource reads and
+catalogue calls are recorded, with no dependency on the MCP SDK:
+
+```ts
+import { Shadow, traceMcpClient } from "@shadow/sdk";
+
+const client = traceMcpClient(trace, mcpClient, { server: "github" });
+await client.callTool({ name: "search_issues", arguments: { q: "bug" } }); // a tool span
+```
+
+Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
+
 ## Behaviour
 
 - Events are buffered and flushed every `flushIntervalMs` (default 1000 ms), when `maxBatchSize` events are queued, and on `end()`/`fail()`.

@@ -20,6 +20,7 @@ export {
   type AnthropicToolLoopResult,
   type TraceAnthropicOptions,
 } from "./anthropic.js";
+export { traceMcpClient, type McpToolResultLike, type TraceMcpOptions } from "./mcp.js";
 export type {
   AgentHost,
   AgentProgram,

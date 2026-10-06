@@ -1,8 +1,49 @@
 # Model Context Protocol (MCP) tracing
 
-> **Status: design proposal for v0.2. Not implemented in v0.1.** Presented for review; details
-> may change. MCP tool calls can already be recorded today by wrapping the client call with
-> `trace.tool()` from `@shadow/sdk` (see [custom-runtime.md](./custom-runtime.md)).
+> **Status: the client wrapper is implemented** as `traceMcpClient` in `@shadow/sdk`. Server
+> notifications, sampling and elicitation (which arrive through handlers rather than client
+> calls) and replay helpers remain proposals; see [What is recorded](#what-is-recorded).
+
+## Using it
+
+```ts
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Shadow, traceMcpClient } from "@shadow/sdk";
+
+const shadow = new Shadow({ project: "ops", agent: "runbook-agent" });
+const trace = shadow.startTrace({ name: "incident-4471" });
+const client = traceMcpClient(trace, new Client({ name: "runbook", version: "1.0.0" }), {
+  server: "github",
+});
+await client.connect(transport);
+const result = await client.callTool({ name: "search_issues", arguments: { q: "bug" } });
+```
+
+The wrapper returns the client's own type and has no dependency on `@modelcontextprotocol/sdk`:
+it matches the client structurally, so any object with the same method names works.
+
+### What is recorded
+
+- `callTool` is a tool span named `<server>/<tool>` (`qualifyToolNames: false` keeps the bare
+  name) with the call's arguments, the result's `content` and `structuredContent`, and
+  `metadata.mcp.server` / `metadata.mcp.tool`. A result with `isError` is recorded as
+  `tool.error` (`code: "mcp_tool_error"`, message from the text content) and still returned to
+  the caller, as the client would; a transport failure is recorded as `tool.error` and
+  re-thrown. A `guard` option evaluates a policy inside the span before the call reaches the
+  server, so a denied call never leaves the process.
+- `readResource` is a tool span named `resource:<uri>` whose result is the `contents`; `text`
+  and `blob` fields longer than `resourceContentLimit` (default 64 KiB) are cut and flagged
+  `truncated` with their original length.
+- `connect` adds an `mcp.session_started` note with the server's info and capabilities;
+  `listTools` adds `mcp.tools_listed` and records the tool names as context
+  (`mcp.tools:<server>`), so a fork can change what the agent believes is available;
+  `listResources`, `listPrompts` and `getPrompt` add `mcp.resources_listed`,
+  `mcp.prompts_listed` and `mcp.prompt_retrieved` notes.
+- Everything else (`ping`, `setRequestHandler`, `close`, …) passes through untouched.
+
+Not yet recorded: server-initiated requests and notifications (sampling, elicitation, progress
+and log messages, list-changed notifications), which the client exposes through handlers rather
+than calls; the mapping below is the design for them.
 
 ## Goal
 
@@ -14,7 +55,7 @@ MCP is a transport for tools, not an agent runtime, so the integration is a **cl
 rather than a framework adapter: it sits between the agent and the MCP client and observes
 requests and responses.
 
-## Proposed surface
+## Surface
 
 ```ts
 import { Shadow } from "@shadow/sdk";

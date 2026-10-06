@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- MCP recording in the SDK: `traceMcpClient(trace, client, { server })` wraps a Model Context
+  Protocol client so `callTool` is a tool span (server error results as `tool.error`, optional
+  policy guard), `readResource` a span named after the resource with capped contents, and
+  `connect`, `listTools`, `listResources`, `listPrompts` and `getPrompt` notes, with the tool
+  catalogue kept as context. No dependency on the MCP SDK.
 - Settings page (`/settings`) for API keys: list, create with scope and project pin (the secret
   is shown once with a copy button) and revoke.
 - Project-pinned ingest keys: `POST /api/v1/keys` (and `shadow keys create --project`) accepts a
