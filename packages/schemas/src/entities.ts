@@ -373,7 +373,10 @@ export const apiKeySchema = z.object({
   id: idSchema,
   name: z.string().min(1).max(64),
   scope: apiKeyScopeSchema,
-  /** Project slug an `ingest` key is pinned to; `null` lets it record into any project. */
+  /**
+   * Project slug the key is pinned to: an `ingest` key records only into it, a `read` key sees
+   * only its traces. `null` leaves every project open.
+   */
   project: z.string().max(64).nullable(),
   /** The first characters of the secret, to tell keys apart in logs and lists. */
   prefix: z.string().max(16),

@@ -3,6 +3,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
 import { agentStats, agentTrend, overview } from "../../services/stats.js";
+import { projectOf } from "../project-scope.js";
 
 const agentStatsQuerySchema = z.object({
   from: z.iso.datetime({ offset: true }).optional(),
@@ -21,9 +22,12 @@ const overviewQuerySchema = z.object({
 });
 
 export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
-  app.get("/projects", { schema: { tags: ["projects"] } }, async () => ({
-    items: await listProjects(app.services),
-  }));
+  app.get("/projects", { schema: { tags: ["projects"] } }, async (request) => {
+    // A pinned key sees its own project only.
+    const pinned = projectOf(request);
+    const items = await listProjects(app.services);
+    return { items: pinned ? items.filter((p) => p.slug === pinned) : items };
+  });
 
   app.post(
     "/projects",
@@ -38,7 +42,10 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
     "/agents",
     { schema: { tags: ["projects"], querystring: z.object({ projectId: z.string().optional() }) } },
     async (request) => ({
-      items: await listAgents(app.services, request.query.projectId),
+      items: await listAgents(app.services, {
+        projectId: request.query.projectId,
+        project: projectOf(request) ?? undefined,
+      }),
       replayable: app.services.registry
         .list()
         .map((d) => ({ slug: d.slug, name: d.name, description: d.description ?? null })),

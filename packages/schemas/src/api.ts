@@ -406,7 +406,7 @@ export const createApiKeyBodySchema = z.object({
     .max(64)
     .regex(/^[\w][\w .:-]*$/, "use letters, digits, spaces and _ . : -"),
   scope: apiKeyScopeSchema.default("ingest"),
-  /** Pin an `ingest` key to one project slug. */
+  /** Pin an `ingest` or `read` key to one project slug. */
   project: z.string().min(1).max(64).optional(),
 });
 export type CreateApiKeyBody = z.infer<typeof createApiKeyBodySchema>;

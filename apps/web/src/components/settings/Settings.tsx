@@ -13,7 +13,7 @@ const SCOPES: { value: ApiKeyScope; label: string; help: string }[] = [
     label: "Ingest",
     help: "record traces: create, events, updates, artifacts, imports",
   },
-  { value: "read", label: "Read", help: "read everything, change nothing" },
+  { value: "read", label: "Read", help: "read traces and statistics, change nothing" },
   { value: "admin", label: "Admin", help: "everything the API token can do, including keys" },
 ];
 
@@ -36,7 +36,7 @@ export function Settings() {
       api.createApiKey({
         name: name.trim(),
         scope,
-        ...(scope === "ingest" && project ? { project } : {}),
+        ...(scope !== "admin" && project ? { project } : {}),
       }),
     onSuccess: async (result) => {
       setIssued(result);
@@ -84,8 +84,8 @@ export function Settings() {
             )}
           </header>
           <p className="px-3 pt-2 text-fg-muted">
-            Keys let a deployment record traces without the admin token. An ingest key can be pinned
-            to one project. Secrets are shown once; only a hash is stored.
+            Keys let a deployment record or read traces without the admin token. An ingest or read
+            key can be pinned to one project. Secrets are shown once; only a hash is stored.
           </p>
           <form
             className="flex flex-wrap items-end gap-2 px-3 py-3"
@@ -120,7 +120,7 @@ export function Settings() {
                 ))}
               </select>
             </label>
-            {scope === "ingest" && (
+            {scope !== "admin" && (
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] text-fg-muted">Pin to project (optional)</span>
                 <input

@@ -48,6 +48,7 @@ const exportQuerySchema = z.object({
   encoding: z.enum(["json", "protobuf"]).optional(),
 });
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
+const facetsQuerySchema = z.object({ project: z.string().max(64).optional() });
 
 export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
@@ -56,8 +57,10 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => listTraces(app.services, request.query),
   );
 
-  app.get("/traces/facets", { schema: { tags: ["traces"] } }, async () =>
-    traceFacets(app.services),
+  app.get(
+    "/traces/facets",
+    { schema: { tags: ["traces"], querystring: facetsQuerySchema } },
+    async (request) => traceFacets(app.services, request.query.project),
   );
 
   app.post(

@@ -283,21 +283,27 @@ export async function pruneTraces(
 }
 
 /** Distinct filter values for the explorer UI. */
-export async function traceFacets(ctx: ServiceContext) {
+/** Filter values for the explorer, optionally limited to one project (slug). */
+export async function traceFacets(ctx: ServiceContext, project?: string) {
   const projectRows = await ctx.handle.db
     .select({ slug: projects.slug, name: projects.name })
     .from(projects)
+    .where(project ? eq(projects.slug, project) : undefined)
     .orderBy(asc(projects.name));
   const agentRows = await ctx.handle.db
     .select({ slug: agents.slug, name: agents.name, projectSlug: projects.slug })
     .from(agents)
     .innerJoin(projects, eq(projects.id, agents.projectId))
+    .where(project ? eq(projects.slug, project) : undefined)
     .orderBy(asc(agents.name));
+  const inProject = project
+    ? sql`and ${traces.projectId} in (select id from ${projects} where ${projects.slug} = ${project})`
+    : sql``;
   const tagRows = (await ctx.handle.db.execute(
-    sql`select distinct value as tag from ${traces}, jsonb_array_elements_text(${traces.tags}) as value order by value`,
+    sql`select distinct value as tag from ${traces}, jsonb_array_elements_text(${traces.tags}) as value where true ${inProject} order by value`,
   )) as { rows: { tag: string }[] };
   const toolRows = (await ctx.handle.db.execute(
-    sql`select distinct name as tool from events where event_type = 'tool.request' order by name`,
+    sql`select distinct events.name as tool from events join ${traces} on ${traces.id} = events.trace_id where events.event_type = 'tool.request' ${inProject} order by events.name`,
   )) as { rows: { tool: string }[] };
   return {
     projects: projectRows,

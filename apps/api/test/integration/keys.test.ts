@@ -2,7 +2,14 @@ import type { ApiKey, AuditEntry } from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scopeAllows } from "../../src/services/keys.js";
 import { refundPayload } from "../fixtures/otlp.js";
-import { createTestApp, json, type ErrorEnvelope, type TestApp } from "../helpers.js";
+import {
+  createTestApp,
+  forkReplayCompare,
+  ingestRefundScenario,
+  json,
+  type ErrorEnvelope,
+  type TestApp,
+} from "../helpers.js";
 
 const TOKEN = "admin-token";
 const admin = { authorization: `Bearer ${TOKEN}` };
@@ -305,18 +312,100 @@ describe("API keys", () => {
       ).statusCode,
     ).toBe(404);
 
-    // Only ingest keys can be pinned, and the pin shows in the listing.
-    const bad = await t.app.inject({
-      method: "POST",
-      url: "/api/v1/keys",
-      headers: admin,
-      payload: { name: "pinned-reader", scope: "read", project: "support" },
-    });
-    expect(bad.statusCode).toBe(400);
+    // The pin shows in the listing.
     const listed = json<{ items: ApiKey[] }>(
       await t.app.inject({ url: "/api/v1/keys", headers: admin }),
     );
     expect(listed.items.find((k) => k.name === "support-ingest")?.project).toBe("support");
     expect(listed.items.find((k) => k.name === "ci-ingest")?.project).toBeNull();
+  });
+
+  it("keeps a read key pinned to a project inside that project", async () => {
+    const scenario = await ingestRefundScenario(t, "trc_test_read_pin", {
+      seed: "read-pin",
+      headers: admin,
+    });
+    const forked = await forkReplayCompare(t, scenario, { headers: admin });
+    const foreign = json<{ id: string; rootBranchId: string }>(
+      await t.app.inject({
+        method: "POST",
+        url: "/api/v1/traces",
+        headers: admin,
+        payload: { project: "billing", agent: "a", name: "theirs", tags: ["billing-only"] },
+      }),
+    );
+    const reader = await createKey("support-reader", "read", "support-agent");
+    expect(reader.key).toMatchObject({ scope: "read", project: "support-agent" });
+    const h = bearer(reader.secret);
+    const get = (url: string) => t.app.inject({ url, headers: h });
+    const status = async (url: string) => (await get(url)).statusCode;
+
+    // Listings and statistics take the pin as their project filter and refuse another one.
+    const list = json<{ items: { projectSlug: string }[] }>(await get("/api/v1/traces"));
+    expect(list.items.length).toBeGreaterThan(0);
+    expect(list.items.every((i) => i.projectSlug === "support-agent")).toBe(true);
+    expect(
+      json<{ items: unknown[] }>(await get("/api/v1/traces?project=support-agent")).items,
+    ).toEqual(list.items);
+    const otherProject = await get("/api/v1/traces?project=billing");
+    expect(otherProject.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(otherProject).error.message).toContain("cannot read 'billing'");
+    const facets = json<{
+      projects: { slug: string }[];
+      agents: { projectSlug: string }[];
+      tags: string[];
+      tools: string[];
+    }>(await get("/api/v1/traces/facets"));
+    expect(facets.projects.map((p) => p.slug)).toEqual(["support-agent"]);
+    expect(facets.agents.every((a) => a.projectSlug === "support-agent")).toBe(true);
+    expect(facets.tags).toContain("refund");
+    expect(facets.tags).not.toContain("billing-only");
+    expect(facets.tools).toContain("refund_order");
+    const all = json<{ tags: string[] }>(
+      await t.app.inject({ url: "/api/v1/traces/facets", headers: admin }),
+    );
+    expect(all.tags).toContain("billing-only");
+    const projects = json<{ items: { id: string; slug: string }[] }>(await get("/api/v1/projects"));
+    expect(projects.items.map((p) => p.slug)).toEqual(["support-agent"]);
+    const agentList = json<{ items: { projectId: string }[] }>(await get("/api/v1/agents"));
+    expect(agentList.items.length).toBeGreaterThan(0);
+    expect(agentList.items.every((a) => a.projectId === projects.items[0]?.id)).toBe(true);
+    const stats = json<{ items: { projectSlug: string }[] }>(await get("/api/v1/stats/agents"));
+    expect(stats.items.length).toBeGreaterThan(0);
+    expect(stats.items.every((a) => a.projectSlug === "support-agent")).toBe(true);
+    expect(await status("/api/v1/stats/overview?days=90")).toBe(200);
+    expect(await status("/api/v1/stats/overview?project=billing")).toBe(403);
+
+    // Traces, branches and comparisons must belong to the project; unknown ids stay 404.
+    expect(await status(`/api/v1/traces/${scenario.traceId}`)).toBe(200);
+    expect(await status(`/api/v1/traces/${foreign.id}`)).toBe(403);
+    expect(await status(`/api/v1/branches/${forked.branch.id}/events`)).toBe(200);
+    expect(await status(`/api/v1/branches/${foreign.rootBranchId}`)).toBe(403);
+    expect(await status("/api/v1/branches/br_does_not_exist")).toBe(404);
+    expect(await status(`/api/v1/comparisons/${forked.comparison.id}`)).toBe(200);
+    expect(await status("/api/v1/comparisons/cmp_does_not_exist")).toBe(404);
+    expect(await status(`/api/v1/comparisons?traceId=${scenario.traceId}`)).toBe(200);
+    expect(await status(`/api/v1/comparisons?traceId=${foreign.id}`)).toBe(403);
+    const unscoped = await get("/api/v1/comparisons");
+    expect(unscoped.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(unscoped).error.message).toContain("traceId");
+
+    // What is not scoped to a project is refused; the price table is harmless.
+    const auditLog = await get("/api/v1/audit");
+    expect(auditLog.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(auditLog).error.message).toContain("not scoped to a project");
+    expect(await status("/api/v1/keys")).toBe(403);
+    expect(await status("/api/v1/alerts/rules")).toBe(403);
+    expect(await status("/api/v1/pricing")).toBe(200);
+
+    // Admin keys cannot be pinned.
+    const bad = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/keys",
+      headers: admin,
+      payload: { name: "pinned-admin", scope: "admin", project: "support-agent" },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(json<ErrorEnvelope>(bad).error.message).toContain("admin keys cannot be pinned");
   });
 });

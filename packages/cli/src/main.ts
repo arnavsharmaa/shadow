@@ -800,7 +800,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
       "ingest",
     )
-    .option("--project <slug>", "pin an ingest key to one project")
+    .option("--project <slug>", "pin an ingest or read key to one project")
     .option("--json", "print JSON")
     .action(async (name: string, opts: { scope: string; project?: string; json?: boolean }) => {
       const result = await client().post<{ key: ApiKey; secret: string }>("/api/v1/keys", {

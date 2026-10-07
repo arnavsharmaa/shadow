@@ -591,6 +591,11 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await page.goto("/settings");
     await expect(page.getByTestId("auth-state")).toContainText("SHADOW_API_TOKEN is not set");
     await page.getByTestId("key-name").fill(name);
+    // Ingest and read keys can be pinned to a project; admin keys cannot.
+    await page.getByTestId("key-scope").selectOption("admin");
+    await expect(page.getByTestId("key-project")).toHaveCount(0);
+    await page.getByTestId("key-scope").selectOption("read");
+    await expect(page.getByTestId("key-project")).toBeVisible();
     await page.getByTestId("key-scope").selectOption("ingest");
     await page.getByTestId("key-project").fill("support-agent");
     await page.getByTestId("create-key").click();

@@ -80,8 +80,9 @@ is welcome through GitHub issues; integration proposals have their own
 ### Committed
 
 - Authentication and per-project authorisation (API keys and single sign-on), the prerequisite
-  for any shared deployment: scoped API keys (`ingest`, `read`, `admin`) exist and `ingest` keys
-  can be pinned to a project; per-project read authorisation and single sign-on remain.
+  for any shared deployment: scoped API keys (`ingest`, `read`, `admin`) exist and `ingest` and
+  `read` keys can be pinned to a project (per-project recording and reading); per-user
+  identities and single sign-on remain.
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing (event,
   branch and comparison permalinks and expiring read-only share links with a web viewer are
   done).

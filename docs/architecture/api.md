@@ -232,6 +232,7 @@ Response: `{ items: TraceSummary[], nextCursor, total }`. `TraceSummary` is a `T
 
 Distinct filter values for the explorer:
 `{ projects: [{slug,name}], agents: [{slug,name,projectSlug}], tags: string[], tools: string[] }`.
+Query `project=<slug>` limits every list to that project.
 
 ### `POST /api/v1/traces`
 
@@ -942,19 +943,29 @@ with the token or an `admin` key; the response `{ key, secret }` is the only tim
 | Scope    | Allowed requests                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ingest` | `POST /traces`, `POST /traces/:id/events`, `POST /traces/:id/artifacts`, `PATCH /traces/:id`, `POST /traces/import`, `POST /otlp/v1/traces`, `POST /import/*` |
-| `read`   | every `GET`                                                                                                                                                   |
+| `read`   | every `GET` (a pinned `read` key: only its project, see below)                                                                                                |
 | `admin`  | everything, like the token                                                                                                                                    |
 
 An `ingest` key may be pinned to a project (`project`): it then records only into that project.
 `POST /traces` and `POST /traces/import` must name it, requests about an existing trace must
 concern one of its traces, `POST /import/anthropic` defaults to it and refuses another, and the
 OTLP endpoint uses it as the default project and refuses exports whose resource names a
-different one, all with `403`. `read` and `admin` keys cannot be pinned.
+different one, all with `403`.
+
+A `read` key may be pinned the same way and then sees that project only. `GET /traces`,
+`GET /traces/facets`, `GET /stats/agents`, `GET /stats/overview` and
+`GET /stats/agents/:slug/timeseries` take the pin as their `project` filter and refuse another
+one; `GET /projects` and `GET /agents` list the pinned project only; `GET /traces/:id/*`,
+`GET /branches/:id/*` and `GET /comparisons/:id` must concern one of its traces, and
+`GET /comparisons` must name one with `traceId`. Endpoints that are not scoped to a project
+(`/audit`, `/keys`, `/views`, `/collections`, `/alerts/rules`, `/batch/jobs`) answer `403`;
+`/pricing` and the public `/shared/:token` stay available. `admin` keys cannot be pinned.
 
 A request outside a key's scope is `403 forbidden`; an unknown or revoked key is `401`. Audit
 entries for requests made with a key use `key:<name>` as the actor regardless of
 `x-shadow-actor`. Without `SHADOW_API_TOKEN` the API is open and keys are not consulted. CLI:
-`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`, or the
+`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`
+(`--project` pins an `ingest` or `read` key), or the
 web app's Settings page; pass a key as
 `--token` or `SHADOW_TOKEN`.
 

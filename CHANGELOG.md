@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Project-pinned read keys: `POST /api/v1/keys` (and `shadow keys create --scope read --project`)
+  pins a `read` key to a project, which then sees that project only: trace, facet and statistics
+  listings take the pin as their filter, traces, branches and comparisons of other projects and
+  endpoints that are not scoped to a project (`/audit`, `/keys`, `/views`, `/collections`,
+  `/alerts/rules`, `/batch/jobs`) answer `403`. `GET /traces/facets` accepts `project`. The
+  Settings page offers the pin for read keys; admin keys cannot be pinned.
 - Audit log page (`/audit`): every recorded change newest first with action and actor filters,
   a details panel, trace links and paging; requests made with an API key are marked.
 - MCP recording in the SDK: `traceMcpClient(trace, client, { server })` wraps a Model Context

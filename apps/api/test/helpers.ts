@@ -203,12 +203,13 @@ export interface ForkedScenario {
 export async function forkReplayCompare(
   t: TestApp,
   scenario: RefundScenario,
-  options: { name?: string; overrides?: OverrideInput[] } = {},
+  options: { name?: string; overrides?: OverrideInput[]; headers?: Record<string, string> } = {},
 ): Promise<ForkedScenario> {
   const forkEvent = findEvent(scenario.rootEvents, "tool.request", "refund_order");
   const forked = await t.app.inject({
     method: "POST",
     url: `/api/v1/traces/${scenario.traceId}/forks`,
+    headers: options.headers,
     payload: {
       forkEventId: forkEvent.id,
       name: options.name,
@@ -222,12 +223,14 @@ export async function forkReplayCompare(
   const replayed = await t.app.inject({
     method: "POST",
     url: `/api/v1/branches/${branch.id}/replay`,
+    headers: options.headers,
   });
   if (replayed.statusCode !== 201) throw new Error(`replay failed: ${replayed.body}`);
   const { replay, branch: replayedBranch } = json<{ replay: Replay; branch: Branch }>(replayed);
   const compared = await t.app.inject({
     method: "POST",
     url: "/api/v1/comparisons",
+    headers: options.headers,
     payload: { baseBranchId: scenario.rootBranchId, targetBranchId: branch.id },
   });
   if (compared.statusCode !== 201) throw new Error(`comparison failed: ${compared.body}`);

@@ -1,5 +1,5 @@
 import type { Agent, JsonObject, Project } from "@shadow/schemas";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { agents, projects } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -136,13 +136,28 @@ export async function ensureAgent(
   return toAgent(again as typeof agents.$inferSelect);
 }
 
-export async function listAgents(ctx: ServiceContext, projectId?: string): Promise<Agent[]> {
-  const rows = projectId
-    ? await ctx.handle.db
-        .select()
-        .from(agents)
-        .where(eq(agents.projectId, projectId))
-        .orderBy(asc(agents.name))
-    : await ctx.handle.db.select().from(agents).orderBy(asc(agents.name));
+/** Agents, optionally of one project by id and/or by slug (both must match when given). */
+export async function listAgents(
+  ctx: ServiceContext,
+  filter: { projectId?: string; project?: string } = {},
+): Promise<Agent[]> {
+  const conditions = [];
+  if (filter.projectId) conditions.push(eq(agents.projectId, filter.projectId));
+  if (filter.project) {
+    conditions.push(
+      inArray(
+        agents.projectId,
+        ctx.handle.db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(eq(projects.slug, filter.project)),
+      ),
+    );
+  }
+  const rows = await ctx.handle.db
+    .select()
+    .from(agents)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(asc(agents.name));
   return rows.map(toAgent);
 }
