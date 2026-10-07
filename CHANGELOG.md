@@ -11,6 +11,13 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- MCP server-initiated requests and notifications: `traceMcpClient` now wraps the handlers a
+  host registers with `setRequestHandler` and `setNotificationHandler`, recording
+  `sampling/createMessage` as a model span (`provider: "mcp"`, `metadata.mcp.initiatedBy =
+  "server"`), `elicitation/create` as an approval resolved from the user's answer (kept at
+  `state./elicitations/<id>`), `roots/list` as context `mcp.roots`, progress and log
+  notifications as notes (log severity follows the MCP level) and `list_changed` notifications
+  as `mcp.catalog_changed`. `Trace.note` takes an optional severity.
 - Project-pinned read keys: `POST /api/v1/keys` (and `shadow keys create --scope read --project`)
   pins a `read` key to a project, which then sees that project only: trace, facet and statistics
   listings take the pin as their filter, traces, branches and comparisons of other projects and

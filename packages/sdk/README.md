@@ -119,14 +119,17 @@ options and the event mapping are in
 
 ## MCP clients
 
-`traceMcpClient` wraps a Model Context Protocol client so tool calls, resource reads and
-catalogue calls are recorded, with no dependency on the MCP SDK:
+`traceMcpClient` wraps a Model Context Protocol client so tool calls, resource reads,
+catalogue calls and what the server initiates (sampling as a model span, elicitation as an
+approval, roots as context, progress and log notifications as notes) are recorded, with no
+dependency on the MCP SDK:
 
 ```ts
 import { Shadow, traceMcpClient } from "@shadow/sdk";
 
 const client = traceMcpClient(trace, mcpClient, { server: "github" });
 await client.callTool({ name: "search_issues", arguments: { q: "bug" } }); // a tool span
+client.setRequestHandler(CreateMessageRequestSchema, handler); // sampling: a model span
 ```
 
 Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).

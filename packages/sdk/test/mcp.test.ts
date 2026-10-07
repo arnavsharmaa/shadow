@@ -49,6 +49,39 @@ class FakeMcpClient {
   ping() {
     return "pong";
   }
+
+  // Handlers the host registers for requests and notifications the server sends.
+  readonly #requestHandlers = new Map<unknown, (message: unknown, extra: unknown) => unknown>();
+  readonly #notificationHandlers = new Map<unknown, (message: unknown) => unknown>();
+  readonly #schemas = new Map<string, unknown>();
+  setRequestHandler(schema: unknown, handler: (message: unknown, extra: unknown) => unknown) {
+    this.#requestHandlers.set(schema, handler);
+    this.#remember(schema);
+  }
+  setNotificationHandler(schema: unknown, handler: (message: unknown) => unknown) {
+    this.#notificationHandlers.set(schema, handler);
+    this.#remember(schema);
+  }
+  #remember(schema: unknown) {
+    const s = schema as { shape?: unknown };
+    const shape = typeof s.shape === "function" ? (s.shape as () => unknown)() : s.shape;
+    const method = (shape as { method?: { value?: string; _def?: { value?: string } } } | undefined)
+      ?.method;
+    const name = method?.value ?? method?._def?.value;
+    if (typeof name === "string") this.#schemas.set(name, schema);
+  }
+  /** Simulate the server sending a request; `method` may also be the raw schema object. */
+  request(method: string | object, params: unknown) {
+    const schema = typeof method === "string" ? this.#schemas.get(method) : method;
+    const handler = this.#requestHandlers.get(schema);
+    if (!handler) throw new Error(`no handler for ${String(method)}`);
+    return handler({ method, params }, { requestId: 1 });
+  }
+  notify(method: string, params: unknown) {
+    const handler = this.#notificationHandlers.get(this.#schemas.get(method));
+    if (!handler) throw new Error(`no handler for ${method}`);
+    return handler({ method, params });
+  }
 }
 
 function setup() {
@@ -180,5 +213,132 @@ describe("traceMcpClient", () => {
       },
     });
     expect(named(list, "context.added")).toHaveLength(0);
+  });
+  it("records server-initiated requests and notifications through the host's handlers", async () => {
+    const { trace, events } = setup();
+    const raw = new FakeMcpClient({});
+    const client = traceMcpClient(trace, raw, { server: "github" });
+    // Zod 3 exposes the literal through `_def`, Zod 4 through `value`; both shapes are matched.
+    const schema = (method: string, legacy = false) => ({
+      shape: legacy
+        ? () => ({ method: { _def: { value: method } } })
+        : { method: { value: method } },
+    });
+    client.setRequestHandler(schema("sampling/createMessage"), async (request: unknown) => {
+      const { params } = request as { params: { maxTokens: number } };
+      return {
+        role: "assistant",
+        model: "claude-sonnet-5-5",
+        stopReason: "endTurn",
+        content: { type: "text", text: `summary within ${params.maxTokens}` },
+      };
+    });
+    client.setRequestHandler(schema("elicitation/create", true), async () => ({
+      action: "accept",
+      content: { confirm: true },
+    }));
+    client.setRequestHandler(schema("roots/list"), async () => ({
+      roots: [{ uri: "file:///repo", name: "repo" }],
+    }));
+    client.setRequestHandler(schema("ping"), async () => ({}));
+    const opaque = { not: "a schema" };
+    client.setRequestHandler(opaque, async () => ({ untouched: true }));
+    const seen: string[] = [];
+    for (const method of [
+      "notifications/progress",
+      "notifications/message",
+      "notifications/tools/list_changed",
+      "notifications/resources/updated",
+      "notifications/custom",
+    ]) {
+      client.setNotificationHandler(schema(method), (notification: unknown) => {
+        seen.push((notification as { method: string }).method);
+      });
+    }
+
+    const sampled = await raw.request("sampling/createMessage", {
+      messages: [{ role: "user", content: { type: "text", text: "summarise issue 12" } }],
+      systemPrompt: "Be brief.",
+      maxTokens: 200,
+      modelPreferences: { hints: [{ name: "claude-sonnet-5-5" }], intelligencePriority: 0.5 },
+    });
+    expect(sampled).toMatchObject({ role: "assistant", stopReason: "endTurn" });
+    const elicited = await raw.request("elicitation/create", {
+      message: "Delete the branch?",
+      requestedSchema: { type: "object", properties: { confirm: { type: "boolean" } } },
+    });
+    expect(elicited).toEqual({ action: "accept", content: { confirm: true } });
+    await raw.request("roots/list", {});
+    await raw.request("ping", {});
+    expect(await raw.request(opaque, {})).toEqual({ untouched: true });
+    raw.notify("notifications/progress", { progressToken: "job-7", progress: 3, total: 10 });
+    raw.notify("notifications/message", { level: "warning", logger: "sync", data: "slow" });
+    raw.notify("notifications/tools/list_changed", {});
+    raw.notify("notifications/resources/updated", { uri: "repo://acme/readme" });
+    raw.notify("notifications/custom", { x: 1 });
+    expect(seen).toHaveLength(5);
+
+    const list = await events();
+    const modelRequest = named(list, "model.request")[0];
+    expect(modelRequest).toMatchObject({
+      name: "sampling:github",
+      input: {
+        provider: "mcp",
+        model: "claude-sonnet-5-5",
+        messages: [
+          { role: "system", content: "Be brief." },
+          { role: "user", content: { type: "text", text: "summarise issue 12" } },
+        ],
+        parameters: {
+          maxTokens: 200,
+          modelPreferences: { hints: [{ name: "claude-sonnet-5-5" }], intelligencePriority: 0.5 },
+        },
+      },
+      metadata: {
+        mcp: { server: "github", initiatedBy: "server", method: "sampling/createMessage" },
+      },
+    });
+    expect(named(list, "model.response")[0]?.output).toEqual({
+      message: { role: "assistant", content: { type: "text", text: "summary within 200" } },
+      finishReason: "endTurn",
+    });
+
+    const requested = named(list, "human.approval_requested")[0];
+    expect(requested?.input).toEqual({
+      reason: "Delete the branch?",
+      request: {
+        server: "github",
+        requestedSchema: { type: "object", properties: { confirm: { type: "boolean" } } },
+      },
+    });
+    const approvalId = (requested?.output as { approvalId: string }).approvalId;
+    expect(named(list, "human.approval_resolved")[0]?.output).toEqual({
+      approvalId,
+      decision: "approved",
+    });
+    expect(
+      named(list, "state.patch").some(
+        (e) =>
+          JSON.stringify(e.output).includes(`/elicitations/${approvalId}`) &&
+          JSON.stringify(e.output).includes('"confirm":true'),
+      ),
+    ).toBe(true);
+    expect(
+      named(list, "context.added").map((e) => [e.name, (e.output as { value: unknown }).value]),
+    ).toEqual([["mcp.roots", [{ uri: "file:///repo", name: "repo" }]]]);
+
+    const notes = named(list, "agent.note").map((e) => [e.name, e.severity, e.output]);
+    expect(notes).toEqual([
+      ["mcp.server_request", "debug", { server: "github", method: "ping", params: {}, result: {} }],
+      ["progress:job-7", "debug", { server: "github", progress: 3, total: 10, message: null }],
+      ["mcp.log", "warn", { server: "github", level: "warning", logger: "sync", data: "slow" }],
+      ["mcp.catalog_changed", "debug", { server: "github", catalog: "tools" }],
+      ["mcp.resource_updated", "debug", { server: "github", uri: "repo://acme/readme" }],
+      [
+        "mcp.notification",
+        "debug",
+        { server: "github", method: "notifications/custom", params: { x: 1 } },
+      ],
+    ]);
   });
 });

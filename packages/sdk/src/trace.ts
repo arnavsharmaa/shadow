@@ -454,12 +454,12 @@ export class Trace implements AgentHost {
     });
   }
 
-  note(name: string, data?: JsonValue): void {
+  note(name: string, data?: JsonValue, options: { severity?: Severity } = {}): void {
     this.emit({
       eventType: "agent.note",
       name,
       output: data === undefined ? null : data,
-      severity: "debug",
+      severity: options.severity ?? "debug",
     });
   }
 

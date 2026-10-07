@@ -57,8 +57,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state
   snapshots ([proposal](./docs/integrations/langgraph.md)).
 - **MCP tracing**: record Model Context Protocol tool and resource calls between hosts and servers
-  ([details](./docs/integrations/mcp.md)); the client wrapper is done, server-initiated requests
-  and notifications remain.
+  ([details](./docs/integrations/mcp.md)); the client wrapper is done, including server-initiated
+  sampling, elicitation, roots and notifications; replay helpers for MCP servers remain.
 - **Anthropic tool-use traces**: import Messages API tool-use loops as model and tool spans
   ([details](./docs/integrations/anthropic.md)); the SDK's live wrapper and tool loop and the
   importer for stored message histories are done, deterministic replay remains.

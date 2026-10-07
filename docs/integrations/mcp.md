@@ -1,8 +1,8 @@
 # Model Context Protocol (MCP) tracing
 
-> **Status: the client wrapper is implemented** as `traceMcpClient` in `@shadow/sdk`. Server
-> notifications, sampling and elicitation (which arrive through handlers rather than client
-> calls) and replay helpers remain proposals; see [What is recorded](#what-is-recorded).
+> **Status: the client wrapper is implemented** as `traceMcpClient` in `@shadow/sdk`, including
+> what the server initiates (sampling, elicitation, roots, notifications) through the handlers
+> the host registers. Replay helpers remain proposals; see [What is recorded](#what-is-recorded).
 
 ## Using it
 
@@ -39,11 +39,30 @@ it matches the client structurally, so any object with the same method names wor
   (`mcp.tools:<server>`), so a fork can change what the agent believes is available;
   `listResources`, `listPrompts` and `getPrompt` add `mcp.resources_listed`,
   `mcp.prompts_listed` and `mcp.prompt_retrieved` notes.
-- Everything else (`ping`, `setRequestHandler`, `close`, …) passes through untouched.
+- `setRequestHandler(schema, handler)` wraps the handler the host registers for a request the
+  server sends. The method is read from the schema's `method` literal (Zod 3 and 4 shapes are
+  both matched; a schema without one leaves the handler untouched):
+  - `sampling/createMessage` is a model span (`model.request` / `model.response`) named
+    `sampling:<server>` with `provider: "mcp"`, the model from the server's first hint (or
+    `host`), the system prompt and messages as model messages, the remaining params (`maxTokens`,
+    `modelPreferences`, …) as parameters, `metadata.mcp.initiatedBy = "server"`, and the
+    handler's `content`, `role` and `stopReason` as the response;
+  - `elicitation/create` is `human.approval_requested` with the message as the reason and the
+    requested schema as the request, resolved `approved` on `accept` and `rejected` on
+    `decline` or `cancel`, with the user's answer kept at `state./elicitations/<approvalId>`;
+  - `roots/list` records the roots the handler returns as context `mcp.roots`;
+  - any other request becomes an `mcp.server_request` note with its params and result.
+- `setNotificationHandler(schema, handler)` records the notification before the host's handler
+  sees it: `notifications/progress` as a `progress:<token>` note (progress, total, message),
+  `notifications/message` as an `mcp.log` note whose severity follows the log level (`warning`
+  → `warn`, `error` and above → `error`, otherwise `info`), the `tools`, `resources` and
+  `prompts` `list_changed` notifications as `mcp.catalog_changed`, `resources/updated` as
+  `mcp.resource_updated`, and anything else as `mcp.notification`.
+- Everything else (`ping`, `close`, …) passes through untouched.
 
-Not yet recorded: server-initiated requests and notifications (sampling, elicitation, progress
-and log messages, list-changed notifications), which the client exposes through handlers rather
-than calls; the mapping below is the design for them.
+Elicitation and sampling are recorded from the host side: the server's reasoning is opaque, and
+the model the host actually used for a sampling request is not reported by the MCP result
+beyond its name, so the span's model is the server's preference.
 
 ## Goal
 

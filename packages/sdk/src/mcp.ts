@@ -1,4 +1,4 @@
-import type { JsonValue, PolicyCall } from "@shadow/schemas";
+import type { JsonObject, JsonValue, ModelMessage, PolicyCall, Severity } from "@shadow/schemas";
 import { toJson } from "./pointer.js";
 import { ToolError, type Trace } from "./trace.js";
 
@@ -8,8 +8,11 @@ import { ToolError, type Trace } from "./trace.js";
  * `traceMcpClient(trace, client)` returns the same client with `callTool` recorded as a tool
  * span, `readResource` as a span named after the resource, and the catalogue calls
  * (`listTools`, `listResources`, `listPrompts`, `getPrompt`) and `connect` as notes and context.
- * Everything else passes through. The client is matched structurally, so there is no
- * dependency on `@modelcontextprotocol/sdk` and the caller keeps its own types.
+ * Handlers registered with `setRequestHandler` and `setNotificationHandler` are wrapped so what
+ * the server initiates is recorded too: sampling as a model span, elicitation as an approval,
+ * roots as context, and progress, log and list-changed notifications as notes. Everything else
+ * passes through. The client is matched structurally, so there is no dependency on
+ * `@modelcontextprotocol/sdk` and the caller keeps its own types.
  */
 
 type Fn = (...args: unknown[]) => unknown;
@@ -64,6 +67,58 @@ function capContents(contents: unknown, limit: number): JsonValue {
   });
 }
 
+// ---- server-initiated requests and notifications --------------------------------------------
+
+/** The `method` literal of an MCP request or notification schema, matched structurally. */
+function methodOf(schema: unknown): string | null {
+  if (!isObject(schema)) return null;
+  const shape = typeof schema.shape === "function" ? (schema.shape as Fn)() : schema.shape;
+  const method = isObject(shape) ? shape.method : undefined;
+  if (!isObject(method)) return null;
+  if (typeof method.value === "string") return method.value;
+  const def = method._def;
+  return isObject(def) && typeof def.value === "string" ? def.value : null;
+}
+
+/** MCP log levels (RFC 5424 names) onto Shadow severities. */
+function severityOf(level: unknown): Severity {
+  switch (level) {
+    case "debug":
+      return "debug";
+    case "warning":
+      return "warn";
+    case "error":
+    case "critical":
+    case "alert":
+    case "emergency":
+      return "error";
+    default:
+      return "info";
+  }
+}
+
+/** A sampling request's messages as model messages; MCP roles are `user` or `assistant`. */
+function samplingMessages(params: Record<string, unknown>): ModelMessage[] {
+  const messages = Array.isArray(params.messages) ? params.messages : [];
+  const out: ModelMessage[] = messages.map((m) => {
+    const message = isObject(m) ? m : {};
+    return {
+      role: message.role === "assistant" ? "assistant" : "user",
+      content: toJson(message.content ?? null),
+    };
+  });
+  if (typeof params.systemPrompt === "string") {
+    out.unshift({ role: "system", content: params.systemPrompt });
+  }
+  return out;
+}
+
+const CATALOG_NOTIFICATIONS: Record<string, string> = {
+  "notifications/tools/list_changed": "tools",
+  "notifications/resources/list_changed": "resources",
+  "notifications/prompts/list_changed": "prompts",
+};
+
 /**
  * Wrap an MCP client so its requests are recorded on `trace`. `callTool` becomes a tool span
  * (`tool.error` when the server answers `isError` or the transport fails, with the result still
@@ -83,6 +138,123 @@ export function traceMcpClient<C extends object>(
   const qualify = (tool: string) =>
     options.qualifyToolNames !== false && server ? `${server}/${tool}` : tool;
   const limit = options.resourceContentLimit ?? 64 * 1024;
+  const base: JsonObject = server ? { server } : {};
+  const paramsOf = (message: unknown): Record<string, unknown> =>
+    isObject(message) && isObject(message.params) ? message.params : {};
+
+  /** The handler the host registers for a server request, recorded by request method. */
+  const recordRequestHandler = (method: string, handler: Fn): Fn => {
+    if (method === "sampling/createMessage") {
+      return async (request: unknown, ...rest: unknown[]) => {
+        const params = paramsOf(request);
+        const preferences = isObject(params.modelPreferences) ? params.modelPreferences : {};
+        const hint = Array.isArray(preferences.hints)
+          ? preferences.hints.find(isObject)
+          : undefined;
+        const parameters: JsonObject = {};
+        for (const [key, value] of Object.entries(params)) {
+          if (key !== "messages" && key !== "systemPrompt") parameters[key] = toJson(value);
+        }
+        let response: unknown;
+        await trace.model({
+          name: server ? `sampling:${server}` : "sampling",
+          provider: "mcp",
+          model: typeof hint?.name === "string" ? hint.name : "host",
+          messages: samplingMessages(params),
+          parameters,
+          metadata: mcp({ initiatedBy: "server", method }),
+          execute: async () => {
+            response = await handler(request, ...rest);
+            const result = isObject(response) ? response : {};
+            return {
+              message: {
+                role: result.role === "user" ? "user" : "assistant",
+                content: toJson(result.content ?? null),
+              },
+              ...(typeof result.stopReason === "string" ? { finishReason: result.stopReason } : {}),
+            };
+          },
+        });
+        return response;
+      };
+    }
+    if (method === "elicitation/create") {
+      return async (request: unknown, ...rest: unknown[]) => {
+        const params = paramsOf(request);
+        const { approvalId } = await trace.requestApproval({
+          reason: typeof params.message === "string" ? params.message : "elicitation",
+          request: toJson({ ...base, requestedSchema: params.requestedSchema ?? null }),
+        });
+        const response = await handler(request, ...rest);
+        const result = isObject(response) ? response : {};
+        trace.resolveApproval(approvalId, result.action === "accept" ? "approved" : "rejected");
+        trace.state.set(
+          `/elicitations/${approvalId}`,
+          toJson({ action: result.action ?? null, content: result.content ?? null }),
+        );
+        return response;
+      };
+    }
+    if (method === "roots/list") {
+      return async (request: unknown, ...rest: unknown[]) => {
+        const response = await handler(request, ...rest);
+        const roots = isObject(response) && Array.isArray(response.roots) ? response.roots : [];
+        trace.context.set("mcp.roots", toJson(roots));
+        return response;
+      };
+    }
+    return async (request: unknown, ...rest: unknown[]) => {
+      const response = await handler(request, ...rest);
+      trace.note("mcp.server_request", {
+        ...base,
+        method,
+        params: toJson(paramsOf(request)),
+        result: toJson(response ?? null),
+      });
+      return response;
+    };
+  };
+
+  /** A notification from the server, recorded before the host's own handler sees it. */
+  const recordNotification = (method: string, notification: unknown): void => {
+    const params = paramsOf(notification);
+    if (method === "notifications/progress") {
+      // The token names the note; repeating it in the data would only get it redacted.
+      trace.note(
+        `progress:${String(params.progressToken ?? "")}`,
+        toJson({
+          ...base,
+          progress: params.progress ?? null,
+          total: params.total ?? null,
+          message: params.message ?? null,
+        }),
+      );
+      return;
+    }
+    if (method === "notifications/message") {
+      trace.note(
+        "mcp.log",
+        toJson({
+          ...base,
+          level: params.level ?? null,
+          logger: params.logger ?? null,
+          data: params.data ?? null,
+        }),
+        { severity: severityOf(params.level) },
+      );
+      return;
+    }
+    const catalog = CATALOG_NOTIFICATIONS[method];
+    if (catalog) {
+      trace.note("mcp.catalog_changed", { ...base, catalog });
+      return;
+    }
+    if (method === "notifications/resources/updated") {
+      trace.note("mcp.resource_updated", { ...base, uri: String(params.uri ?? "") });
+      return;
+    }
+    trace.note("mcp.notification", { ...base, method, params: toJson(params) });
+  };
 
   return new Proxy(client, {
     get(target, prop) {
@@ -196,6 +368,30 @@ export function traceMcpClient<C extends object>(
             result: toJson(response ?? null),
           });
           return response;
+        };
+      }
+
+      if (prop === "setRequestHandler") {
+        return (schema: unknown, handler: Fn, ...rest: unknown[]) => {
+          const method = methodOf(schema);
+          return original(
+            schema,
+            method ? recordRequestHandler(method, handler) : handler,
+            ...rest,
+          );
+        };
+      }
+
+      if (prop === "setNotificationHandler") {
+        return (schema: unknown, handler: Fn, ...rest: unknown[]) => {
+          const method = methodOf(schema);
+          const wrapped = method
+            ? (notification: unknown, ...more: unknown[]) => {
+                recordNotification(method, notification);
+                return handler(notification, ...more);
+              }
+            : handler;
+          return original(schema, wrapped, ...rest);
         };
       }
 
