@@ -70,6 +70,11 @@ const configSchema = z.object({
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   /** Encoding for forwarded traces; protobuf is what collectors expect by default. */
   SHADOW_OTLP_EXPORT_ENCODING: z.enum(["protobuf", "json"]).default("protobuf"),
+  /** Directory that finished traces are written to as bundles (unset disables). */
+  SHADOW_EXPORT_DIR: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   /** Delete traces older than this many days (unset disables retention). */
   SHADOW_RETENTION_DAYS: z
     .union([z.string(), z.number()])

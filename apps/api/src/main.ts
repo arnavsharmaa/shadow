@@ -5,6 +5,7 @@ import { buildApp } from "./http/app.js";
 import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { createWebhook } from "./notify/webhook.js";
+import { createFileExporter } from "./export/file.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
 import { loadPricing } from "./pricing.js";
 import { failInterruptedJobs } from "./services/batch.js";
@@ -65,6 +66,10 @@ async function main(): Promise<void> {
       "otlp forwarding enabled",
     );
   }
+  const fileExporter = createFileExporter({ config, logger });
+  if (fileExporter.enabled) {
+    logger.info({ dir: config.SHADOW_EXPORT_DIR }, "file export enabled");
+  }
   const services = createServiceContext({
     handle,
     logger,
@@ -74,6 +79,7 @@ async function main(): Promise<void> {
     }),
     webhook,
     otlpForwarder,
+    fileExporter,
     pricing,
   });
 
@@ -106,6 +112,7 @@ async function main(): Promise<void> {
       await app.close();
       await webhook.settle();
       await otlpForwarder.settle();
+      await fileExporter.settle();
       await services.jobs.stop();
       await handle.close();
       logger.info("shutdown complete");

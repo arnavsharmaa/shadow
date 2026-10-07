@@ -64,8 +64,8 @@ is welcome through GitHub issues; integration proposals have their own
   importer for stored message histories are done, deterministic replay remains.
 - **Exporters**: push traces to external destinations in addition to the existing bundle export
   (OTLP is done: `GET /traces/:id/export?format=otlp`, `shadow otlp export --collector <url>`
-  and automatic forwarding of finished traces with `SHADOW_OTLP_EXPORT_URL`; file and other
-  destinations remain).
+  and automatic forwarding of finished traces with `SHADOW_OTLP_EXPORT_URL`; files are done
+  with `SHADOW_EXPORT_DIR`; object storage and other destinations remain).
 - A published integration guide for custom runtimes with conformance tests for adapters.
 
 ### Ideas / under consideration

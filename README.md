@@ -267,7 +267,7 @@ GET  /api/v1/keys                         POST /api/v1/keys   DELETE /api/v1/key
 GET  /api/v1/shared/:token                (no API token: the link is the credential)
 ```
 
-Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces, or `SHADOW_OTLP_EXPORT_URL` to forward every finished trace to an OpenTelemetry collector as OTLP spans.
+Finished traces can also be pushed out: set `SHADOW_WEBHOOK_URL` (and a `SHADOW_WEBHOOK_SECRET` for HMAC signatures) to receive a JSON notification for failed or policy-violating traces, `SHADOW_OTLP_EXPORT_URL` to forward every finished trace to an OpenTelemetry collector as OTLP spans, or `SHADOW_EXPORT_DIR` to write every finished trace as an importable bundle to a directory.
 
 Events are cursor-paginated; every error is `{ "error": { "code", "message", "details?", "requestId" } }`. Reference: [docs/architecture/api.md](docs/architecture/api.md).
 

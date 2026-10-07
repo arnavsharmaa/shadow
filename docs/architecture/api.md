@@ -871,6 +871,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                           |
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`       |
 | `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to  |
+| `SHADOW_EXPORT_DIR`                 | unset                                         | directory that finished traces are written to as bundles  |
 | `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated   |
 | `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                      |
 | `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                    |
@@ -897,6 +898,18 @@ endpoint are not forwarded again. Delivery runs off the ingestion path with
 three attempts and exponential backoff on `5xx`/`429`; other rejections are logged once.
 `shadow_otlp_exports_total{result}` on `/metrics` counts `delivered`, `rejected`, `failed` and
 `export_failed`. `/health` reports `features.otlp.export`.
+
+### File export
+
+With `SHADOW_EXPORT_DIR` set, the API writes every trace whose root branch finishes as the
+self-contained bundle of `GET /traces/:traceId/export` to
+`<SHADOW_EXPORT_DIR>/<project slug>/<traceId>.json`, so an archive, a sync job to object
+storage or `shadow traces import <file>` on another instance can pick it up. Traces that
+arrived through the OTLP endpoint are written too. Each bundle is written to a temporary name
+and renamed into place, so a reader never sees a partial file. Imported bundles are not
+written out again. Writing runs off the ingestion path and
+failures are logged. `shadow_file_exports_total{result}` on `/metrics` counts `written` and
+`failed`; `/health` reports `features.fileExport`.
 
 ### Webhooks
 

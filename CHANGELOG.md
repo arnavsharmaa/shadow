@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- File export: `SHADOW_EXPORT_DIR` writes every finished trace as a self-contained bundle to
+  `<dir>/<project>/<traceId>.json` (written to a temporary name and renamed into place), off
+  the ingestion path, counted by `shadow_file_exports_total{result}` and reported under
+  `features.fileExport` on `/health`.
 - MCP server-initiated requests and notifications: `traceMcpClient` now wraps the handlers a
   host registers with `setRequestHandler` and `setNotificationHandler`, recording
   `sampling/createMessage` as a model span (`provider: "mcp"`, `metadata.mcp.initiatedBy =

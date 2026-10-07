@@ -11,6 +11,7 @@ import type { Logger } from "pino";
 import type { DatabaseHandle } from "../db/client.js";
 import { ShadowMetrics } from "../metrics/registry.js";
 import { noopWebhook, type Webhook } from "../notify/webhook.js";
+import type { FileExporter } from "../export/file.js";
 import type { OtlpForwarder } from "../otlp/forwarder.js";
 import { createJobRunner, type JobRunner } from "../jobs/runner.js";
 import type { AgentRegistry } from "../replay/registry.js";
@@ -29,6 +30,8 @@ export interface ServiceContext {
   webhook: Webhook;
   /** Forwarding of finished traces to an OTLP collector. */
   otlpForwarder: OtlpForwarder;
+  /** Writing of finished traces as bundles to a directory. */
+  fileExporter: FileExporter;
   /** Background jobs (large batch counterfactuals), one at a time. */
   jobs: JobRunner;
   /** Price table used to estimate costs for events that arrive without one. */
@@ -42,12 +45,26 @@ export const noopOtlpForwarder: OtlpForwarder = {
   settle: async () => undefined,
 };
 
+/** An exporter that does nothing; used when no directory is configured and in tests. */
+export const noopFileExporter: FileExporter = {
+  enabled: false,
+  traceFinished: async () => undefined,
+  settle: async () => undefined,
+};
+
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
     Partial<
       Pick<
         ServiceContext,
-        "ids" | "clock" | "metrics" | "webhook" | "otlpForwarder" | "jobs" | "pricing"
+        | "ids"
+        | "clock"
+        | "metrics"
+        | "webhook"
+        | "otlpForwarder"
+        | "fileExporter"
+        | "jobs"
+        | "pricing"
       >
     >,
 ): ServiceContext {
@@ -58,6 +75,7 @@ export function createServiceContext(
     metrics: input.metrics ?? new ShadowMetrics(),
     webhook: input.webhook ?? noopWebhook,
     otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
+    fileExporter: input.fileExporter ?? noopFileExporter,
     pricing: input.pricing ?? builtinPricingProvider,
     jobs:
       input.jobs ??

@@ -49,6 +49,7 @@ describe("health and error envelope", () => {
         export: { enabled: false },
       },
       webhook: { enabled: false },
+      fileExport: { enabled: false },
     });
 
     const configured = await createTestApp({
@@ -62,6 +63,7 @@ describe("health and error envelope", () => {
         SHADOW_OTLP_EXPORT_URL: "http://collector.example.com:4318/v1/traces",
         SHADOW_OTLP_EXPORT_ENCODING: "json",
         SHADOW_INGEST_SAMPLE_RATE: "0.25",
+        SHADOW_EXPORT_DIR: "/var/lib/shadow/export",
       },
     });
     try {
@@ -78,6 +80,7 @@ describe("health and error envelope", () => {
           export: { enabled: true, encoding: "json" },
         },
         webhook: { enabled: true, events: "all" },
+        fileExport: { enabled: true, dir: "/var/lib/shadow/export" },
       });
     } finally {
       await configured.close();

@@ -283,7 +283,10 @@ export async function ingestEvents(
     await applyLifecycle(tx, trace, branchRow, prepared);
     return prepared;
   });
-  if (branchId === trace.rootBranchId && (ctx.webhook.enabled || ctx.otlpForwarder.enabled)) {
+  if (
+    branchId === trace.rootBranchId &&
+    (ctx.webhook.enabled || ctx.otlpForwarder.enabled || ctx.fileExporter.enabled)
+  ) {
     const end = [...inserted]
       .reverse()
       .find((e) => e.eventType === "trace.completed" || e.eventType === "trace.failed");
@@ -292,6 +295,10 @@ export async function ingestEvents(
       // Traces that arrived through the OTLP endpoint already live in a collector and are not
       // sent back out, which also rules out loops between two Shadow instances.
       void ctx.otlpForwarder.traceFinished(ctx, traceId);
+    }
+    if (end && ctx.fileExporter.enabled) {
+      // Bundles include traces that came in through OTLP: a file cannot loop back.
+      void ctx.fileExporter.traceFinished(ctx, traceId);
     }
     if (end && ctx.webhook.enabled) {
       const summary = await getTraceSummary(ctx, traceId);
