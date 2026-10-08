@@ -872,6 +872,8 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`       |
 | `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to  |
 | `SHADOW_EXPORT_DIR`                 | unset                                         | directory that finished traces are written to as bundles  |
+| `SHADOW_WEBHOOK_FORMAT`             | `json`                                        | `json` notification or a `slack` chat message             |
+| `SHADOW_WEB_URL`                    | unset                                         | public web app URL used for links in chat notifications   |
 | `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated   |
 | `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                      |
 | `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                    |
@@ -941,7 +943,18 @@ Headers: `x-shadow-event` (the notification type, `trace.finished` here or `aler
 `SHADOW_WEBHOOK_SECRET` is set, `x-shadow-signature-256: sha256=<HMAC-SHA256 hex of the body>`
 so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
 are retried three times with backoff, other rejections are logged once. `/health` reports
-whether the webhook is enabled.
+whether the webhook is enabled and its format.
+
+#### Chat notifications
+
+`SHADOW_WEBHOOK_FORMAT=slack` sends a chat message instead: `{ text, blocks }` as a Slack
+incoming webhook expects (Mattermost and Rocket.Chat incoming webhooks accept the same `text`),
+with a header line such as `:rotating_light: refund-agent: Policy violation`, fields for the
+trace, outcome, project and agent, duration and tags, and for alerts the metric against its
+threshold or baseline, the window and the scope. With `SHADOW_WEB_URL` set (the public base URL
+of the web app) the trace name links to its page and alert rules link to the Agents page. The
+`x-shadow-*` headers and the signature are sent with either format. The JSON format remains
+the contract for programmatic receivers.
 
 ### Authentication and API keys
 

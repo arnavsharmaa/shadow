@@ -72,6 +72,54 @@ describe("webhook", () => {
     expect(sign("s3cret", String(init.body))).toBe(expected);
   });
 
+  it("sends a chat message instead of the JSON body in slack format", async () => {
+    const calls: { init: RequestInit }[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return new Response("ok", { status: 200 });
+    }) as unknown as typeof fetch;
+    const webhook = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://hooks.slack.com/services/T/B/x",
+        SHADOW_WEBHOOK_SECRET: "s3cret",
+        SHADOW_WEBHOOK_EVENTS: "failures",
+        SHADOW_WEBHOOK_FORMAT: "slack",
+        SHADOW_WEB_URL: "https://shadow.example.com",
+      },
+      logger,
+      fetch: fetchImpl,
+    });
+    await webhook.traceFinished({ trace });
+    await webhook.alert({
+      type: "alert.firing",
+      rule: {
+        id: "alr_1",
+        name: "refund failures",
+        agent: "a",
+        project: null,
+        metric: "failure_rate",
+        mode: "threshold",
+        threshold: 0.2,
+        windowMinutes: 60,
+      },
+      value: 0.5,
+      baseline: null,
+      traces: 4,
+    });
+    await webhook.settle();
+    expect(calls).toHaveLength(2);
+    const first = calls[0]?.init ?? {};
+    const body = JSON.parse(String(first.body)) as { text: string; blocks: unknown[] };
+    expect(body.text).toContain(":rotating_light: a: Policy violation");
+    expect(body.blocks).toHaveLength(3);
+    expect(JSON.stringify(body)).toContain("https://shadow.example.com/traces/trc_1");
+    const headers = first.headers as Record<string, string>;
+    expect(headers["x-shadow-event"]).toBe("trace.finished");
+    expect(headers["x-shadow-signature-256"]).toBe(sign("s3cret", String(first.body)));
+    const second = JSON.parse(String(calls[1]?.init.body)) as { text: string };
+    expect(second.text).toContain(":red_circle: Alert firing: refund failures");
+  });
+
   it("does not retry client rejections, skips filtered traces and never throws", async () => {
     const rejected = vi.fn(
       async () => new Response("nope", { status: 400 }),

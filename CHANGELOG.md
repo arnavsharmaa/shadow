@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Chat notifications: `SHADOW_WEBHOOK_FORMAT=slack` makes the webhook post a Slack-compatible
+  message (`text` plus Block Kit `blocks`) for finished traces and alerts instead of the JSON
+  notification, with links to the trace and the Agents page when `SHADOW_WEB_URL` is set.
+  `/health` reports the format.
 - File export: `SHADOW_EXPORT_DIR` writes every finished trace as a self-contained bundle to
   `<dir>/<project>/<traceId>.json` (written to a temporary name and renamed into place), off
   the ingestion path, counted by `shadow_file_exports_total{result}` and reported under

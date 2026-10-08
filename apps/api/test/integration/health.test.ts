@@ -60,6 +60,7 @@ describe("health and error envelope", () => {
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
         SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
         SHADOW_WEBHOOK_EVENTS: "all",
+        SHADOW_WEBHOOK_FORMAT: "slack",
         SHADOW_OTLP_EXPORT_URL: "http://collector.example.com:4318/v1/traces",
         SHADOW_OTLP_EXPORT_ENCODING: "json",
         SHADOW_INGEST_SAMPLE_RATE: "0.25",
@@ -79,7 +80,7 @@ describe("health and error envelope", () => {
           defaultProject: "ingest",
           export: { enabled: true, encoding: "json" },
         },
-        webhook: { enabled: true, events: "all" },
+        webhook: { enabled: true, events: "all", format: "slack" },
         fileExport: { enabled: true, dir: "/var/lib/shadow/export" },
       });
     } finally {

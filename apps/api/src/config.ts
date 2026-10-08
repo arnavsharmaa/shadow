@@ -59,6 +59,10 @@ const configSchema = z.object({
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   /** Which finished traces to notify about. */
   SHADOW_WEBHOOK_EVENTS: z.enum(["policy_violations", "failures", "all"]).default("failures"),
+  /** Body shape: Shadow's JSON notification, or a Slack-compatible chat message. */
+  SHADOW_WEBHOOK_FORMAT: z.enum(["json", "slack"]).default("json"),
+  /** Public base URL of the web app, used for links in chat notifications. */
+  SHADOW_WEB_URL: optionalHttpUrl,
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */
   SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
   /** OTLP/HTTP traces endpoint that finished traces are forwarded to (unset disables). */

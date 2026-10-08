@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import type { Outcome } from "@shadow/schemas";
 import type { Logger } from "pino";
 import type { ApiConfig } from "../config.js";
+import { formatChatMessage } from "./chat.js";
 
 export interface TraceFinishedNotification {
   type: "trace.finished";
@@ -45,7 +46,11 @@ export interface AlertNotification {
 type Notification = TraceFinishedNotification | AlertNotification;
 
 export interface WebhookOptions {
-  config: Pick<ApiConfig, "SHADOW_WEBHOOK_URL" | "SHADOW_WEBHOOK_SECRET" | "SHADOW_WEBHOOK_EVENTS">;
+  config: Pick<
+    ApiConfig,
+    "SHADOW_WEBHOOK_URL" | "SHADOW_WEBHOOK_SECRET" | "SHADOW_WEBHOOK_EVENTS"
+  > &
+    Partial<Pick<ApiConfig, "SHADOW_WEBHOOK_FORMAT" | "SHADOW_WEB_URL">>;
   logger: Logger;
   fetch?: typeof fetch;
   /** Attempts per notification (default 3, exponential backoff from 250 ms). */
@@ -84,13 +89,17 @@ export function sign(secret: string, body: string): string {
 }
 
 /**
- * Outgoing webhook for finished traces. Deliveries are fire-and-forget from the
- * ingestion path's point of view: failures are logged and retried, never
- * surfaced to the client that sent the events.
+ * Outgoing webhook for finished traces and alerts. Deliveries are fire-and-forget from the
+ * ingestion path's point of view: failures are logged and retried, never surfaced to the
+ * client that sent the events. The body is Shadow's own JSON notification, or with
+ * `SHADOW_WEBHOOK_FORMAT=slack` a chat message for a Slack-compatible incoming webhook; the
+ * `x-shadow-*` headers and the signature cover whichever body is sent.
  */
 export function createWebhook(options: WebhookOptions): Webhook {
   const url = options.config.SHADOW_WEBHOOK_URL;
   const secret = options.config.SHADOW_WEBHOOK_SECRET;
+  const format = options.config.SHADOW_WEBHOOK_FORMAT ?? "json";
+  const webUrl = options.config.SHADOW_WEB_URL;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const maxAttempts = Math.max(1, options.maxAttempts ?? 3);
   const backoffMs = options.backoffMs ?? 250;
@@ -98,7 +107,9 @@ export function createWebhook(options: WebhookOptions): Webhook {
 
   const deliver = async (notification: Notification): Promise<void> => {
     if (!url) return;
-    const body = JSON.stringify(notification);
+    const body = JSON.stringify(
+      format === "slack" ? formatChatMessage(notification, webUrl) : notification,
+    );
     const subject =
       notification.type === "trace.finished" ? notification.trace.id : notification.rule.id;
     const headers: Record<string, string> = {

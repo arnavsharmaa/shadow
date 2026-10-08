@@ -47,6 +47,7 @@ async function main(): Promise<void> {
       {
         url: config.SHADOW_WEBHOOK_URL,
         events: config.SHADOW_WEBHOOK_EVENTS,
+        format: config.SHADOW_WEBHOOK_FORMAT,
         signed: Boolean(config.SHADOW_WEBHOOK_SECRET),
       },
       "webhook enabled",
