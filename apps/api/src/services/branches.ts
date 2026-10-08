@@ -321,6 +321,19 @@ export async function runReplay(
   // `outcome.metrics` already covers the inherited prefix, the fork event and
   // the replayed events, so no timeline reload is needed.
   const updated = await writeBranchMetrics(ctx, branchId, outcome.metrics);
+  if (outcome.status === "failed" && ctx.webhook.enabled) {
+    // Delivery is off the request path; the webhook retries and never throws.
+    void ctx.webhook.replayFailed({
+      replay: { id: replayId, mode, error: outcome.error, startedAt: now, completedAt },
+      trace: {
+        id: summary.id,
+        name: summary.name,
+        projectSlug: summary.projectSlug,
+        agentSlug: summary.agentSlug,
+      },
+      branch: { id: updated.id, name: updated.name },
+    });
+  }
   await updateSearchText(ctx, await getTraceRow(ctx, branch.traceId), outcome.events);
   const [replayRow] = await ctx.handle.db
     .select()

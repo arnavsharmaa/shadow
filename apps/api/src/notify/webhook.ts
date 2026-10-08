@@ -43,7 +43,22 @@ export interface AlertNotification {
   traces: number;
 }
 
-type Notification = TraceFinishedNotification | AlertNotification;
+/** A replay could not run to completion (typically a history mismatch or an adapter failure). */
+export interface ReplayFailedNotification {
+  type: "replay.failed";
+  sentAt: string;
+  replay: {
+    id: string;
+    mode: string;
+    error: string | null;
+    startedAt: string;
+    completedAt: string | null;
+  };
+  trace: { id: string; name: string; projectSlug: string; agentSlug: string };
+  branch: { id: string; name: string };
+}
+
+export type Notification = TraceFinishedNotification | AlertNotification | ReplayFailedNotification;
 
 export interface WebhookOptions {
   config: Pick<
@@ -66,6 +81,8 @@ export interface Webhook {
   ): Promise<void>;
   /** Send an alert state change; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
   alert(input: Omit<AlertNotification, "sentAt">): Promise<void>;
+  /** Send a failed replay; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
+  replayFailed(input: Omit<ReplayFailedNotification, "type" | "sentAt">): Promise<void>;
   /** Outstanding deliveries, so shutdown can wait for them. */
   settle(): Promise<void>;
 }
@@ -111,7 +128,11 @@ export function createWebhook(options: WebhookOptions): Webhook {
       format === "slack" ? formatChatMessage(notification, webUrl) : notification,
     );
     const subject =
-      notification.type === "trace.finished" ? notification.trace.id : notification.rule.id;
+      notification.type === "trace.finished"
+        ? notification.trace.id
+        : notification.type === "replay.failed"
+          ? notification.replay.id
+          : notification.rule.id;
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "user-agent": "shadow-webhook",
@@ -174,6 +195,16 @@ export function createWebhook(options: WebhookOptions): Webhook {
       inflight.add(task);
       await task;
     },
+    async replayFailed(input) {
+      if (!url) return;
+      const task = deliver({
+        type: "replay.failed",
+        sentAt: new Date().toISOString(),
+        ...input,
+      }).finally(() => inflight.delete(task));
+      inflight.add(task);
+      await task;
+    },
     async settle() {
       await Promise.allSettled([...inflight]);
     },
@@ -185,5 +216,6 @@ export const noopWebhook: Webhook = {
   enabled: false,
   traceFinished: async () => undefined,
   alert: async () => undefined,
+  replayFailed: async () => undefined,
   settle: async () => undefined,
 };

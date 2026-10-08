@@ -569,6 +569,31 @@ deterministic counterfactual replay of a forked branch synchronously and returns
 Documents attached to a trace: an email that was sent, a retrieved page, a generated report.
 Content is JSON (strings are fine for text) and is redacted like event payloads.
 
+With `SHADOW_WEBHOOK_URL` set, a replay that ends with status `failed` (a history mismatch or an
+adapter failure, as opposed to a program that fails on purpose) posts a `replay.failed`
+notification regardless of `SHADOW_WEBHOOK_EVENTS`:
+
+```json
+{
+  "type": "replay.failed",
+  "sentAt": "2026-09-01T09:20:00.000Z",
+  "replay": {
+    "id": "rpl_…",
+    "mode": "deterministic",
+    "error": "replay could not reproduce the recorded prefix: …",
+    "startedAt": "…",
+    "completedAt": "…"
+  },
+  "trace": {
+    "id": "trc_…",
+    "name": "refund-request: defective headphones",
+    "projectSlug": "support-agent",
+    "agentSlug": "refund-agent"
+  },
+  "branch": { "id": "br_…", "name": "limit 100" }
+}
+```
+
 ### `GET /api/v1/traces/:traceId/artifacts?branchId=&eventId=&limit=`
 
 `{ items: Artifact[] }`, oldest first.
@@ -938,8 +963,8 @@ includes policy violations), `policy_violations` only, or `all`. The body is:
 }
 ```
 
-Headers: `x-shadow-event` (the notification type, `trace.finished` here or `alert.firing` /
-`alert.resolved` for [alerts](#alerts)), `x-shadow-delivery: <traceId or ruleId>:<sentAt>` and, when
+Headers: `x-shadow-event` (the notification type: `trace.finished` here, `alert.firing` /
+`alert.resolved` for [alerts](#alerts), `replay.failed` for failed replays), `x-shadow-delivery: <traceId or ruleId>:<sentAt>` and, when
 `SHADOW_WEBHOOK_SECRET` is set, `x-shadow-signature-256: sha256=<HMAC-SHA256 hex of the body>`
 so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
 are retried three times with backoff, other rejections are logged once. `/health` reports
@@ -950,8 +975,9 @@ whether the webhook is enabled and its format.
 `SHADOW_WEBHOOK_FORMAT=slack` sends a chat message instead: `{ text, blocks }` as a Slack
 incoming webhook expects (Mattermost and Rocket.Chat incoming webhooks accept the same `text`),
 with a header line such as `:rotating_light: refund-agent: Policy violation`, fields for the
-trace, outcome, project and agent, duration and tags, and for alerts the metric against its
-threshold or baseline, the window and the scope. With `SHADOW_WEB_URL` set (the public base URL
+trace, outcome, project and agent, duration and tags, for alerts the metric against its
+threshold or baseline, the window and the scope, and for failed replays the branch, mode and
+error. With `SHADOW_WEB_URL` set (the public base URL
 of the web app) the trace name links to its page and alert rules link to the Agents page. The
 `x-shadow-*` headers and the signature are sent with either format. The JSON format remains
 the contract for programmatic receivers.

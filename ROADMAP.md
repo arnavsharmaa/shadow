@@ -92,9 +92,9 @@ is welcome through GitHub issues; integration proposals have their own
 
 ### Ideas / under consideration
 
-- Chat integrations and notifications on failed replays (the webhook for finished traces and
-  alerts can post Slack-compatible messages with `SHADOW_WEBHOOK_FORMAT=slack`; notifications
-  on failed replays remain).
+- Chat integrations and notifications on failed replays: done (the webhook posts
+  `trace.finished`, `alert.*` and `replay.failed` notifications, as JSON or as Slack-compatible
+  messages with `SHADOW_WEBHOOK_FORMAT=slack`).
 - Trace collections for grouping related executions (batches, experiments, incidents): done.
 - Audit log of who forked, replayed or deleted what (done, with self-reported actors until
   authentication lands).

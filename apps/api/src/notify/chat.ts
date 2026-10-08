@@ -1,4 +1,9 @@
-import type { AlertNotification, TraceFinishedNotification } from "./webhook.js";
+import type {
+  AlertNotification,
+  Notification,
+  ReplayFailedNotification,
+  TraceFinishedNotification,
+} from "./webhook.js";
 
 /**
  * Chat-ready rendering of webhook notifications: a Slack incoming-webhook message (`text` plus
@@ -132,11 +137,49 @@ export function formatAlert(notification: AlertNotification, webUrl?: string): C
   };
 }
 
-export function formatChatMessage(
-  notification: TraceFinishedNotification | AlertNotification,
+export function formatReplayFailed(
+  notification: ReplayFailedNotification,
   webUrl?: string,
 ): ChatMessage {
-  return notification.type === "trace.finished"
-    ? formatTraceFinished(notification, webUrl)
-    : formatAlert(notification, webUrl);
+  const { replay, trace, branch } = notification;
+  const headline = `:x: Replay failed: ${branch.name}`;
+  const error = replay.error ?? "unknown error";
+  const text = `${headline} - ${trace.name} (${trace.projectSlug} / ${trace.agentSlug}, ${replay.mode}): ${error}`;
+  const fields = [
+    `*Trace*\n${link(traceUrl(webUrl, trace.id), trace.name)}`,
+    `*Branch*\n${escapeMrkdwn(branch.name)}`,
+    `*Project / agent*\n${escapeMrkdwn(trace.projectSlug)} / ${escapeMrkdwn(trace.agentSlug)}`,
+    `*Mode*\n${escapeMrkdwn(replay.mode)}`,
+  ];
+  return {
+    text,
+    blocks: [
+      { type: "header", text: { type: "plain_text", text: headline, emoji: true } },
+      { type: "section", fields: fields.map((f) => ({ type: "mrkdwn", text: f })) },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `\`\`\`${escapeMrkdwn(error).slice(0, 2000)}\`\`\`` },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `${escapeMrkdwn(replay.id)} · ${replay.completedAt ?? notification.sentAt}`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function formatChatMessage(notification: Notification, webUrl?: string): ChatMessage {
+  switch (notification.type) {
+    case "trace.finished":
+      return formatTraceFinished(notification, webUrl);
+    case "replay.failed":
+      return formatReplayFailed(notification, webUrl);
+    default:
+      return formatAlert(notification, webUrl);
+  }
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { escapeMrkdwn, formatChatMessage } from "../../src/notify/chat.js";
-import type { AlertNotification, TraceFinishedNotification } from "../../src/notify/webhook.js";
+import type {
+  AlertNotification,
+  ReplayFailedNotification,
+  TraceFinishedNotification,
+} from "../../src/notify/webhook.js";
 
 const finished: TraceFinishedNotification = {
   type: "trace.finished",
@@ -93,6 +97,45 @@ describe("chat formatting", () => {
     });
     expect(failed.text).toContain(":x: refund-agent: Failed");
     expect(failed.text).toContain("3.0 s");
+  });
+
+  it("renders a failed replay with its error", () => {
+    const failed: ReplayFailedNotification = {
+      type: "replay.failed",
+      sentAt: "2026-09-01T09:20:00.000Z",
+      replay: {
+        id: "rpl_1",
+        mode: "deterministic",
+        error: "replay could not reproduce the recorded prefix: expected tool <ping>",
+        startedAt: "2026-09-01T09:19:59.000Z",
+        completedAt: "2026-09-01T09:20:00.000Z",
+      },
+      trace: { id: "trc_1", name: "refund run", projectSlug: "support", agentSlug: "refund-agent" },
+      branch: { id: "br_2", name: "limit 100" },
+    };
+    const message = formatChatMessage(failed, "https://shadow.example.com");
+    expect(message.text).toBe(
+      ":x: Replay failed: limit 100 - refund run (support / refund-agent, deterministic): replay could not reproduce the recorded prefix: expected tool <ping>",
+    );
+    const fields = (message.blocks[1] as { fields: { text: string }[] }).fields.map((f) => f.text);
+    expect(fields).toEqual([
+      "*Trace*\n<https://shadow.example.com/traces/trc_1|refund run>",
+      "*Branch*\nlimit 100",
+      "*Project / agent*\nsupport / refund-agent",
+      "*Mode*\ndeterministic",
+    ]);
+    expect((message.blocks[2] as { text: { text: string } }).text.text).toBe(
+      "```replay could not reproduce the recorded prefix: expected tool &lt;ping&gt;```",
+    );
+    expect((message.blocks[3] as { elements: { text: string }[] }).elements[0]?.text).toBe(
+      "rpl_1 · 2026-09-01T09:20:00.000Z",
+    );
+    const unknown = formatChatMessage({
+      ...failed,
+      replay: { ...failed.replay, error: null, completedAt: null },
+    });
+    expect(unknown.text).toContain(": unknown error");
+    expect(JSON.stringify(unknown.blocks)).toContain("rpl_1 · 2026-09-01T09:20:00.000Z");
   });
 
   it("renders threshold and baseline alerts", () => {

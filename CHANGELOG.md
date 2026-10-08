@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Failed replays notify: a replay that ends with status `failed` posts a `replay.failed`
+  webhook notification (JSON or chat format) with the replay, trace and branch, regardless of
+  `SHADOW_WEBHOOK_EVENTS`.
 - The Settings page shows the deployment's features as `/health` reports them (authentication,
   retention, sampling, OTLP ingestion and export, webhook, file export), and `shadow status`
   includes the webhook and file export in its features line.
