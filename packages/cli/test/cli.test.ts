@@ -189,6 +189,8 @@ describe("shadow cli", () => {
               defaultProject: "otel",
               export: { enabled: true, encoding: "protobuf" },
             },
+            webhook: { enabled: true, events: "all", format: "slack" },
+            fileExport: { enabled: true, dir: "/var/lib/shadow/export" },
           },
         },
       }),
@@ -209,7 +211,7 @@ describe("shadow cli", () => {
     expect(text).toContain("7 across 2 project(s) and 1 agent(s); 3 distinct tool(s)");
     expect(text).toContain("replay    inventory-agent, refund-agent");
     expect(text).toContain(
-      "auth required; retention 30d every 60m; sampling 20% of traces; otlp at /api/v1/otlp/v1/traces; otlp export on (protobuf)",
+      "auth required; retention 30d every 60m; sampling 20% of traces; otlp at /api/v1/otlp/v1/traces; otlp export on (protobuf); webhook on (all, slack); file export to /var/lib/shadow/export",
     );
     const json = fakeApi({
       "GET /health": () => ({

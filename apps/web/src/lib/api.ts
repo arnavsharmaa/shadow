@@ -235,6 +235,20 @@ export interface AgentStatsRow {
   lastStartedAt: string | null;
 }
 
+/** What the API reports under `features` on `/health`; older APIs omit some of these. */
+export interface HealthFeatures {
+  auth: boolean;
+  retention: { enabled: boolean; days?: number; intervalMinutes?: number; keepTag?: string };
+  sampling?: { enabled: boolean; rate: number };
+  otlp?: {
+    path: string;
+    defaultProject: string;
+    export?: { enabled: boolean; encoding?: string };
+  };
+  webhook?: { enabled: boolean; events?: string; format?: string };
+  fileExport?: { enabled: boolean; dir?: string };
+}
+
 export const api = {
   views: () => request<{ items: SharedView[] }>("GET", "/api/v1/views"),
   saveView: (body: { name: string; query: string; description?: string }) =>
@@ -418,6 +432,6 @@ export const api = {
       status: string;
       database: { kind: string; location: string; healthy: boolean };
       agents?: { replayable: string[] };
-      features?: { auth: boolean };
+      features?: HealthFeatures;
     }>("GET", "/health"),
 };

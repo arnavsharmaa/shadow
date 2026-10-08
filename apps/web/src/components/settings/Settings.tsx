@@ -2,9 +2,10 @@
 
 import { api } from "@/lib/api";
 import { dateTime, relativeTime } from "@/lib/format";
+import type { HealthFeatures } from "@/lib/api";
 import type { ApiKey, ApiKeyScope } from "@shadow/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
 
 const SCOPES: { value: ApiKeyScope; label: string; help: string }[] = [
@@ -17,7 +18,56 @@ const SCOPES: { value: ApiKeyScope; label: string; help: string }[] = [
   { value: "admin", label: "Admin", help: "everything the API token can do, including keys" },
 ];
 
-/** Settings: API keys. Health shows whether the API enforces authentication at all. */
+/** One line per deployment feature, as `/health` reports it. */
+function describeFeatures(f: HealthFeatures): { key: string; label: string; value: string }[] {
+  return [
+    {
+      key: "auth",
+      label: "Authentication",
+      value: f.auth ? "token or API key required" : "off (SHADOW_API_TOKEN is not set)",
+    },
+    {
+      key: "retention",
+      label: "Retention",
+      value: f.retention.enabled
+        ? `traces older than ${f.retention.days ?? "?"} days are deleted every ${f.retention.intervalMinutes ?? "?"} min${f.retention.keepTag ? `, except those tagged ${f.retention.keepTag}` : ""}`
+        : "off",
+    },
+    {
+      key: "sampling",
+      label: "Sampling",
+      value: f.sampling?.enabled
+        ? `${Math.round(f.sampling.rate * 100)}% of new traces kept`
+        : "off",
+    },
+    {
+      key: "otlp",
+      label: "OTLP ingestion",
+      value: f.otlp ? `${f.otlp.path} (default project ${f.otlp.defaultProject})` : "unknown",
+    },
+    {
+      key: "otlp-export",
+      label: "OTLP export",
+      value: f.otlp?.export?.enabled
+        ? `finished traces are forwarded (${f.otlp.export.encoding ?? "protobuf"})`
+        : "off",
+    },
+    {
+      key: "webhook",
+      label: "Webhook",
+      value: f.webhook?.enabled
+        ? `${f.webhook.events ?? "failures"} as ${f.webhook.format ?? "json"}`
+        : "off",
+    },
+    {
+      key: "file-export",
+      label: "File export",
+      value: f.fileExport?.enabled ? `bundles written to ${f.fileExport.dir ?? "?"}` : "off",
+    },
+  ];
+}
+
+/** Settings: API keys and the deployment's features. Health shows whether the API enforces authentication at all. */
 export function Settings() {
   const queryClient = useQueryClient();
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
@@ -72,6 +122,34 @@ export function Settings() {
         <h1 className="text-[13px] font-semibold">Settings</h1>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3 text-[12px]">
+        <section className="mb-3 max-w-4xl rounded border border-border bg-panel">
+          <header className="border-b border-border px-3 py-2">
+            <h2 className="text-[12px] font-semibold">Deployment</h2>
+          </header>
+          {health.isError ? (
+            <ErrorState error={health.error} retry={() => health.refetch()} />
+          ) : health.data?.features ? (
+            <dl
+              className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 px-3 py-2"
+              data-testid="deployment-features"
+            >
+              {describeFeatures(health.data.features).map((row) => (
+                <Fragment key={row.key}>
+                  <dt className="text-fg-muted">{row.label}</dt>
+                  <dd className="mono" data-testid={`feature-${row.key}`}>
+                    {row.value}
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+          ) : (
+            <div className="space-y-1 p-3" aria-busy="true">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          )}
+        </section>
         <section className="max-w-4xl rounded border border-border bg-panel">
           <header className="flex items-center justify-between border-b border-border px-3 py-2">
             <h2 className="text-[12px] font-semibold">API keys</h2>

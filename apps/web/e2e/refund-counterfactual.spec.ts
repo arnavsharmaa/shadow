@@ -614,6 +614,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     );
     await page.getByTestId("nav-settings").click();
     await expect(page.getByTestId("settings")).toBeVisible();
+    await expect(page.getByTestId("deployment-features")).toBeVisible();
+    await expect(page.getByTestId("feature-auth")).toContainText("off");
+    await expect(page.getByTestId("feature-webhook")).toHaveText("off");
+    await expect(page.getByTestId("feature-otlp")).toContainText("/api/v1/otlp/v1/traces");
   });
 
   test("firing alert rules are shown on the agents page", async ({ page, request }) => {

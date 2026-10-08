@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Settings page shows the deployment's features as `/health` reports them (authentication,
+  retention, sampling, OTLP ingestion and export, webhook, file export), and `shadow status`
+  includes the webhook and file export in its features line.
 - Chat notifications: `SHADOW_WEBHOOK_FORMAT=slack` makes the webhook post a Slack-compatible
   message (`text` plus Block Kit `blocks`) for finished traces and alerts instead of the JSON
   notification, with links to the trace and the Agents page when `SHADOW_WEB_URL` is set.

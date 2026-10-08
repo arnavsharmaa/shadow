@@ -178,6 +178,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             defaultProject: string;
             export?: { enabled: boolean; encoding?: string };
           };
+          webhook?: { enabled: boolean; events?: string; format?: string };
+          fileExport?: { enabled: boolean; dir?: string };
         };
       }>("/health");
       const traces = await api.get<Page<TraceSummary>>("/api/v1/traces", { limit: 1 });
@@ -218,8 +220,14 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           const retention = summary.features.retention.enabled
             ? `retention ${summary.features.retention.days}d every ${summary.features.retention.intervalMinutes}m`
             : "retention off";
+          const webhook = summary.features.webhook?.enabled
+            ? `webhook on (${summary.features.webhook.events ?? "failures"}, ${summary.features.webhook.format ?? "json"})`
+            : "webhook off";
+          const fileExport = summary.features.fileExport?.enabled
+            ? `; file export to ${summary.features.fileExport.dir ?? "?"}`
+            : "";
           out(
-            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; ${summary.features.sampling?.enabled ? `sampling ${Math.round(summary.features.sampling.rate * 100)}% of traces` : "sampling off"}; otlp at ${summary.features.otlp.path}${summary.features.otlp.export?.enabled ? `; otlp export on (${summary.features.otlp.export.encoding ?? "protobuf"})` : ""}`,
+            `  features  auth ${summary.features.auth ? "required" : "off"}; ${retention}; ${summary.features.sampling?.enabled ? `sampling ${Math.round(summary.features.sampling.rate * 100)}% of traces` : "sampling off"}; otlp at ${summary.features.otlp.path}${summary.features.otlp.export?.enabled ? `; otlp export on (${summary.features.otlp.export.encoding ?? "protobuf"})` : ""}; ${webhook}${fileExport}`,
           );
         }
       }
