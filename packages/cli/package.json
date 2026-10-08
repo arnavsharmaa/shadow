@@ -50,10 +50,10 @@
   },
   "devDependencies": {
     "@shadow/config": "workspace:*",
-    "@types/node": "24.13.3",
-    "eslint": "10.10.0",
+    "@types/node": "24.19.1",
+    "eslint": "10.11.0",
     "tsup": "8.5.1",
-    "tsx": "4.23.13",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   },
