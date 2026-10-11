@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import path from "node:path";
 import { buildEventTree, flattenTree } from "@shadow/core";
@@ -512,12 +512,114 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       }
     });
 
+  /** Every `.json` file under a directory, deepest last, in a stable order. */
+  const bundleFiles = async (dir: string): Promise<string[]> => {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const files: string[] = [];
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) files.push(...(await bundleFiles(full)));
+      else if (entry.isFile() && entry.name.endsWith(".json")) files.push(full);
+    }
+    return files;
+  };
+
   traces
     .command("import")
-    .description("import a previously exported trace bundle, from a file or a share link")
-    .argument("<file>", "path to a .json bundle, or a share URL (…/api/v1/shared/shs_…)")
+    .description(
+      "import exported trace bundles: a .json file, a share link, or a directory of bundles",
+    )
+    .argument(
+      "<file>",
+      "path to a .json bundle or a directory of them (such as SHADOW_EXPORT_DIR), or a share URL (…/api/v1/shared/shs_…)",
+    )
     .option("--regenerate-ids", "assign fresh ids (import a copy)")
-    .action(async (file: string, opts: { regenerateIds?: boolean }) => {
+    .option("--json", "print JSON (directory imports)")
+    .action(async (file: string, opts: { regenerateIds?: boolean; json?: boolean }) => {
+      const idStrategy = opts.regenerateIds ? "regenerate" : "keep";
+      if (!/^https?:\/\//i.test(file) && (await stat(file).catch(() => null))?.isDirectory()) {
+        // A directory: import every bundle, skip what already exists, report the rest.
+        const files = await bundleFiles(file);
+        if (files.length === 0) throw new CliError(`no .json files under ${file}`, EXIT.usage);
+        const results: {
+          file: string;
+          status: "imported" | "exists" | "skipped" | "failed";
+          traceId?: string;
+          reason?: string;
+        }[] = [];
+        for (const bundleFile of files) {
+          let raw: unknown;
+          try {
+            raw = JSON.parse(await readFile(bundleFile, "utf8"));
+          } catch (error) {
+            results.push({
+              file: bundleFile,
+              status: "failed",
+              reason: `could not read: ${error instanceof Error ? error.message : String(error)}`,
+            });
+            continue;
+          }
+          if (!(
+            typeof raw === "object" &&
+            raw !== null &&
+            (raw as { format?: unknown }).format === "shadow.trace"
+          )) {
+            results.push({
+              file: bundleFile,
+              status: "skipped",
+              reason: "not a shadow.trace bundle",
+            });
+            continue;
+          }
+          try {
+            const trace = await client().post<{ id: string }>("/api/v1/traces/import", {
+              bundle: raw,
+              idStrategy,
+            });
+            results.push({ file: bundleFile, status: "imported", traceId: trace.id });
+          } catch (error) {
+            if (error instanceof CliError && error.status === 409) {
+              results.push({
+                file: bundleFile,
+                status: "exists",
+                traceId: (raw as { trace?: { id?: string } }).trace?.id,
+              });
+            } else if (error instanceof CliError && error.exitCode === EXIT.connection) {
+              throw error;
+            } else {
+              results.push({
+                file: bundleFile,
+                status: "failed",
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
+        }
+        const count = (status: string) => results.filter((r) => r.status === status).length;
+        const summary = {
+          directory: file,
+          files: files.length,
+          imported: count("imported"),
+          exists: count("exists"),
+          skipped: count("skipped"),
+          failed: count("failed"),
+          results,
+        };
+        if (opts.json) json(summary);
+        else {
+          for (const r of results) {
+            out(
+              `${r.status.padEnd(8)} ${path.relative(file, r.file)}${r.traceId ? ` (${r.traceId})` : ""}${r.reason ? `: ${r.reason}` : ""}`,
+            );
+          }
+          out(
+            `imported ${summary.imported} of ${summary.files} bundle(s); ${summary.exists} already present, ${summary.skipped} skipped, ${summary.failed} failed`,
+          );
+        }
+        if (summary.failed > 0)
+          throw new CliError(`${summary.failed} bundle(s) failed to import`, EXIT.error);
+        return;
+      }
       let raw: unknown;
       try {
         if (/^https?:\/\//i.test(file)) {
@@ -544,10 +646,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       }
       const trace = await client().post<{ id: string; branchCount: number }>(
         "/api/v1/traces/import",
-        {
-          bundle: raw,
-          idStrategy: opts.regenerateIds ? "regenerate" : "keep",
-        },
+        { bundle: raw, idStrategy },
       );
       out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
     });

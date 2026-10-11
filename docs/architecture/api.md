@@ -931,7 +931,8 @@ three attempts and exponential backoff on `5xx`/`429`; other rejections are logg
 With `SHADOW_EXPORT_DIR` set, the API writes every trace whose root branch finishes as the
 self-contained bundle of `GET /traces/:traceId/export` to
 `<SHADOW_EXPORT_DIR>/<project slug>/<traceId>.json`, so an archive, a sync job to object
-storage or `shadow traces import <file>` on another instance can pick it up. Traces that
+storage or `shadow traces import <dir>` on another instance (which imports every bundle under
+the directory and skips traces that already exist) can pick it up. Traces that
 arrived through the OTLP endpoint are written too. Each bundle is written to a temporary name
 and renamed into place, so a reader never sees a partial file. Imported bundles are not
 written out again. Writing runs off the ingestion path and

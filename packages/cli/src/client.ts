@@ -2,6 +2,8 @@ export class CliError extends Error {
   constructor(
     message: string,
     readonly exitCode: number = 1,
+    /** The HTTP status that caused this error, when the API answered. */
+    readonly status?: number,
   ) {
     super(message);
     this.name = "CliError";
@@ -97,7 +99,11 @@ export class ApiClient {
       } catch {
         // not a JSON error envelope
       }
-      throw new CliError(message, response.status === 404 ? EXIT.notFound : EXIT.error);
+      throw new CliError(
+        message,
+        response.status === 404 ? EXIT.notFound : EXIT.error,
+        response.status,
+      );
     }
     return {
       bytes: new Uint8Array(await response.arrayBuffer()),
@@ -145,6 +151,7 @@ export class ApiClient {
       throw new CliError(
         `${message}${details}`,
         response.status === 404 ? EXIT.notFound : EXIT.error,
+        response.status,
       );
     }
     return parsed as T;

@@ -211,6 +211,7 @@ shadow traces prune --before 90d --archive ./archive --yes
 shadow traces delete <traceId> --yes
 shadow traces export trc_demo_refund_violation --out refund.json
 shadow traces import refund.json --regenerate-ids
+shadow traces import ./exports            # every bundle under a directory (such as SHADOW_EXPORT_DIR)
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay
 shadow replay <branchId>
 shadow matrix trc_demo_refund_violation --at <eventId> --vary refundLimit=50,100,500

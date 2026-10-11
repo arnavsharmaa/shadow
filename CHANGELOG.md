@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces import <dir>` imports every `shadow.trace` bundle under a directory (such as
+  `SHADOW_EXPORT_DIR`), reports what was imported, already present, skipped or failed, and
+  exits non-zero only when a bundle failed; `--json` prints the summary.
 - Expiring API keys: `POST /api/v1/keys` takes `expiresInDays` (1 to 365; `shadow keys create
   --expires <days>`, an "Expires after" field on the Settings page). An expired key is refused
   like a revoked one and shows as expired in the listing (migration `0011_api_key_expiry`).

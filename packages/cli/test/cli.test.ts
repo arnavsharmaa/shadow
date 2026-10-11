@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -419,6 +419,81 @@ describe("shadow cli", () => {
     );
     await writeFile(file, "not json");
     expect(await runWith(api, ["traces", "import", file])).toBe(2);
+  });
+
+  it("imports a directory of bundles, skipping what exists and what is not a bundle", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-dir-"));
+    await mkdir(path.join(dir, "support"), { recursive: true });
+    const bundleFor = (id: string) => ({
+      format: "shadow.trace",
+      trace: { ...trace, id },
+      branches: [branch],
+      events: [ev(0, "trace.started", "x")],
+      forks: [],
+      replays: [],
+      comparisons: [],
+    });
+    await writeFile(
+      path.join(dir, "support", "trc_new.json"),
+      JSON.stringify(bundleFor("trc_new")),
+    );
+    await writeFile(
+      path.join(dir, "support", "trc_old.json"),
+      JSON.stringify(bundleFor("trc_old")),
+    );
+    await writeFile(
+      path.join(dir, "support", "trc_bad.json"),
+      JSON.stringify(bundleFor("trc_bad")),
+    );
+    await writeFile(path.join(dir, "notes.json"), JSON.stringify({ hello: "world" }));
+    await writeFile(path.join(dir, "readme.txt"), "ignored");
+    await writeFile(path.join(dir, "broken.json"), "{");
+    const api = fakeApi({
+      "POST /api/v1/traces/import": (body) => {
+        const id = (body as { bundle: { trace: { id: string } } }).bundle.trace.id;
+        if (id === "trc_old") {
+          return {
+            status: 409,
+            body: { error: { code: "conflict", message: `trace ${id} already exists` } },
+          };
+        }
+        if (id === "trc_bad") {
+          return { status: 422, body: { error: { code: "invalid", message: "bad bundle" } } };
+        }
+        return { status: 201, body: { id, branchCount: 1 } };
+      },
+    });
+    expect(await runWith(api, ["traces", "import", dir])).toBe(1);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("imported support/trc_new.json (trc_new)");
+    expect(text).toContain("exists   support/trc_old.json (trc_old)");
+    expect(text).toContain("failed   support/trc_bad.json: bad bundle");
+    expect(text).toContain("skipped  notes.json: not a shadow.trace bundle");
+    expect(text).toContain("failed   broken.json: could not read");
+    expect(text).toContain("imported 1 of 5 bundle(s); 1 already present, 1 skipped, 2 failed");
+    expect(text).not.toContain("readme.txt");
+    expect(api.captured.calls).toHaveLength(3);
+
+    const clean = fakeApi({
+      "POST /api/v1/traces/import": (body) => ({
+        status: 201,
+        body: {
+          id: (body as { bundle: { trace: { id: string } } }).bundle.trace.id,
+          branchCount: 1,
+        },
+      }),
+    });
+    const only = await mkdtemp(path.join(tmpdir(), "shadow-cli-dir-"));
+    await writeFile(path.join(only, "a.json"), JSON.stringify(bundleFor("trc_a")));
+    expect(await runWith(clean, ["traces", "import", only, "--json", "--regenerate-ids"])).toBe(0);
+    const summary = JSON.parse(clean.captured.out.join("\n")) as {
+      imported: number;
+      failed: number;
+    };
+    expect(summary).toMatchObject({ files: 1, imported: 1, exists: 0, skipped: 0, failed: 0 });
+    expect((clean.captured.calls[0]?.body as { idStrategy: string }).idStrategy).toBe("regenerate");
+    const empty = await mkdtemp(path.join(tmpdir(), "shadow-cli-empty-"));
+    expect(await runWith(clean, ["traces", "import", empty])).toBe(2);
   });
 
   it("updates trace names, tags and metadata", async () => {
