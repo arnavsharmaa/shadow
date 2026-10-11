@@ -598,6 +598,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("key-project")).toBeVisible();
     await page.getByTestId("key-scope").selectOption("ingest");
     await page.getByTestId("key-project").fill("support-agent");
+    await page.getByTestId("key-expires").fill("30");
     await page.getByTestId("create-key").click();
     const issued = page.getByTestId("issued-key");
     await expect(issued).toContainText(`Key ${name} created`);
@@ -606,6 +607,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(row).toContainText("ingest");
     await expect(row).toContainText("support-agent");
     await expect(row).toContainText("never");
+    await expect(row.getByTestId("key-expiry")).not.toHaveText("never");
     await row.getByTestId("revoke-key").click();
     await expect(row).toContainText("revoked");
     await page.reload();

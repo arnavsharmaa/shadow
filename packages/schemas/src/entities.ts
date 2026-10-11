@@ -383,5 +383,7 @@ export const apiKeySchema = z.object({
   createdAt: timestamp,
   lastUsedAt: timestamp.nullable(),
   revokedAt: timestamp.nullable(),
+  /** When the key stops working on its own; `null` never expires. */
+  expiresAt: timestamp.nullable(),
 });
 export type ApiKey = z.infer<typeof apiKeySchema>;

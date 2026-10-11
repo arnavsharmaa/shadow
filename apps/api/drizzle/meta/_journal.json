@@ -78,6 +78,13 @@
       "when": 1791188806399,
       "tag": "0010_api_key_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791697208939,
+      "tag": "0011_api_key_expiry",
+      "breakpoints": true
     }
   ]
 }

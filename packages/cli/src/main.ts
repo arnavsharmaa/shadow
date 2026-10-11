@@ -762,6 +762,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  const keyState = (k: ApiKey): string => {
+    if (k.revokedAt) return `revoked ${k.revokedAt}`;
+    if (k.expiresAt && Date.parse(k.expiresAt) <= Date.now()) return `expired ${k.expiresAt}`;
+    return k.expiresAt ? `active until ${k.expiresAt}` : "active";
+  };
+
   const keys = program
     .command("keys")
     .description(
@@ -785,7 +791,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             k.scope,
             k.project ?? "any",
             `${k.prefix}…`,
-            k.revokedAt ? `revoked ${k.revokedAt}` : "active",
+            keyState(k),
             k.lastUsedAt ?? "never",
             k.createdAt,
           ]),
@@ -809,19 +815,26 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "ingest",
     )
     .option("--project <slug>", "pin an ingest or read key to one project")
+    .option("--expires <days>", "expire the key after this many days (max 365)", positiveInt)
     .option("--json", "print JSON")
-    .action(async (name: string, opts: { scope: string; project?: string; json?: boolean }) => {
-      const result = await client().post<{ key: ApiKey; secret: string }>("/api/v1/keys", {
-        name,
-        scope: opts.scope,
-        ...(opts.project ? { project: opts.project } : {}),
-      });
-      if (opts.json) return json(result);
-      out(result.secret);
-      out(
-        `created ${result.key.id} (${result.key.name}, scope ${result.key.scope}${result.key.project ? `, project ${result.key.project}` : ""}). Store the secret now: it cannot be shown again. Use it as --token or SHADOW_TOKEN.`,
-      );
-    });
+    .action(
+      async (
+        name: string,
+        opts: { scope: string; project?: string; expires?: number; json?: boolean },
+      ) => {
+        const result = await client().post<{ key: ApiKey; secret: string }>("/api/v1/keys", {
+          name,
+          scope: opts.scope,
+          ...(opts.project ? { project: opts.project } : {}),
+          ...(opts.expires ? { expiresInDays: opts.expires } : {}),
+        });
+        if (opts.json) return json(result);
+        out(result.secret);
+        out(
+          `created ${result.key.id} (${result.key.name}, scope ${result.key.scope}${result.key.project ? `, project ${result.key.project}` : ""}${result.key.expiresAt ? `, expires ${result.key.expiresAt}` : ""}). Store the secret now: it cannot be shown again. Use it as --token or SHADOW_TOKEN.`,
+        );
+      },
+    );
 
   keys
     .command("revoke")

@@ -986,11 +986,12 @@ the contract for programmatic receivers.
 
 With `SHADOW_API_TOKEN` set, every `/api/*` request and `/metrics` needs `Authorization: Bearer
 <credential>`, where the credential is the token itself or an API key. Keys are created with
-`POST /api/v1/keys` (`{ name, scope?, project? }`, scope `ingest` by default) by a request authenticated
-with the token or an `admin` key; the response `{ key, secret }` is the only time the secret
-(`shk_…`) is shown, since only its hash is stored. `GET /api/v1/keys` lists keys
-(`{ id, name, scope, prefix, createdAt, lastUsedAt, revokedAt }`, never secrets) and
-`DELETE /api/v1/keys/:nameOrId` revokes one, effective from the next request.
+`POST /api/v1/keys` (`{ name, scope?, project?, expiresInDays? }`, scope `ingest` by default) by a
+request authenticated with the token or an `admin` key; the response `{ key, secret }` is the
+only time the secret (`shk_…`) is shown, since only its hash is stored. `expiresInDays` (1 to 365) makes the key stop working on its own at `expiresAt`; an expired key is refused like a
+revoked one (`401`) and stays in the listing. `GET /api/v1/keys` lists keys
+(`{ id, name, scope, project, prefix, createdAt, lastUsedAt, revokedAt, expiresAt }`, never
+secrets) and `DELETE /api/v1/keys/:nameOrId` revokes one, effective from the next request.
 
 | Scope    | Allowed requests                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1016,8 +1017,8 @@ one; `GET /projects` and `GET /agents` list the pinned project only; `GET /trace
 A request outside a key's scope is `403 forbidden`; an unknown or revoked key is `401`. Audit
 entries for requests made with a key use `key:<name>` as the actor regardless of
 `x-shadow-actor`. Without `SHADOW_API_TOKEN` the API is open and keys are not consulted. CLI:
-`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>]|revoke <nameOrId>`
-(`--project` pins an `ingest` or `read` key), or the
+`shadow keys list|create <name> --scope ingest|read|admin [--project <slug>] [--expires <days>]|revoke <nameOrId>`
+(`--project` pins an `ingest` or `read` key, `--expires` sets `expiresInDays`), or the
 web app's Settings page; pass a key as
 `--token` or `SHADOW_TOKEN`.
 

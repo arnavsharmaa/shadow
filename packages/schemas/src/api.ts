@@ -398,6 +398,8 @@ export const importAnthropicBodySchema = z.object({
 });
 export type ImportAnthropicBody = z.infer<typeof importAnthropicBodySchema>;
 
+export const MAX_API_KEY_DAYS = 365;
+
 export const createApiKeyBodySchema = z.object({
   name: z
     .string()
@@ -408,6 +410,8 @@ export const createApiKeyBodySchema = z.object({
   scope: apiKeyScopeSchema.default("ingest"),
   /** Pin an `ingest` or `read` key to one project slug. */
   project: z.string().min(1).max(64).optional(),
+  /** Make the key expire after this many days (at most a year); omitted keys never expire. */
+  expiresInDays: z.number().int().min(1).max(MAX_API_KEY_DAYS).optional(),
 });
 export type CreateApiKeyBody = z.infer<typeof createApiKeyBodySchema>;
 

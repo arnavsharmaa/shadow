@@ -1,3 +1,4 @@
+import { VirtualClock } from "@shadow/core";
 import type { ApiKey, AuditEntry } from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scopeAllows } from "../../src/services/keys.js";
@@ -407,5 +408,40 @@ describe("API keys", () => {
     });
     expect(bad.statusCode).toBe(400);
     expect(json<ErrorEnvelope>(bad).error.message).toContain("admin keys cannot be pinned");
+  });
+  it("refuses expired keys and validates the expiry", async () => {
+    const clock = new VirtualClock("2026-10-11T12:00:00.000Z");
+    const app = await createTestApp({ env: { SHADOW_API_TOKEN: TOKEN }, clock });
+    try {
+      const create = (payload: Record<string, unknown>) =>
+        app.app.inject({ method: "POST", url: "/api/v1/keys", headers: admin, payload });
+      expect((await create({ name: "zero", expiresInDays: 0 })).statusCode).toBe(400);
+      expect((await create({ name: "long", expiresInDays: 366 })).statusCode).toBe(400);
+      const issued = await create({ name: "short-lived", scope: "read", expiresInDays: 2 });
+      expect(issued.statusCode).toBe(201);
+      const { key, secret } = json<{ key: ApiKey; secret: string }>(issued);
+      expect(key.expiresAt).toBe("2026-10-13T12:00:00.000Z");
+      const forever = json<{ key: ApiKey }>(await create({ name: "forever", scope: "read" }));
+      expect(forever.key.expiresAt).toBeNull();
+
+      const list = (headers: Record<string, string>) =>
+        app.app.inject({ url: "/api/v1/traces", headers });
+      expect((await list(bearer(secret))).statusCode).toBe(200);
+      clock.advance(2 * 24 * 60 * 60 * 1000 - 1);
+      expect((await list(bearer(secret))).statusCode).toBe(200);
+      clock.advance(1);
+      const expired = await list(bearer(secret));
+      expect(expired.statusCode).toBe(401);
+      // The key stays listed, with its expiry, so operators can see why it stopped working.
+      const listed = json<{ items: ApiKey[] }>(
+        await app.app.inject({ url: "/api/v1/keys", headers: admin }),
+      );
+      expect(listed.items.find((k) => k.name === "short-lived")).toMatchObject({
+        expiresAt: "2026-10-13T12:00:00.000Z",
+        revokedAt: null,
+      });
+    } finally {
+      await app.close();
+    }
   });
 });

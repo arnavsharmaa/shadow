@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Expiring API keys: `POST /api/v1/keys` takes `expiresInDays` (1 to 365; `shadow keys create
+  --expires <days>`, an "Expires after" field on the Settings page). An expired key is refused
+  like a revoked one and shows as expired in the listing (migration `0011_api_key_expiry`).
 - Failed replays notify: a replay that ends with status `failed` posts a `replay.failed`
   webhook notification (JSON or chat format) with the replay, trace and branch, regardless of
   `SHADOW_WEBHOOK_EVENTS`.

@@ -76,6 +76,9 @@ export function Settings() {
   const [name, setName] = useState("");
   const [scope, setScope] = useState<ApiKeyScope>("ingest");
   const [project, setProject] = useState("");
+  const [expiresInDays, setExpiresInDays] = useState("");
+  // Taken once per mount: expiry badges only need to be right to the minute.
+  const [now] = useState(() => Date.now());
   const [issued, setIssued] = useState<{ key: ApiKey; secret: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,12 +90,14 @@ export function Settings() {
         name: name.trim(),
         scope,
         ...(scope !== "admin" && project ? { project } : {}),
+        ...(expiresInDays ? { expiresInDays: Number(expiresInDays) } : {}),
       }),
     onSuccess: async (result) => {
       setIssued(result);
       setCopied(false);
       setName("");
       setProject("");
+      setExpiresInDays("");
       setError(null);
       await refresh();
     },
@@ -217,6 +222,19 @@ export function Settings() {
                 </datalist>
               </label>
             )}
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-fg-muted">Expires after (days)</span>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={expiresInDays}
+                onChange={(e) => setExpiresInDays(e.target.value)}
+                placeholder="never"
+                className="h-7 w-24 rounded border border-border bg-bg px-2"
+                data-testid="key-expires"
+              />
+            </label>
             <Button
               type="submit"
               variant="primary"
@@ -283,6 +301,7 @@ export function Settings() {
                   <th className="px-3 py-1">Prefix</th>
                   <th className="px-3 py-1">Last used</th>
                   <th className="px-3 py-1">Created</th>
+                  <th className="px-3 py-1">Expires</th>
                   <th className="px-3 py-1" />
                 </tr>
               </thead>
@@ -306,9 +325,22 @@ export function Settings() {
                       {key.lastUsedAt ? relativeTime(key.lastUsedAt) : "never"}
                     </td>
                     <td className="px-3 py-1.5">{dateTime(key.createdAt)}</td>
+                    <td
+                      className="px-3 py-1.5"
+                      title={key.expiresAt ?? ""}
+                      data-testid="key-expiry"
+                    >
+                      {key.expiresAt ? (
+                        dateTime(key.expiresAt)
+                      ) : (
+                        <span className="text-fg-faint">never</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5 text-right">
                       {key.revokedAt ? (
                         <Badge tone="err">revoked</Badge>
+                      ) : key.expiresAt && Date.parse(key.expiresAt) <= now ? (
+                        <Badge tone="warn">expired</Badge>
                       ) : (
                         <Button
                           size="xs"

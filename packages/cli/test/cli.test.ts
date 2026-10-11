@@ -842,13 +842,21 @@ describe("shadow cli", () => {
       createdAt: "2026-10-04T09:00:00.000Z",
       lastUsedAt: null,
       revokedAt: null,
+      expiresAt: null,
+    };
+    const expired = {
+      ...key,
+      id: "key_2",
+      name: "old-reader",
+      scope: "read",
+      expiresAt: "2026-10-05T09:00:00.000Z",
     };
     const api = fakeApi({
       "POST /api/v1/keys": (body) => ({
         status: 201,
         body: { key: { ...key, ...(body as object) }, secret: "shk_abcdefghSECRET" },
       }),
-      "GET /api/v1/keys": () => ({ body: { items: [key] } }),
+      "GET /api/v1/keys": () => ({ body: { items: [key, expired] } }),
       "DELETE /api/v1/keys/ci-ingest": () => ({
         body: { ...key, revokedAt: "2026-10-04T10:00:00.000Z" },
       }),
@@ -861,6 +869,16 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toMatch(
       /key_1\s+ci-ingest\s+ingest\s+any\s+shk_abcdefgh…\s+active\s+never/,
     );
+    expect(api.captured.out.join("\n")).toMatch(
+      /key_2\s+old-reader\s+read\s+any\s+shk_abcdefgh…\s+expired 2026-10-05T09:00:00.000Z/,
+    );
+    expect(await runWith(api, ["keys", "create", "short-lived", "--expires", "30"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      name: "short-lived",
+      scope: "ingest",
+      expiresInDays: 30,
+    });
+    expect(await runWith(api, ["keys", "create", "x", "--expires", "0"])).toBe(2);
     expect(await runWith(api, ["keys", "create", "support-ingest", "--project", "support"])).toBe(
       0,
     );

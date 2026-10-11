@@ -397,6 +397,8 @@ export const apiKeys = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     lastUsedAt: ts("last_used_at"),
     revokedAt: ts("revoked_at"),
+    /** Keys past this instant are refused like revoked ones; null never expires. */
+    expiresAt: ts("expires_at"),
   },
   (t) => [
     uniqueIndex("api_keys_name_idx").on(t.name),
