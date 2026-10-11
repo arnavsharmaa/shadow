@@ -285,6 +285,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Fixed
 
+- A `trace.completed` or `trace.failed` event whose declared `outcome` lacks `kind` or `label`
+  (for example `{ "status": "ok" }`) is normalised instead of stored as is, so the trace, its
+  branches and its export bundle always carry a valid outcome and can be imported again.
 - Anthropic import: `inputTokens` now counts the whole prompt (uncached input plus cache reads
   and cache writes), matching Shadow's convention that `cachedInputTokens` is a part of
   `inputTokens`; previously cache reads could exceed the reported input.

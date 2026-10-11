@@ -260,6 +260,29 @@ describe("event ingestion", () => {
     expect(branches[0]?.outcome?.kind).toBe("refunded");
   });
 
+  it("normalises a malformed declared outcome so the trace stays exportable", async () => {
+    const trace = await newTrace();
+    await ingest(trace.id, [
+      ingestEvent("trace.started", "start", { timestamp: T0 }),
+      ingestEvent("trace.completed", "trace.completed", {
+        timestamp: "2026-09-01T09:00:03.000Z",
+        output: { outcome: { status: "ok" } },
+      }),
+    ]);
+    const { trace: summary, branches } = await getTrace(trace.id);
+    expect(summary.outcome).toEqual({ status: "ok", kind: "completed", label: "ok" });
+    expect(branches[0]?.outcome).toEqual({ status: "ok", kind: "completed", label: "ok" });
+    // The export is a valid bundle that imports back into a fresh id.
+    const exported = await t.app.inject({ url: `/api/v1/traces/${trace.id}/export` });
+    expect(exported.statusCode).toBe(200);
+    const imported = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/import",
+      payload: { bundle: exported.json(), idStrategy: "regenerate" },
+    });
+    expect(imported.statusCode, imported.body).toBe(201);
+  });
+
   it("marks the trace failed on trace.failed and derives an error outcome", async () => {
     const trace = await newTrace();
     await ingest(trace.id, [

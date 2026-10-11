@@ -15,6 +15,7 @@ import type {
   ToolCallDiff,
   ToolCallSummary,
 } from "@shadow/schemas";
+import { outcomeSchema } from "@shadow/schemas";
 import { sharedPrefixSequence } from "../branches/lineage.js";
 import { deepEqual } from "../json.js";
 import { aggregateMetrics } from "../metrics/aggregate.js";
@@ -164,20 +165,35 @@ function delta(base: number, target: number): Delta {
   return { base, target, delta: d, percent: base === 0 ? null : d / base };
 }
 
+/**
+ * The outcome of a run from its last `trace.completed` / `trace.failed` event. A declared outcome
+ * is used as is when it is well formed; one that is missing `kind` or `label` (a program that
+ * reported `{ status: "ok" }`, say) is normalised so stored traces, exports and comparisons
+ * always carry a valid outcome; without one, the error message or the event name stands in.
+ */
 export function deriveOutcome(events: readonly ShadowEvent[]): Outcome | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i] as ShadowEvent;
     if (event.eventType === "trace.completed" || event.eventType === "trace.failed") {
       const output = event.output as JsonObject | undefined;
+      const fallbackKind = event.eventType === "trace.failed" ? "error" : "completed";
       const outcome = output?.outcome;
       if (outcome && typeof outcome === "object" && !Array.isArray(outcome)) {
-        return outcome as Outcome;
+        const parsed = outcomeSchema.safeParse(outcome);
+        if (parsed.success) return parsed.data;
+        const text = (key: string): string | undefined => {
+          const value = outcome[key];
+          return typeof value === "string" && value.length > 0 ? value.slice(0, 256) : undefined;
+        };
+        return {
+          ...outcome,
+          kind: text("kind") ?? fallbackKind,
+          label: text("label") ?? text("status") ?? text("kind") ?? event.name,
+          ...(text("summary") ? { summary: text("summary") } : {}),
+        };
       }
       const error = output?.error as JsonObject | undefined;
-      return {
-        kind: event.eventType === "trace.failed" ? "error" : "completed",
-        label: String(error?.message ?? event.name),
-      };
+      return { kind: fallbackKind, label: String(error?.message ?? event.name) };
     }
   }
   return null;

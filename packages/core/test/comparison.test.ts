@@ -575,6 +575,36 @@ describe("deriveOutcome", () => {
     ).toEqual({ kind: "completed", label: "done" });
   });
 
+  it("normalises a declared outcome that lacks kind or label", () => {
+    const at = (eventType: "trace.completed" | "trace.failed", outcome: unknown) =>
+      deriveOutcome([
+        makeEvent({
+          sequence: 0,
+          eventType,
+          name: eventType,
+          output: { outcome: outcome as never },
+        }),
+      ]);
+    expect(at("trace.completed", { status: "ok" })).toEqual({
+      status: "ok",
+      kind: "completed",
+      label: "ok",
+    });
+    expect(at("trace.failed", { kind: "timeout" })).toEqual({ kind: "timeout", label: "timeout" });
+    expect(at("trace.completed", { label: 42, summary: "" })).toEqual({
+      label: "trace.completed",
+      summary: "",
+      kind: "completed",
+    });
+    expect(at("trace.failed", {})).toEqual({ kind: "error", label: "trace.failed" });
+    // Well-formed outcomes pass through untouched, extra fields included.
+    expect(at("trace.completed", { kind: "refunded", label: "Refunded", amount: 5 })).toEqual({
+      kind: "refunded",
+      label: "Refunded",
+      amount: 5,
+    });
+  });
+
   it("returns null when the trace never ended", () => {
     expect(
       deriveOutcome([makeEvent({ sequence: 0, eventType: "trace.started", name: "t" })]),
