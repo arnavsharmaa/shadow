@@ -28,8 +28,9 @@ function windowLabel(minutes: number): string {
 }
 
 /**
- * Alert rules that are currently firing. Rules are managed with `shadow alerts` (or the API)
- * and evaluated by the API on a timer; this strip only reports their state.
+ * Alert rules that are currently firing. Rules are managed in the Alert rules dialog, with
+ * `shadow alerts` or the API, and evaluated by the API on a timer; this strip only reports
+ * their state.
  */
 export function AlertsBanner() {
   const rules = useQuery({

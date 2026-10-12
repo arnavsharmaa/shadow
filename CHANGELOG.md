@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules can be managed from the web app: an "Alert rules" dialog on the Agents page lists
+  rules with their condition, scope, state and last value, adds rules (metric, agent, threshold
+  or baseline multiplier, window, minimum traces), pauses or resumes them and deletes them.
 - Rate limiting budgets requests per API key when one authenticates the request, and per client
   IP otherwise, so clients behind one proxy address no longer share a budget.
 - `shadow traces import <dir>` imports every `shadow.trace` bundle under a directory (such as

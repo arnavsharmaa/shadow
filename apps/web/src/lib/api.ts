@@ -249,6 +249,19 @@ export interface HealthFeatures {
   fileExport?: { enabled: boolean; dir?: string };
 }
 
+/** What the web app sends to create an alert rule; the API fills in the defaults. */
+export interface AlertRuleInput {
+  name: string;
+  metric: AlertRule["metric"];
+  threshold: number;
+  mode?: AlertRule["mode"];
+  agent?: string;
+  project?: string;
+  windowMinutes?: number;
+  minTraces?: number;
+  baselineWindows?: number;
+}
+
 export const api = {
   views: () => request<{ items: SharedView[] }>("GET", "/api/v1/views"),
   saveView: (body: { name: string; query: string; description?: string }) =>
@@ -369,6 +382,14 @@ export const api = {
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
   alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
+  createAlertRule: (body: AlertRuleInput) =>
+    request<AlertRule>("POST", "/api/v1/alerts/rules", body),
+  updateAlertRule: (
+    ruleId: string,
+    body: Partial<Pick<AlertRule, "enabled" | "threshold" | "name">>,
+  ) => request<AlertRule>("PATCH", `/api/v1/alerts/rules/${encodeURIComponent(ruleId)}`, body),
+  deleteAlertRule: (ruleId: string) =>
+    request<void>("DELETE", `/api/v1/alerts/rules/${encodeURIComponent(ruleId)}`),
   apiKeys: () => request<{ items: ApiKey[] }>("GET", "/api/v1/keys"),
   createApiKey: (body: { name: string; scope: ApiKeyScope; project?: string }) =>
     request<{ key: ApiKey; secret: string }>("POST", "/api/v1/keys", body),

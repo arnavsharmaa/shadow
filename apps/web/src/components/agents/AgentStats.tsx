@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
 import { BatchDialog } from "./BatchDialog";
 import { AgentTrend } from "./AgentTrend";
+import { AlertRulesDialog } from "./AlertRules";
 import { AlertsBanner } from "./AlertsBanner";
 
 const RANGES: { key: string; label: string; days: number | null }[] = [
@@ -43,6 +44,7 @@ export function AgentStats() {
   const replayable = new Set(health.data?.agents?.replayable ?? []);
   const [batchAgent, setBatchAgent] = useState<AgentStatsRow | null>(null);
   const [trendAgent, setTrendAgent] = useState<AgentStatsRow | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const setParam = (key: string, value: string | undefined) => {
     const next = new URLSearchParams(params.toString());
@@ -86,14 +88,28 @@ export function AgentStats() {
             ))}
           </select>
         </label>
+        <Button
+          size="xs"
+          variant="ghost"
+          className="ml-auto"
+          onClick={() => setRulesOpen(true)}
+          data-testid="manage-alerts"
+        >
+          Alert rules
+        </Button>
         {stats.data && (
-          <span className="ml-auto text-[11px] text-fg-faint">
+          <span className="text-[11px] text-fg-faint">
             {stats.data.items.reduce((sum, a) => sum + a.traces, 0)} traces across{" "}
             {stats.data.items.length} agent{stats.data.items.length === 1 ? "" : "s"}
           </span>
         )}
       </div>
       <AlertsBanner />
+      <AlertRulesDialog
+        open={rulesOpen}
+        onClose={() => setRulesOpen(false)}
+        agents={(facets.data?.agents ?? []).map((a) => a.slug)}
+      />
       <div className="min-h-0 flex-1 overflow-auto">
         {stats.isError ? (
           <ErrorState error={stats.error} retry={() => stats.refetch()} />

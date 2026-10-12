@@ -661,6 +661,33 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.locator('[data-testid="alert-row"]', { hasText: name })).toHaveCount(0);
   });
 
+  test("alert rules can be added, paused and deleted from the agents page", async ({ page }) => {
+    const name = `e2e cost rule ${Date.now()}`;
+    await page.goto("/agents");
+    await page.getByTestId("manage-alerts").click();
+    const dialog = page.getByTestId("alert-rules");
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId("rule-name").fill(name);
+    await dialog.getByTestId("rule-metric").selectOption("total_cost");
+    await dialog.getByTestId("rule-agent").fill("refund-agent");
+    await dialog.getByTestId("rule-threshold").fill("12.5");
+    await dialog.getByTestId("rule-window").selectOption("1440");
+    await dialog.getByTestId("rule-min-traces").fill("3");
+    await dialog.getByTestId("create-rule").click();
+    const row = dialog.locator(`[data-testid="rule-row"][data-rule-name="${name}"]`);
+    await expect(row).toContainText("estimated cost ≥ $12.50 over 1d, 3+ traces");
+    await expect(row).toContainText("refund-agent");
+    await expect(row.getByTestId("rule-state")).toHaveText("ok");
+    await row.getByTestId("toggle-rule").click();
+    await expect(row.getByTestId("rule-state")).toHaveText("paused");
+    await row.getByTestId("toggle-rule").click();
+    await expect(row.getByTestId("rule-state")).toHaveText("ok");
+    await row.getByTestId("delete-rule").click();
+    await expect(row).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
+
   test("an agent's trend is charted with hover details and a table", async ({ page }) => {
     await page.goto("/agents");
     const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
