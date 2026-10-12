@@ -62,6 +62,7 @@ All errors use one envelope:
 | ------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | 400    | `validation_error`                               | Body, query or params failed schema validation (`details` lists issues)                                                    |
 | 400    | `bad_request`                                    | Semantically invalid input (invalid cursor, bundle validation failure, invalid event, branch/trace mismatch)               |
+| 400    | `unsupported_schema_version`                     | An ingested event's `schemaVersion` has another major than the server (`details.supported`); the batch is not stored       |
 | 404    | `not_found`                                      | Unknown route or entity (`details.resource`, `details.id`)                                                                 |
 | 409    | `conflict`                                       | Duplicate project slug, trace id, branch name, event id or sequence; import of an existing trace with `idStrategy: "keep"` |
 | 413    | `payload_too_large`                              | Body exceeds `SHADOW_MAX_BODY_BYTES`                                                                                       |

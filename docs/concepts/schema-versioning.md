@@ -15,7 +15,8 @@ the package versions.
 
 `isCompatibleSchemaVersion(version)` returns true when the major number equals the reader's
 `SCHEMA_MAJOR`. Bundle import rejects incompatible bundles with a validation error naming the
-version.
+version, and event ingestion refuses a batch that contains an event from another major with
+`400 unsupported_schema_version` (the batch is not stored); a newer minor is accepted.
 
 ## Compatibility policy
 

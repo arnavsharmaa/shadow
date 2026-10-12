@@ -10,6 +10,8 @@ import {
 } from "@shadow/core";
 import {
   eventSchema,
+  isCompatibleSchemaVersion,
+  SCHEMA_VERSION,
   stateSnapshotPayloadSchema,
   type Branch,
   type BranchMetrics,
@@ -218,6 +220,19 @@ export async function ingestEvents(
   const branchRow = await getBranchRow(ctx, branchId);
   if (branchRow.traceId !== traceId)
     throw ApiError.badRequest(`branch ${branchId} does not belong to trace ${traceId}`);
+  // Events from a producer on another schema major would be misread; refuse the batch whole
+  // rather than store what this server cannot interpret (see docs/concepts/schema-versioning.md).
+  const foreign = body.events.find(
+    (e) => e.schemaVersion !== undefined && !isCompatibleSchemaVersion(e.schemaVersion),
+  );
+  if (foreign) {
+    throw new ApiError(
+      400,
+      "unsupported_schema_version",
+      `event schemaVersion ${foreign.schemaVersion} is not compatible with this server's ${SCHEMA_VERSION} (same major required)`,
+      { schemaVersion: foreign.schemaVersion, supported: SCHEMA_VERSION },
+    );
+  }
   const inserted = await ctx.handle.db.transaction(async (tx) => {
     const [maxRow] = await tx
       .select({ max: sql<number | null>`max(${events.sequence})` })

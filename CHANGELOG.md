@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Event ingestion refuses a batch containing an event whose `schemaVersion` has another major
+  than the server (`400 unsupported_schema_version`, nothing stored), as the schema versioning
+  policy promised; newer minors are accepted.
 - Alert rules can be managed from the web app: an "Alert rules" dialog on the Agents page lists
   rules with their condition, scope, state and last value, adds rules (metric, agent, threshold
   or baseline multiplier, window, minimum traces), pauses or resumes them and deletes them.

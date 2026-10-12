@@ -260,6 +260,26 @@ describe("event ingestion", () => {
     expect(branches[0]?.outcome?.kind).toBe("refunded");
   });
 
+  it("refuses events from another schema major and accepts a newer minor", async () => {
+    const trace = await newTrace();
+    const foreign = await ingest(trace.id, [
+      ingestEvent("trace.started", "start", { timestamp: T0 }),
+      ingestEvent("agent.note", "note", { schemaVersion: "2.0" }),
+    ]);
+    expect(foreign.statusCode).toBe(400);
+    const body = json<ErrorEnvelope & { error: { details: { schemaVersion: string } } }>(foreign);
+    expect(body.error.code).toBe("unsupported_schema_version");
+    expect(body.error.message).toContain("2.0");
+    expect(body.error.details.schemaVersion).toBe("2.0");
+    // Nothing from the batch was stored.
+    expect((await getTrace(trace.id)).trace.status).toBe("running");
+    const minor = await ingest(trace.id, [
+      ingestEvent("trace.started", "start", { timestamp: T0 }),
+      ingestEvent("agent.note", "note", { schemaVersion: "1.7" }),
+    ]);
+    expect(minor.statusCode).toBe(201);
+  });
+
   it("normalises a malformed declared outcome so the trace stays exportable", async () => {
     const trace = await newTrace();
     await ingest(trace.id, [
