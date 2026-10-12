@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Rate limiting budgets requests per API key when one authenticates the request, and per client
+  IP otherwise, so clients behind one proxy address no longer share a budget.
 - `shadow traces import <dir>` imports every `shadow.trace` bundle under a directory (such as
   `SHADOW_EXPORT_DIR`), reports what was imported, already present, skipped or failed, and
   exits non-zero only when a bundle failed; `--json` prints the summary.

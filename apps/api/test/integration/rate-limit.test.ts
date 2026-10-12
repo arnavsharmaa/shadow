@@ -1,3 +1,4 @@
+import type { ApiKey } from "@shadow/schemas";
 import { describe, expect, it } from "vitest";
 import { createTestApp, json, type ErrorEnvelope } from "../helpers.js";
 
@@ -46,6 +47,46 @@ describe("rate limiting", () => {
 
       const metrics = await t.app.inject({ method: "GET", url: "/metrics" });
       expect(metrics.body).toMatch(/shadow_http_requests_total\{[^}]*status="429"\} [1-9]/);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("budgets requests per API key rather than per address", async () => {
+    const t = await createTestApp({
+      env: { SHADOW_RATE_LIMIT_PER_MINUTE: "2", SHADOW_API_TOKEN: "admin-token" },
+    });
+    const admin = { authorization: "Bearer admin-token" };
+    try {
+      const issue = async (name: string) => {
+        const response = await t.app.inject({
+          method: "POST",
+          url: "/api/v1/keys",
+          headers: admin,
+          payload: { name, scope: "read" },
+        });
+        expect(response.statusCode).toBe(201);
+        return json<{ key: ApiKey; secret: string }>(response).secret;
+      };
+      const first = await issue("reader-one");
+      const second = await issue("reader-two");
+      const list = (secret: string) =>
+        t.app.inject({ url: "/api/v1/traces", headers: { authorization: `Bearer ${secret}` } });
+      // Two keys from the same address: each has its own budget.
+      expect((await list(first)).statusCode).toBe(200);
+      expect((await list(first)).statusCode).toBe(200);
+      expect((await list(first)).statusCode).toBe(429);
+      expect((await list(second)).statusCode).toBe(200);
+      expect((await list(second)).headers["x-ratelimit-remaining"]).toBe("0");
+      // The admin token is budgeted by address, separately from the keys (two key creations
+      // already spent its budget).
+      expect((await t.app.inject({ url: "/api/v1/traces", headers: admin })).statusCode).toBe(429);
+      // An unknown key is refused before any budget is consulted.
+      const bad = await t.app.inject({
+        url: "/api/v1/traces",
+        headers: { authorization: "Bearer shk_not_a_real_key" },
+      });
+      expect(bad.statusCode).toBe(401);
     } finally {
       await t.close();
     }

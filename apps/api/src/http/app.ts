@@ -123,12 +123,16 @@ export async function buildApp(options: BuildAppOptions) {
     });
   }
   if (options.config.SHADOW_RATE_LIMIT_PER_MINUTE > 0) {
-    // Per-client budget for the API surface; health, metrics and docs stay unlimited.
+    // Per-client budget for the API surface; health, metrics and docs stay unlimited. A request
+    // authenticated with an API key is budgeted per key (the auth hook above runs first), so
+    // deployments behind one proxy or NAT address do not share a single budget.
     await app.register(rateLimit, {
       global: true,
       max: options.config.SHADOW_RATE_LIMIT_PER_MINUTE,
       timeWindow: 60_000,
       allowList: (request) => !request.url.startsWith("/api/"),
+      keyGenerator: (request) =>
+        request.auth?.kind === "key" ? `key:${request.auth.key.id}` : request.ip,
       // The plugin throws this object; the error handler below turns it into the envelope.
       errorResponseBuilder: (_request, context) => ({
         statusCode: 429,
