@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The what-if dialog on the Agents page takes a per-replay budget (max events, max cost) that is
+  applied to every replay in the batch.
 - Replay budgets: `POST /api/v1/branches/:id/replay` takes `budget: { maxEvents?, maxCostUsd?,
   maxDurationMs? }` (`shadow replay --max-events --max-cost --max-duration`); the engine checks
   it after every emitted event and fails the replay with `budget_exceeded` once a limit is

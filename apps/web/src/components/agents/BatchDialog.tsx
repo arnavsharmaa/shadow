@@ -33,6 +33,8 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const [limit, setLimit] = useState(10);
+  const [maxEvents, setMaxEvents] = useState("");
+  const [maxCost, setMaxCost] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchResult | null>(null);
@@ -47,6 +49,11 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
     };
   }, []);
   const maxLimit = background ? BACKGROUND_LIMIT : SYNC_LIMIT;
+  const budgetEntries = {
+    ...(Number(maxEvents) >= 1 ? { maxEvents: Math.floor(Number(maxEvents)) } : {}),
+    ...(maxCost.trim() !== "" && Number(maxCost) >= 0 ? { maxCostUsd: Number(maxCost) } : {}),
+  };
+  const budget = Object.keys(budgetEntries).length > 0 ? budgetEntries : null;
   const canRun = tool.trim() !== "" && key.trim() !== "" && value.trim() !== "" && !running;
 
   const run = async () => {
@@ -62,6 +69,7 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
         { kind: "context" as const, op: "set" as const, key: key.trim(), value: parseValue(value) },
       ],
       limit: Math.min(limit, maxLimit),
+      ...(budget ? { budget } : {}),
     };
     try {
       if (!background) {
@@ -158,6 +166,36 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
               data-testid="batch-limit"
             />
           </label>
+        </div>
+        <div className="grid grid-cols-4 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-fg-muted">Max events per replay</span>
+            <input
+              type="number"
+              min={1}
+              value={maxEvents}
+              onChange={(e) => setMaxEvents(e.target.value)}
+              placeholder="no limit"
+              className="h-7 rounded border border-border bg-bg px-2"
+              data-testid="batch-max-events"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-fg-muted">Max cost per replay (USD)</span>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={maxCost}
+              onChange={(e) => setMaxCost(e.target.value)}
+              placeholder="no limit"
+              className="h-7 rounded border border-border bg-bg px-2"
+              data-testid="batch-max-cost"
+            />
+          </label>
+          <span className="col-span-2 self-end text-[11px] text-fg-faint">
+            A replay over budget is reported as failed; the others continue.
+          </span>
         </div>
         <label className="flex items-center gap-2 text-fg-muted">
           <input

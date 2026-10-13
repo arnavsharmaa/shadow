@@ -718,6 +718,12 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await dialog.getByTestId("batch-tool").fill("refund_order");
     await dialog.getByTestId("batch-key").fill("refundLimit");
     await dialog.getByTestId("batch-value").fill("100");
+    await dialog.getByTestId("batch-max-events").fill("2");
+    await dialog.getByTestId("run-batch").click();
+    // Two events is never enough for a refund run: every replay is over budget.
+    await expect(dialog.getByTestId("batch-summary")).toContainText("failed", { timeout: 60_000 });
+    await expect(dialog.getByTestId("batch-summary")).not.toContainText(/[1-9]\d* changed/);
+    await dialog.getByTestId("batch-max-events").fill("");
     await dialog.getByTestId("run-batch").click();
     await expect(dialog.getByTestId("batch-summary")).toContainText("changed", { timeout: 60_000 });
     const rows = dialog.locator('[data-testid="batch-row"]');

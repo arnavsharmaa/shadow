@@ -262,6 +262,17 @@ export interface AlertRuleInput {
   baselineWindows?: number;
 }
 
+/** A batch counterfactual request; `budget` applies to every replay in the batch. */
+export interface BatchRequest {
+  agent: string;
+  project?: string;
+  at: { eventType?: string; name: string };
+  overrides: Override[];
+  branchName?: string;
+  limit?: number;
+  budget?: { maxEvents?: number; maxCostUsd?: number; maxDurationMs?: number };
+}
+
 export const api = {
   views: () => request<{ items: SharedView[] }>("GET", "/api/v1/views"),
   saveView: (body: { name: string; query: string; description?: string }) =>
@@ -323,22 +334,10 @@ export const api = {
       `/api/v1/traces/${encodeURIComponent(traceId)}/forks`,
       body,
     ),
-  batchCounterfactual: (body: {
-    agent: string;
-    project?: string;
-    at: { eventType?: string; name: string };
-    overrides: Override[];
-    branchName?: string;
-    limit?: number;
-  }) => request<BatchResult>("POST", "/api/v1/batch/counterfactuals", body),
-  startBatchJob: (body: {
-    agent: string;
-    project?: string;
-    at: { eventType?: string; name: string };
-    overrides: Override[];
-    branchName?: string;
-    limit?: number;
-  }) => request<BatchJob>("POST", "/api/v1/batch/counterfactuals", { ...body, background: true }),
+  batchCounterfactual: (body: BatchRequest) =>
+    request<BatchResult>("POST", "/api/v1/batch/counterfactuals", body),
+  startBatchJob: (body: BatchRequest) =>
+    request<BatchJob>("POST", "/api/v1/batch/counterfactuals", { ...body, background: true }),
   batchJob: (jobId: string) =>
     request<BatchJob>("GET", `/api/v1/batch/jobs/${encodeURIComponent(jobId)}`),
   cancelBatchJob: (jobId: string) =>
