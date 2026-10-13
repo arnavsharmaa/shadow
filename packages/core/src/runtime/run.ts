@@ -7,7 +7,11 @@ import { defaultPricingProvider } from "../metrics/pricing.js";
 import { InMemoryStateStore } from "../state/store.js";
 import { EventLog } from "./event-log.js";
 import { RuntimeHost } from "./host.js";
-import { ReplayHistoryMismatchError, type AgentDefinition } from "./types.js";
+import {
+  ReplayBudgetExceededError,
+  ReplayHistoryMismatchError,
+  type AgentDefinition,
+} from "./types.js";
 
 export interface RecordOptions<Input extends JsonValue> {
   definition: AgentDefinition<Input>;
@@ -135,9 +139,11 @@ export async function runProgramLifecycle<Input extends JsonValue>(
       });
     } catch (caught) {
       // A history mismatch means the replay could not reproduce the recorded
-      // prefix; it is a replay failure, not a program failure, so let the
-      // replay engine record it as `replay.failed`.
+      // prefix, and an exhausted budget means the replay was stopped; both are
+      // replay failures, not program failures, so let the replay engine record
+      // them as `replay.failed`.
       if (caught instanceof ReplayHistoryMismatchError) throw caught;
+      if (caught instanceof ReplayBudgetExceededError) throw caught;
       error = caught instanceof Error ? caught : new Error(String(caught));
     }
     host.goLive();

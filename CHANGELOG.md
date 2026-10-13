@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Replay budgets: `POST /api/v1/branches/:id/replay` takes `budget: { maxEvents?, maxCostUsd?,
+  maxDurationMs? }` (`shadow replay --max-events --max-cost --max-duration`); the engine checks
+  it after every emitted event and fails the replay with `budget_exceeded` once a limit is
+  exceeded, keeping the events produced so far.
 - Event ingestion refuses a batch containing an event whose `schemaVersion` has another major
   than the server (`400 unsupported_schema_version`, nothing stored), as the schema versioning
   policy promised; newer minors are accepted.

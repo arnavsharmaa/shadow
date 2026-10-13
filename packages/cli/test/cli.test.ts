@@ -2184,6 +2184,23 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toContain("replay rpl_1 completed");
 
     expect(await runWith(api, ["replay", "br_fork"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({ mode: "deterministic" });
+    expect(
+      await runWith(api, [
+        "replay",
+        "br_fork",
+        "--max-events",
+        "50",
+        "--max-cost",
+        "1.5",
+        "--max-duration",
+        "60000",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      mode: "deterministic",
+      budget: { maxEvents: 50, maxCostUsd: 1.5, maxDurationMs: 60000 },
+    });
     expect(await runWith(api, ["compare", "br_main", "br_fork"])).toBe(0);
     const text = api.captured.out.join("\n");
     expect(text).toContain("first divergence at sequence 36");

@@ -107,4 +107,15 @@ export class ReplayHistoryMismatchError extends Error {
   }
 }
 
+/** Thrown inside a replay once a budget (events, cost or replayed time) is exceeded. */
+export class ReplayBudgetExceededError extends Error {
+  constructor(
+    message: string,
+    readonly details: JsonObject = {},
+  ) {
+    super(message);
+    this.name = "ReplayBudgetExceededError";
+  }
+}
+
 export const POLICY_BLOCKED_CODE = "policy_blocked";

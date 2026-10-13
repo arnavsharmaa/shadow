@@ -120,7 +120,9 @@ is welcome through GitHub issues; integration proposals have their own
 - Replay of SDK-recorded traces without a registered program, by treating the recorded model
   responses as a scripted model and re-running only the tools that changed.
 - Property-based fuzzing of tool results and policy configurations.
-- Cost and latency budgets that abort a replay when exceeded.
+- Cost and latency budgets that abort a replay when exceeded: done for single replays
+  (`budget` on the replay endpoint, `shadow replay --max-*`); batch and matrix runs do not
+  take a budget yet.
 
 ## v0.5 — Production observability
 

@@ -464,8 +464,20 @@ export const updateBranchBodySchema = z.object({
   metadata: jsonObjectSchema.optional(),
 });
 
+/** Limits that abort a replay once exceeded; the replay then fails with `budget_exceeded`. */
+export const replayBudgetSchema = z.object({
+  /** Events the replay may produce on the branch. */
+  maxEvents: z.number().int().min(1).max(1_000_000).optional(),
+  /** Estimated cost (USD) the replayed model calls may accumulate. */
+  maxCostUsd: z.number().nonnegative().optional(),
+  /** Replayed (virtual) time the run may take, in milliseconds. */
+  maxDurationMs: z.number().int().min(1).optional(),
+});
+export type ReplayBudget = z.infer<typeof replayBudgetSchema>;
+
 export const replayRequestBodySchema = z.object({
   mode: replayModeSchema.default("deterministic"),
+  budget: replayBudgetSchema.optional(),
 });
 
 export const branchStateQuerySchema = z.object({

@@ -2254,17 +2254,30 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .command("replay")
     .description("execute the deterministic replay of a forked branch")
     .argument("<branchId>", "branch id")
+    .option("--max-events <n>", "abort once the replay produced this many events", positiveInt)
+    .option("--max-cost <usd>", "abort once replayed model calls cost this much", nonNegative)
+    .option("--max-duration <ms>", "abort once replayed time exceeds this", positiveInt)
     .option("--json", "print JSON")
-    .action(async (branchId: string, opts: { json?: boolean }) => {
-      const result = await client().post<{ replay: Replay; branch: Branch }>(
-        `/api/v1/branches/${encodeURIComponent(branchId)}/replay`,
-        { mode: "deterministic" },
-      );
-      if (opts.json) return json(result);
-      out(replayLine(result.replay, result.branch));
-      if (result.replay.status === "failed")
-        throw new CliError(result.replay.error ?? "replay failed", EXIT.error);
-    });
+    .action(
+      async (
+        branchId: string,
+        opts: { maxEvents?: number; maxCost?: number; maxDuration?: number; json?: boolean },
+      ) => {
+        const budget = {
+          ...(opts.maxEvents !== undefined ? { maxEvents: opts.maxEvents } : {}),
+          ...(opts.maxCost !== undefined ? { maxCostUsd: opts.maxCost } : {}),
+          ...(opts.maxDuration !== undefined ? { maxDurationMs: opts.maxDuration } : {}),
+        };
+        const result = await client().post<{ replay: Replay; branch: Branch }>(
+          `/api/v1/branches/${encodeURIComponent(branchId)}/replay`,
+          { mode: "deterministic", ...(Object.keys(budget).length > 0 ? { budget } : {}) },
+        );
+        if (opts.json) return json(result);
+        out(replayLine(result.replay, result.branch));
+        if (result.replay.status === "failed")
+          throw new CliError(result.replay.error ?? "replay failed", EXIT.error);
+      },
+    );
 
   program
     .command("compare")

@@ -556,12 +556,18 @@ may be `-1` for the empty state.
 
 ### `POST /api/v1/branches/:branchId/replay`
 
-Body `{ mode?: "historical" | "deterministic" | "live" }` (default `deterministic`). Runs a
-deterministic counterfactual replay of a forked branch synchronously and returns
+Body `{ mode?: "historical" | "deterministic" | "live", budget? }` (default `deterministic`).
+Runs a deterministic counterfactual replay of a forked branch synchronously and returns
 `201 { replay: Replay, branch: Branch }`. Previous replay output on the branch is discarded first.
 
 - `replay.status` is `completed` or `failed`; a history mismatch is reported as `failed` with
   `replay.error` set and a `replay.failed` event on the branch.
+- `budget` (`{ maxEvents?, maxCostUsd?, maxDurationMs? }`) aborts the replay once it has produced
+  more events, accumulated more estimated model cost, or taken more replayed (virtual) time than
+  allowed. The replay is then `failed` with `replay.error` starting `replay budget exceeded`, and
+  the `replay.failed` event carries `code: "budget_exceeded"` with the limit, the value reached
+  and the totals so far in `details`. CLI: `shadow replay <branchId> --max-events 500
+--max-cost 2 --max-duration 60000`.
 - `422 not_forked` for root branches; `422 unsupported_mode` for `historical` (read the events
   instead); `501 live_replay_disabled` for `live`; `422 agent_not_replayable` when no program is
   registered for the agent.

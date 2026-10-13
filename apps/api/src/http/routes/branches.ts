@@ -81,6 +81,7 @@ export const branchRoutes: FastifyPluginAsyncZod = async (app) => {
         app.services,
         request.params.branchId,
         request.body?.mode ?? "deterministic",
+        request.body?.budget,
       );
       await audit(app, request, {
         action: "replay.run",
@@ -91,6 +92,7 @@ export const branchRoutes: FastifyPluginAsyncZod = async (app) => {
           replayId: result.replay.id,
           mode: result.replay.mode,
           status: result.replay.status,
+          ...(request.body?.budget ? { budget: request.body.budget } : {}),
         },
       });
       return reply.status(201).send(result);

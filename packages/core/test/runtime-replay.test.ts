@@ -773,6 +773,78 @@ describe("executeReplay options", () => {
     expect(must(outcome.events[0]).id).toBe(seededIdGenerator("replay-ids").next("evt"));
   });
 
+  it("aborts with budget_exceeded once a budget is spent, keeping the events so far", async () => {
+    const r = await recordDefinition(ledgerAgentDefinition, LEDGER_INPUT, {
+      traceId: "trc_budget",
+      branchId: "br_budget",
+    });
+    const forkEvent = findEvent(r.result.events, "tool.request", "transfer");
+    const { createFork } = await import("../src/index.js");
+    const planFor = (seed: string) => {
+      const forked = createFork({
+        trace: r.trace,
+        parentBranch: r.root,
+        lineage: r.result.events,
+        existingBranches: [r.root],
+        forkEventId: forkEvent.id,
+        overrides: [],
+        ids: seededIdGenerator(seed),
+        clock: new VirtualClock(0),
+      });
+      return createReplay({
+        trace: r.trace,
+        branch: forked.branch,
+        fork: forked.fork,
+        parentLineage: r.result.events,
+        existingBranchEvents: forked.events,
+      });
+    };
+    const unbounded = await executeReplay(planFor("b0"), ledger());
+    expect(unbounded.status).toBe("completed");
+    const produced = unbounded.events.length;
+    const totalCost = unbounded.events.reduce((sum, e) => sum + (e.estimatedCost?.amount ?? 0), 0);
+    expect(produced).toBeGreaterThan(3);
+    expect(totalCost).toBeGreaterThan(0);
+
+    // Events: stops right after the limit is passed, and the failure record is still written.
+    const byEvents = await executeReplay(planFor("b1"), ledger(), { budget: { maxEvents: 3 } });
+    expect(byEvents.status).toBe("failed");
+    expect(byEvents.branchStatus).toBe("failed");
+    expect(byEvents.error).toBe("replay budget exceeded: maxEvents 3 events, reached 4");
+    const failed = must(byEvents.events.at(-1));
+    expect(failed.eventType).toBe("replay.failed");
+    expect(failed.output).toMatchObject({
+      code: "budget_exceeded",
+      details: { limit: "maxEvents", allowed: 3, reached: 4, unit: "events" },
+    });
+    expect(byEvents.events.length).toBeLessThan(produced);
+
+    // Cost: a budget just under the total trips on the last paid event; one at the total does not.
+    const byCost = await executeReplay(planFor("b2"), ledger(), {
+      budget: { maxCostUsd: totalCost / 2 },
+    });
+    expect(byCost.status).toBe("failed");
+    expect(byCost.error).toContain("maxCostUsd");
+    const atCost = await executeReplay(planFor("b3"), ledger(), {
+      budget: { maxCostUsd: totalCost },
+    });
+    expect(atCost.status).toBe("completed");
+
+    // Time: replayed (virtual) time, so a generous budget never trips and a tiny one does.
+    const byTime = await executeReplay(planFor("b4"), ledger(), {
+      budget: { maxDurationMs: 1 },
+    });
+    expect(byTime.status).toBe("failed");
+    expect(byTime.error).toContain("maxDurationMs");
+    const roomy = await executeReplay(planFor("b5"), ledger(), {
+      budget: { maxEvents: 10_000, maxCostUsd: 1_000, maxDurationMs: 24 * 60 * 60 * 1000 },
+    });
+    expect(roomy.status).toBe("completed");
+    expect(roomy.events.map((e) => [e.eventType, e.name])).toEqual(
+      unbounded.events.map((e) => [e.eventType, e.name]),
+    );
+  });
+
   it("continues sequences after any pre-existing child events", async () => {
     const r = await recordDefinition(ledgerAgentDefinition, LEDGER_INPUT, {
       traceId: "trc_seq",

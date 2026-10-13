@@ -94,6 +94,16 @@ This holds because:
 - **Automatic snapshots are not matched**; explicit `host.snapshot()` calls are, so adding or
   removing them changes the operation sequence.
 
+### Budgets
+
+A replay can be given a budget (`POST /branches/:id/replay` with
+`budget: { maxEvents?, maxCostUsd?, maxDurationMs? }`, or `shadow replay --max-events
+--max-cost --max-duration`). The engine checks it after every event the replay emits and aborts
+the run as soon as a limit is exceeded, recording `replay.failed` with `code: "budget_exceeded"`
+and the limit reached. Time is replayed (virtual) time, the latency the adapters simulate, so
+the duration budget bounds the agent's run, not the wall time of the replay. Budgets protect
+batch and matrix explorations from a counterfactual that loops or fans out unexpectedly.
+
 ### Registering a replayable program
 
 An `AgentDefinition` (`packages/core/src/runtime/types.ts`) bundles the program with factories

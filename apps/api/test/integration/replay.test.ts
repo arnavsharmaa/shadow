@@ -192,7 +192,42 @@ describe("fork, replay and comparison end-to-end", () => {
     expect(stored.outcome?.kind).toBe("approval_pending");
   });
 
+  it("fails the replay once a budget is exceeded and can be replayed again without one", async () => {
+    const bounded = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/branches/${branch.id}/replay`,
+      payload: { budget: { maxEvents: 2 } },
+    });
+    expect(bounded.statusCode, bounded.body).toBe(201);
+    const body = json<{ replay: Replay; branch: Branch }>(bounded);
+    expect(body.replay.status).toBe("failed");
+    expect(body.replay.error).toBe("replay budget exceeded: maxEvents 2 events, reached 3");
+    expect(body.branch.status).toBe("failed");
+    const own = await listAllEvents(t, scenario.traceId, { branchId: branch.id, inherited: false });
+    const last = own.at(-1);
+    expect(last?.eventType).toBe("replay.failed");
+    expect(last?.output).toMatchObject({ code: "budget_exceeded" });
+    expect(
+      (
+        await t.app.inject({
+          method: "POST",
+          url: `/api/v1/branches/${branch.id}/replay`,
+          payload: { budget: { maxEvents: 0 } },
+        })
+      ).statusCode,
+    ).toBe(400);
+    // Replaying without a budget restores the full counterfactual.
+    const again = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/branches/${branch.id}/replay`,
+    });
+    expect(json<{ replay: Replay }>(again).replay.status).toBe("completed");
+  });
+
   it("is idempotent when replayed again", async () => {
+    const replaysBefore = json<{ items: Replay[] }>(
+      await t.app.inject({ method: "GET", url: `/api/v1/traces/${scenario.traceId}/replays` }),
+    ).items.length;
     const before = await listAllEvents(t, scenario.traceId, {
       branchId: branch.id,
       inherited: false,
@@ -221,7 +256,7 @@ describe("fork, replay and comparison end-to-end", () => {
     const replays = json<{ items: Replay[] }>(
       await t.app.inject({ method: "GET", url: `/api/v1/traces/${scenario.traceId}/replays` }),
     );
-    expect(replays.items).toHaveLength(2);
+    expect(replays.items).toHaveLength(replaysBefore + 1);
     expect((await getTrace()).trace.branchCount).toBe(2);
   });
 

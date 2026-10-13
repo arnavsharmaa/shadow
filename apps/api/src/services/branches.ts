@@ -14,6 +14,7 @@ import type {
   Fork,
   JsonObject,
   Replay,
+  ReplayBudget,
   ReplayMode,
   ShadowEvent,
 } from "@shadow/schemas";
@@ -205,6 +206,7 @@ export async function runReplay(
   ctx: ServiceContext,
   branchId: string,
   mode: ReplayMode,
+  budget?: ReplayBudget,
 ): Promise<{ replay: Replay; branch: Branch }> {
   const branchRow = await getBranchRow(ctx, branchId);
   const branch = toBranch(branchRow);
@@ -295,7 +297,7 @@ export async function runReplay(
     agent: definition.slug,
   });
   log.info("replay started");
-  const outcome = await executeReplay(plan, definition);
+  const outcome = await executeReplay(plan, definition, budget ? { budget } : {});
   const completedAt = iso(new Date(ctx.clock.now()));
   await ctx.handle.db.transaction(async (tx) => {
     for (const part of chunk(outcome.events)) await tx.insert(events).values(part.map(toEventRow));

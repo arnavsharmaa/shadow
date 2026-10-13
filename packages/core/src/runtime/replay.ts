@@ -4,6 +4,7 @@ import type {
   JsonObject,
   JsonValue,
   Outcome,
+  ReplayBudget,
   ReplayMode,
   ShadowEvent,
 } from "@shadow/schemas";
@@ -19,7 +20,11 @@ import { EventLog } from "./event-log.js";
 import { HistoryCursor } from "./history.js";
 import { RuntimeHost } from "./host.js";
 import { errorToJson, runProgramLifecycle } from "./run.js";
-import { ReplayHistoryMismatchError, type AgentDefinition } from "./types.js";
+import {
+  ReplayBudgetExceededError,
+  ReplayHistoryMismatchError,
+  type AgentDefinition,
+} from "./types.js";
 
 export interface ReplayPlan {
   replayId: string;
@@ -100,6 +105,51 @@ export function findAgentInput(lineage: readonly ShadowEvent[]): JsonValue {
   return input ?? null;
 }
 
+export interface ExecuteReplayOptions {
+  clock?: Clock;
+  ids?: IdGenerator;
+  sink?: (event: ShadowEvent) => void;
+  /** Abort once the replay produces more events, cost or replayed time than allowed. */
+  budget?: ReplayBudget;
+}
+
+/**
+ * Checks a budget after every emitted event. Replayed time is the virtual clock, so a duration
+ * budget bounds the agent's simulated latency, not the wall time of the replay itself.
+ */
+function budgetGuard(
+  budget: ReplayBudget,
+  log: EventLog,
+  clock: Clock,
+  startedAt: () => number,
+): (event: ShadowEvent) => void {
+  let cost = 0;
+  return (event) => {
+    cost += event.estimatedCost?.amount ?? 0;
+    const events = log.events.length;
+    const elapsed = clock.now() - startedAt();
+    const exceeded =
+      budget.maxEvents !== undefined && events > budget.maxEvents
+        ? { limit: "maxEvents", allowed: budget.maxEvents, reached: events, unit: "events" }
+        : budget.maxCostUsd !== undefined && cost > budget.maxCostUsd
+          ? { limit: "maxCostUsd", allowed: budget.maxCostUsd, reached: cost, unit: "USD" }
+          : budget.maxDurationMs !== undefined && elapsed > budget.maxDurationMs
+            ? {
+                limit: "maxDurationMs",
+                allowed: budget.maxDurationMs,
+                reached: elapsed,
+                unit: "ms",
+              }
+            : null;
+    if (exceeded) {
+      throw new ReplayBudgetExceededError(
+        `replay budget exceeded: ${exceeded.limit} ${exceeded.allowed} ${exceeded.unit}, reached ${exceeded.reached}`,
+        { ...exceeded, events, costUsd: cost, elapsedMs: elapsed },
+      );
+    }
+  };
+}
+
 /**
  * Execute a replay plan: serve the recorded prefix to the program, verify the
  * state at the fork point, apply overrides, then continue deterministically.
@@ -107,7 +157,7 @@ export function findAgentInput(lineage: readonly ShadowEvent[]): JsonValue {
 export async function executeReplay(
   plan: ReplayPlan,
   definition: AgentDefinition,
-  options: { clock?: Clock; ids?: IdGenerator; sink?: (event: ShadowEvent) => void } = {},
+  options: ExecuteReplayOptions = {},
 ): Promise<ReplayOutcome> {
   const forkSequence = plan.branch.forkSequence as number;
   const history = plan.parentLineage.filter((e) => e.sequence <= forkSequence);
@@ -121,6 +171,8 @@ export async function executeReplay(
     ...plan.existingBranchEvents.map((e) => e.sequence + 1),
   );
 
+  let replayStartedAt = clock.now();
+  let guard: ((event: ShadowEvent) => void) | undefined;
   const log = new EventLog({
     traceId: plan.trace.id,
     branchId: plan.branch.id,
@@ -136,8 +188,12 @@ export async function executeReplay(
         scenario: definition.slug,
       },
     },
-    sink: options.sink,
+    sink: (event) => {
+      options.sink?.(event);
+      guard?.(event);
+    },
   });
+  if (options.budget) guard = budgetGuard(options.budget, log, clock, () => replayStartedAt);
 
   const allOverrides = [
     ...(plan.inheritedOverrides ?? []).filter((o) => o.kind === "policy"),
@@ -186,7 +242,7 @@ export async function executeReplay(
   });
 
   const input = findAgentInput(plan.parentLineage);
-  const replayStartedAt = clock.now();
+  replayStartedAt = clock.now();
   try {
     const result = await runProgramLifecycle(host, definition, input, log);
     log.emit({
@@ -210,11 +266,18 @@ export async function executeReplay(
     };
   } catch (error) {
     const isMismatch = error instanceof ReplayHistoryMismatchError;
+    const isBudget = error instanceof ReplayBudgetExceededError;
     const message = error instanceof Error ? error.message : String(error);
+    // The failure record itself must not trip the guard again.
+    guard = undefined;
     log.emit({
       eventType: "replay.failed",
       name: plan.mode,
-      output: { error: errorToJson(error), ...(isMismatch ? { details: error.details } : {}) },
+      output: {
+        error: errorToJson(error),
+        ...(isMismatch || isBudget ? { details: error.details } : {}),
+        ...(isBudget ? { code: "budget_exceeded" } : {}),
+      },
       severity: "error",
       durationMs: clock.now() - replayStartedAt,
     });
