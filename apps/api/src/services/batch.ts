@@ -136,8 +136,18 @@ export async function runBatchCounterfactual(
         parentBranchId: trace.rootBranchId,
         name: body.branchName,
         overrides: body.overrides,
+        budget: body.budget,
       });
-      results.push({ ...base, status: "ok", forkEventId: event.id, ...summary });
+      if (summary.replay.status === "failed") {
+        // A replay that could not run (mismatch, budget) has no counterfactual to compare.
+        results.push({
+          ...base,
+          status: "failed",
+          reason: `replay_failed: ${summary.replay.error ?? "replay failed"}`,
+        });
+      } else {
+        results.push({ ...base, status: "ok", forkEventId: event.id, ...summary });
+      }
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
       results.push({ ...base, status: "failed", reason: `${error.code}: ${error.message}` });

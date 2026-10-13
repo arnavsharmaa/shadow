@@ -567,7 +567,11 @@ Runs a deterministic counterfactual replay of a forked branch synchronously and 
   allowed. The replay is then `failed` with `replay.error` starting `replay budget exceeded`, and
   the `replay.failed` event carries `code: "budget_exceeded"` with the limit, the value reached
   and the totals so far in `details`. CLI: `shadow replay <branchId> --max-events 500
---max-cost 2 --max-duration 60000`.
+--max-cost 2 --max-duration 60000`. `POST /traces/:id/forks/matrix` and
+  `POST /batch/counterfactuals` take the same `budget` and apply it to every replay they run
+  (`shadow matrix` and `shadow batch` take the same flags); a variant over budget carries a
+  `failed` replay, a batch trace over budget (or whose replay failed for any reason) is a
+  `failed` result with the reason, and the rest continue.
 - `422 not_forked` for root branches; `422 unsupported_mode` for `historical` (read the events
   instead); `501 live_replay_disabled` for `live`; `422 agent_not_replayable` when no program is
   registered for the agent.

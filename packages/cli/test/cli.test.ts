@@ -1923,6 +1923,25 @@ describe("shadow cli", () => {
     });
     expect(typed.captured.out.join("\n")).toContain("no traces matched");
     expect(await runWith(fakeApi({}), ["batch", "--agent", "a", "--at", "x"])).toBe(2);
+    expect(
+      await runWith(api, [
+        "batch",
+        "--agent",
+        "refund-agent",
+        "--at",
+        "refund_order",
+        "--set",
+        "refundLimit=100",
+        "--max-events",
+        "300",
+        "--max-cost",
+        "0.5",
+      ]),
+    ).toBe(0);
+    expect((api.captured.calls.at(-1)?.body as { budget: unknown }).budget).toEqual({
+      maxEvents: 300,
+      maxCostUsd: 0.5,
+    });
   });
 
   it("runs a scenario matrix from --vary grids", async () => {
@@ -1991,6 +2010,21 @@ describe("shadow cli", () => {
     expect(
       await runWith(fakeApi({}), ["matrix", "trc_1", "--at", "evt_7", "--vary", "broken"]),
     ).toBe(2);
+    expect(
+      await runWith(api, [
+        "matrix",
+        "trc_1",
+        "--at",
+        "evt_fork",
+        "--vary",
+        "refundLimit=100",
+        "--max-duration",
+        "90000",
+      ]),
+    ).toBe(0);
+    expect((api.captured.calls.at(-1)?.body as { budget: unknown }).budget).toEqual({
+      maxDurationMs: 90000,
+    });
   });
 
   it("builds matrix axes over tool results and policy configurations", async () => {

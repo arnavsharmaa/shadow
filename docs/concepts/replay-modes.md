@@ -101,8 +101,9 @@ A replay can be given a budget (`POST /branches/:id/replay` with
 --max-cost --max-duration`). The engine checks it after every event the replay emits and aborts
 the run as soon as a limit is exceeded, recording `replay.failed` with `code: "budget_exceeded"`
 and the limit reached. Time is replayed (virtual) time, the latency the adapters simulate, so
-the duration budget bounds the agent's run, not the wall time of the replay. Budgets protect
-batch and matrix explorations from a counterfactual that loops or fans out unexpectedly.
+the duration budget bounds the agent's run, not the wall time of the replay. Matrix and batch runs take the same `budget` and apply it to every replay (`shadow matrix` and
+`shadow batch --max-events --max-cost --max-duration`), so one counterfactual that loops or fans
+out unexpectedly fails on its own instead of stalling the whole exploration.
 
 ### Registering a replayable program
 

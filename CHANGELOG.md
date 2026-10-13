@@ -15,6 +15,10 @@ migration (see `docs/concepts/schema-versioning.md`).
   maxDurationMs? }` (`shadow replay --max-events --max-cost --max-duration`); the engine checks
   it after every emitted event and fails the replay with `budget_exceeded` once a limit is
   exceeded, keeping the events produced so far.
+- Matrix and batch runs take the same `budget` (`shadow matrix` and `shadow batch` take the
+  same `--max-*` flags); a variant over budget carries a failed replay, and a batch trace whose
+  replay failed for any reason is now reported as a `failed` result with the reason instead of
+  being compared as if it had run.
 - Event ingestion refuses a batch containing an event whose `schemaVersion` has another major
   than the server (`400 unsupported_schema_version`, nothing stored), as the schema versioning
   policy promised; newer minors are accepted.

@@ -74,6 +74,26 @@ describe("POST /batch/counterfactuals", () => {
     }
   });
 
+  it("applies a replay budget to every trace and reports the ones over it as failed", async () => {
+    const response = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/batch/counterfactuals",
+      payload: {
+        agent: "refund-agent",
+        at: { name: "refund_order" },
+        overrides: [{ kind: "context", op: "set", key: "refundLimit", value: 100 }],
+        branchName: "budgeted",
+        budget: { maxEvents: 2 },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const result = json<BatchResult>(response);
+    expect(result.summary.failed).toBeGreaterThan(0);
+    expect(result.summary.changed + result.summary.unchanged).toBe(0);
+    const failed = result.results.find((r) => r.status === "failed");
+    expect(failed?.status === "failed" ? failed.reason : "").toContain("replay budget exceeded");
+  });
+
   it("reports per-trace failures without aborting and honours filters", async () => {
     // The branch name is taken on a and b now, so a second run with it fails per trace.
     const again = json<BatchResult>(

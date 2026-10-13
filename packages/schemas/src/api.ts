@@ -249,6 +249,17 @@ export type PruneTracesBody = z.infer<typeof pruneTracesBodySchema>;
 export const MAX_SYNC_BATCH = 50;
 export const MAX_BACKGROUND_BATCH = 500;
 
+/** Limits that abort a replay once exceeded; the replay then fails with `budget_exceeded`. */
+export const replayBudgetSchema = z.object({
+  /** Events the replay may produce on the branch. */
+  maxEvents: z.number().int().min(1).max(1_000_000).optional(),
+  /** Estimated cost (USD) the replayed model calls may accumulate. */
+  maxCostUsd: z.number().nonnegative().optional(),
+  /** Replayed (virtual) time the run may take, in milliseconds. */
+  maxDurationMs: z.number().int().min(1).optional(),
+});
+export type ReplayBudget = z.infer<typeof replayBudgetSchema>;
+
 export const batchCounterfactualBodySchema = z
   .object({
     agent: z.string().min(1).max(64),
@@ -266,6 +277,8 @@ export const batchCounterfactualBodySchema = z
     to: z.iso.datetime({ offset: true }).optional(),
     /** Up to 50 traces synchronously, or up to 500 as a background job. */
     limit: z.number().int().min(1).max(MAX_BACKGROUND_BATCH).default(20),
+    /** Applied to every replay in the batch; a replay over budget is a `failed` result. */
+    budget: replayBudgetSchema.optional(),
     /** Queue the batch as a job and return `202` right away (see `GET /batch/jobs/:jobId`). */
     background: z.boolean().default(false),
   })
@@ -456,6 +469,8 @@ export const forkMatrixBodySchema = z.object({
     )
     .min(1)
     .max(20),
+  /** Applied to every variant's replay. */
+  budget: replayBudgetSchema.optional(),
 });
 export type ForkMatrixBody = z.infer<typeof forkMatrixBodySchema>;
 
@@ -463,17 +478,6 @@ export const updateBranchBodySchema = z.object({
   name: z.string().min(1).max(128).optional(),
   metadata: jsonObjectSchema.optional(),
 });
-
-/** Limits that abort a replay once exceeded; the replay then fails with `budget_exceeded`. */
-export const replayBudgetSchema = z.object({
-  /** Events the replay may produce on the branch. */
-  maxEvents: z.number().int().min(1).max(1_000_000).optional(),
-  /** Estimated cost (USD) the replayed model calls may accumulate. */
-  maxCostUsd: z.number().nonnegative().optional(),
-  /** Replayed (virtual) time the run may take, in milliseconds. */
-  maxDurationMs: z.number().int().min(1).optional(),
-});
-export type ReplayBudget = z.infer<typeof replayBudgetSchema>;
 
 export const replayRequestBodySchema = z.object({
   mode: replayModeSchema.default("deterministic"),

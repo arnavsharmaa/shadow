@@ -76,6 +76,27 @@ describe("POST /traces/:traceId/forks/matrix", () => {
     expect(json<Comparison>(stored).targetBranchId).toBe(strict?.branch.id);
   });
 
+  it("applies a replay budget to every variant", async () => {
+    const response = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/traces/${scenario.traceId}/forks/matrix`,
+      payload: {
+        forkEventId,
+        budget: { maxEvents: 2 },
+        variants: [
+          {
+            name: "over-budget",
+            overrides: [{ kind: "context", op: "set", key: "refundLimit", value: 100 }],
+          },
+        ],
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const result = json<MatrixResult>(response);
+    expect(result.variants[0]?.replay.status).toBe("failed");
+    expect(result.variants[0]?.replay.error).toContain("replay budget exceeded");
+  });
+
   it("validates variants and refuses agents that cannot be replayed", async () => {
     const empty = await t.app.inject({
       method: "POST",

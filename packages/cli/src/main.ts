@@ -861,6 +861,20 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  /** `--max-events/--max-cost/--max-duration` as a replay budget, or nothing when unset. */
+  const budgetOption = (opts: {
+    maxEvents?: number;
+    maxCost?: number;
+    maxDuration?: number;
+  }): { budget?: { maxEvents?: number; maxCostUsd?: number; maxDurationMs?: number } } => {
+    const budget = {
+      ...(opts.maxEvents !== undefined ? { maxEvents: opts.maxEvents } : {}),
+      ...(opts.maxCost !== undefined ? { maxCostUsd: opts.maxCost } : {}),
+      ...(opts.maxDuration !== undefined ? { maxDurationMs: opts.maxDuration } : {}),
+    };
+    return Object.keys(budget).length > 0 ? { budget } : {};
+  };
+
   const keyState = (k: ApiKey): string => {
     if (k.revokedAt) return `revoked ${k.revokedAt}`;
     if (k.expiresAt && Date.parse(k.expiresAt) <= Date.now()) return `expired ${k.expiresAt}`;
@@ -1961,6 +1975,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       (value: string, previous: string[] = []) => [...previous, value],
     )
     .option("--branch <branchId>", "parent branch (default: the event's branch)")
+    .option("--max-events <n>", "replay budget: abort a replay after this many events", positiveInt)
+    .option(
+      "--max-cost <usd>",
+      "replay budget: abort a replay past this estimated cost",
+      nonNegative,
+    )
+    .option(
+      "--max-duration <ms>",
+      "replay budget: abort a replay past this replayed time",
+      positiveInt,
+    )
     .option("--json", "print JSON")
     .action(
       async (
@@ -1971,6 +1996,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           varyTool?: string[];
           varyPolicy?: string[];
           branch?: string;
+          maxEvents?: number;
+          maxCost?: number;
+          maxDuration?: number;
           json?: boolean;
         },
       ) => {
@@ -2003,6 +2031,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }>(`/api/v1/traces/${encodeURIComponent(traceId)}/forks/matrix`, {
           forkEventId: opts.at,
           parentBranchId: opts.branch,
+          ...budgetOption(opts),
           variants: combos.map((combo) => ({
             name: truncate(
               combo.map((c) => `${c.axis.name}=${JSON.stringify(c.value)}`).join(" "),
@@ -2061,6 +2090,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--from <cutoff>", "traces started at or after", cutoff)
     .option("--to <cutoff>", "traces started at or before", cutoff)
     .option("--limit <n>", "maximum traces (1-50, or up to 500 with --background)", positiveInt, 20)
+    .option("--max-events <n>", "replay budget: abort a replay after this many events", positiveInt)
+    .option(
+      "--max-cost <usd>",
+      "replay budget: abort a replay past this estimated cost",
+      nonNegative,
+    )
+    .option(
+      "--max-duration <ms>",
+      "replay budget: abort a replay past this replayed time",
+      positiveInt,
+    )
     .option("--background", "queue the batch as a job and print its id")
     .option("--wait", "run in the background and poll until the job finishes")
     .option("--interval <ms>", "poll interval for --wait", positiveInt, 2000)
@@ -2082,6 +2122,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         from?: string;
         to?: string;
         limit: number;
+        maxEvents?: number;
+        maxCost?: number;
+        maxDuration?: number;
         json?: boolean;
       }) => {
         const overrides: Override[] = [];
@@ -2121,6 +2164,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           from: opts.from,
           to: opts.to,
           limit: opts.limit,
+          ...budgetOption(opts),
           ...(background ? { background: true } : {}),
         };
         if (!background) {
@@ -2263,14 +2307,9 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         branchId: string,
         opts: { maxEvents?: number; maxCost?: number; maxDuration?: number; json?: boolean },
       ) => {
-        const budget = {
-          ...(opts.maxEvents !== undefined ? { maxEvents: opts.maxEvents } : {}),
-          ...(opts.maxCost !== undefined ? { maxCostUsd: opts.maxCost } : {}),
-          ...(opts.maxDuration !== undefined ? { maxDurationMs: opts.maxDuration } : {}),
-        };
         const result = await client().post<{ replay: Replay; branch: Branch }>(
           `/api/v1/branches/${encodeURIComponent(branchId)}/replay`,
-          { mode: "deterministic", ...(Object.keys(budget).length > 0 ? { budget } : {}) },
+          { mode: "deterministic", ...budgetOption(opts) },
         );
         if (opts.json) return json(result);
         out(replayLine(result.replay, result.branch));

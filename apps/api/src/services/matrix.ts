@@ -30,6 +30,7 @@ export async function forkReplaySummarise(
     parentBranchId?: string;
     name?: string;
     overrides: ForkMatrixBody["variants"][number]["overrides"];
+    budget?: ForkMatrixBody["budget"];
   },
 ): Promise<MatrixVariantResult & { parentBranchId: string }> {
   const { branch, fork } = await createForkForTrace(ctx, traceId, {
@@ -38,7 +39,7 @@ export async function forkReplaySummarise(
     name: input.name,
     overrides: input.overrides,
   });
-  const replayed = await runReplay(ctx, branch.id, "deterministic");
+  const replayed = await runReplay(ctx, branch.id, "deterministic", input.budget);
   const comparison = await createComparison(ctx, {
     baseBranchId: fork.parentBranchId,
     targetBranchId: branch.id,
@@ -109,6 +110,7 @@ export async function runForkMatrix(
       parentBranchId,
       name: variant.name,
       overrides: variant.overrides,
+      budget: body.budget,
     });
     parentBranchId = resolvedParent;
     variants.push(summary);
