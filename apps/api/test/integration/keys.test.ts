@@ -444,4 +444,91 @@ describe("API keys", () => {
       await app.close();
     }
   });
+  it("rotates a key: same name, scope, pin and expiry, new secret, old one retired", async () => {
+    const clock = new VirtualClock("2026-10-14T08:00:00.000Z");
+    const app = await createTestApp({ env: { SHADOW_API_TOKEN: TOKEN }, clock });
+    try {
+      const issued = json<{ key: ApiKey; secret: string }>(
+        await app.app.inject({
+          method: "POST",
+          url: "/api/v1/keys",
+          headers: admin,
+          payload: { name: "rotating", scope: "read", project: "support-agent", expiresInDays: 10 },
+        }),
+      );
+      const list = (secret: string) =>
+        app.app.inject({ url: "/api/v1/traces", headers: bearer(secret) });
+      expect((await list(issued.secret)).statusCode).toBe(200);
+      clock.advance(60_000);
+      const rotated = await app.app.inject({
+        method: "POST",
+        url: "/api/v1/keys/rotating/rotate",
+        headers: { ...admin, "x-shadow-actor": "arnav" },
+      });
+      expect(rotated.statusCode, rotated.body).toBe(201);
+      const result = json<{ key: ApiKey; secret: string; retired: ApiKey }>(rotated);
+      expect(result.key).toMatchObject({
+        name: "rotating",
+        scope: "read",
+        project: "support-agent",
+        expiresAt: issued.key.expiresAt,
+        revokedAt: null,
+        lastUsedAt: null,
+      });
+      expect(result.key.id).not.toBe(issued.key.id);
+      expect(result.secret).toMatch(/^shk_/);
+      expect(result.secret).not.toBe(issued.secret);
+      expect(result.retired).toMatchObject({
+        id: issued.key.id,
+        name: "rotating:rotated:20261014T080100",
+        revokedAt: "2026-10-14T08:01:00.000Z",
+      });
+      // The old secret is refused at once; the new one works with the same pin.
+      expect((await list(issued.secret)).statusCode).toBe(401);
+      const withNew = await list(result.secret);
+      expect(withNew.statusCode).toBe(200);
+      expect(
+        (
+          await app.app.inject({
+            url: "/api/v1/traces?project=billing",
+            headers: bearer(result.secret),
+          })
+        ).statusCode,
+      ).toBe(403);
+      // Both rows remain listed, and the rotation is audited under the key's actor.
+      const listed = json<{ items: ApiKey[] }>(
+        await app.app.inject({ url: "/api/v1/keys", headers: admin }),
+      );
+      expect(listed.items.map((k) => k.name).sort()).toEqual([
+        "rotating",
+        "rotating:rotated:20261014T080100",
+      ]);
+      const log = json<{ items: AuditEntry[] }>(
+        await app.app.inject({ url: "/api/v1/audit?action=key.rotated", headers: admin }),
+      );
+      expect(log.items[0]).toMatchObject({
+        action: "key.rotated",
+        actor: "arnav",
+        targetId: result.key.id,
+        details: { name: "rotating", retired: issued.key.id },
+      });
+      // A revoked or unknown key cannot be rotated.
+      expect(
+        (await app.app.inject({ method: "POST", url: "/api/v1/keys/nope/rotate", headers: admin }))
+          .statusCode,
+      ).toBe(404);
+      await app.app.inject({ method: "DELETE", url: "/api/v1/keys/rotating", headers: admin });
+      expect(
+        (
+          await app.app.inject({
+            method: "POST",
+            url: "/api/v1/keys/rotating/rotate",
+            headers: admin,
+          })
+        ).statusCode,
+      ).toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
 });

@@ -608,6 +608,14 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(row).toContainText("support-agent");
     await expect(row).toContainText("never");
     await expect(row.getByTestId("key-expiry")).not.toHaveText("never");
+    // Rotation issues a new secret under the same name and retires the old key.
+    const firstSecret = await page.getByTestId("issued-secret").textContent();
+    await row.getByTestId("rotate-key").click();
+    await expect(issued).toContainText(`Key ${name} rotated`);
+    await expect(page.getByTestId("issued-secret")).not.toHaveText(firstSecret ?? "");
+    const retired = page.locator(`[data-testid="key-row"][data-key-name^="${name}:rotated:"]`);
+    await expect(retired).toContainText("revoked");
+    await expect(row).not.toContainText("revoked");
     await row.getByTestId("revoke-key").click();
     await expect(row).toContainText("revoked");
     await page.reload();

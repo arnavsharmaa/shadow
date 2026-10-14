@@ -935,6 +935,18 @@ describe("shadow cli", () => {
       "DELETE /api/v1/keys/ci-ingest": () => ({
         body: { ...key, revokedAt: "2026-10-04T10:00:00.000Z" },
       }),
+      "POST /api/v1/keys/ci-ingest/rotate": () => ({
+        status: 201,
+        body: {
+          key: { ...key, id: "key_3", prefix: "shk_newprefi" },
+          secret: "shk_newprefixSECRET",
+          retired: {
+            ...key,
+            name: "ci-ingest:rotated:20261004T1000",
+            revokedAt: "2026-10-04T10:00:00.000Z",
+          },
+        },
+      }),
     });
     expect(await runWith(api, ["keys", "create", "ci-ingest", "--scope", "ingest"])).toBe(0);
     expect(api.captured.calls[0]?.body).toEqual({ name: "ci-ingest", scope: "ingest" });
@@ -962,6 +974,11 @@ describe("shadow cli", () => {
       scope: "ingest",
       project: "support",
     });
+    expect(await runWith(api, ["keys", "rotate", "ci-ingest"])).toBe(0);
+    expect(api.captured.out).toContain("shk_newprefixSECRET");
+    expect(api.captured.out.join("\n")).toContain(
+      "rotated ci-ingest: new key key_3, previous key key_1 retired as ci-ingest:rotated:20261004T1000",
+    );
     expect(await runWith(api, ["keys", "revoke", "ci-ingest"])).toBe(0);
     expect(api.captured.out.join("\n")).toContain("revoked ci-ingest (key_1)");
     expect(await runWith(api, ["keys", "create", "x", "--scope", "root"])).toBe(2);

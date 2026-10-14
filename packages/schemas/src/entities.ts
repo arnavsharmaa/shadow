@@ -264,6 +264,7 @@ export const AUDIT_ACTIONS = [
   "collection.traces_added",
   "collection.traces_removed",
   "key.created",
+  "key.rotated",
   "key.revoked",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

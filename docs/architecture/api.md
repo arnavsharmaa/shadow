@@ -1004,7 +1004,11 @@ request authenticated with the token or an `admin` key; the response `{ key, sec
 only time the secret (`shk_…`) is shown, since only its hash is stored. `expiresInDays` (1 to 365) makes the key stop working on its own at `expiresAt`; an expired key is refused like a
 revoked one (`401`) and stays in the listing. `GET /api/v1/keys` lists keys
 (`{ id, name, scope, project, prefix, createdAt, lastUsedAt, revokedAt, expiresAt }`, never
-secrets) and `DELETE /api/v1/keys/:nameOrId` revokes one, effective from the next request.
+secrets), `DELETE /api/v1/keys/:nameOrId` revokes one, effective from the next request, and
+`POST /api/v1/keys/:nameOrId/rotate` issues a replacement: it answers
+`201 { key, secret, retired }` with a new key under the same name, scope, project pin and expiry,
+while the current key is revoked at once and renamed `<name>:rotated:<stamp>` so its history
+stays readable. CLI: `shadow keys rotate <nameOrId>`; the Settings page has a Rotate button.
 
 | Scope    | Allowed requests                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

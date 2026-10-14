@@ -30,6 +30,9 @@ describe("describeAudit", () => {
     expect(describeAudit(entry("key.created", { name: "ci", scope: "ingest" }))).toBe(
       "created API key ci (ingest)",
     );
+    expect(describeAudit(entry("key.rotated", { name: "ci", retired: "key_old" }))).toBe(
+      "rotated API key ci",
+    );
     expect(
       describeAudit(entry("collection.traces_added", { name: "incident", traceIds: ["a", "b"] })),
     ).toBe("added 2 trace(s) to collection incident");

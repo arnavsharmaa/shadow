@@ -79,7 +79,11 @@ export function Settings() {
   const [expiresInDays, setExpiresInDays] = useState("");
   // Taken once per mount: expiry badges only need to be right to the minute.
   const [now] = useState(() => Date.now());
-  const [issued, setIssued] = useState<{ key: ApiKey; secret: string } | null>(null);
+  const [issued, setIssued] = useState<{
+    key: ApiKey;
+    secret: string;
+    how: "created" | "rotated";
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +97,7 @@ export function Settings() {
         ...(expiresInDays ? { expiresInDays: Number(expiresInDays) } : {}),
       }),
     onSuccess: async (result) => {
-      setIssued(result);
+      setIssued({ ...result, how: "created" });
       setCopied(false);
       setName("");
       setProject("");
@@ -106,6 +110,16 @@ export function Settings() {
   const revoke = useMutation({
     mutationFn: (key: ApiKey) => api.revokeApiKey(key.id),
     onSuccess: refresh,
+    onError: (e) => setError(e instanceof Error ? e.message : String(e)),
+  });
+  const rotate = useMutation({
+    mutationFn: (key: ApiKey) => api.rotateApiKey(key.id),
+    onSuccess: async (result) => {
+      setIssued({ key: result.key, secret: result.secret, how: "rotated" });
+      setCopied(false);
+      setError(null);
+      await refresh();
+    },
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
   });
 
@@ -254,7 +268,8 @@ export function Settings() {
               data-testid="issued-key"
             >
               <div className="font-semibold">
-                Key {issued.key.name} created. Copy the secret now; it will not be shown again.
+                Key {issued.key.name} {issued.how}. Copy the secret now; it will not be shown again.
+                {issued.how === "rotated" ? " The previous secret has stopped working." : ""}
               </div>
               <div className="mt-1 flex items-center gap-2">
                 <code className="mono select-all break-all" data-testid="issued-secret">
@@ -342,14 +357,24 @@ export function Settings() {
                       ) : key.expiresAt && Date.parse(key.expiresAt) <= now ? (
                         <Badge tone="warn">expired</Badge>
                       ) : (
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          onClick={() => revoke.mutate(key)}
-                          data-testid="revoke-key"
-                        >
-                          Revoke
-                        </Button>
+                        <>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => rotate.mutate(key)}
+                            data-testid="rotate-key"
+                          >
+                            Rotate
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => revoke.mutate(key)}
+                            data-testid="revoke-key"
+                          >
+                            Revoke
+                          </Button>
+                        </>
                       )}
                     </td>
                   </tr>

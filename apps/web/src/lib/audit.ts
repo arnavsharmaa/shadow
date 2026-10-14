@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
   "collection.traces_added": "added traces to a collection",
   "collection.traces_removed": "removed a trace from a collection",
   "key.created": "created an API key",
+  "key.rotated": "rotated an API key",
   "key.revoked": "revoked an API key",
 };
 
@@ -56,6 +57,8 @@ export function describeAudit(entry: AuditEntry): string {
       return `deleted trace ${name ?? entry.targetId}`;
     case "key.created":
       return `created API key ${name ?? entry.targetId} (${String(d.scope ?? "?")})`;
+    case "key.rotated":
+      return `rotated API key ${name ?? entry.targetId}`;
     case "key.revoked":
       return `revoked API key ${name ?? entry.targetId}`;
     case "collection.traces_added": {

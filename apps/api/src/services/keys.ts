@@ -60,14 +60,14 @@ export async function createApiKey(
   if (Number(counted?.count ?? 0) >= MAX_API_KEYS) {
     throw ApiError.badRequest(`at most ${MAX_API_KEYS} API keys can be stored`);
   }
-  const secret = `${KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
+  const secret = issueSecret();
   const now = ctx.clock.now();
   const row: KeyRow = {
     id: ctx.ids.next("key"),
     name: body.name,
     scope: body.scope,
     project: body.project ?? null,
-    prefix: secret.slice(0, KEY_PREFIX.length + 8),
+    prefix: prefixOf(secret),
     secretHash: hashSecret(secret),
     createdAt: iso(new Date(now)),
     lastUsedAt: null,
@@ -76,6 +76,63 @@ export async function createApiKey(
   };
   await ctx.handle.db.insert(apiKeys).values(row);
   return { key: toApiKey(row), secret };
+}
+
+function issueSecret(): string {
+  return `${KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
+}
+
+function prefixOf(secret: string): string {
+  return secret.slice(0, KEY_PREFIX.length + 8);
+}
+
+/** The name a retired key keeps after rotation, so its history stays readable and the new key can take the name. */
+export function retiredName(name: string, at: Date): string {
+  const suffix = `:rotated:${at.toISOString().replace(/[-:]/g, "").slice(0, 15)}`;
+  return `${name.slice(0, 64 - suffix.length)}${suffix}`;
+}
+
+/**
+ * Replace a key's secret in one step: the current key is retired (revoked and renamed with a
+ * `:rotated:<stamp>` suffix) and a new key with the same name, scope, project pin and expiry
+ * is issued. The old secret stops working immediately; the new one is returned once.
+ */
+export async function rotateApiKey(
+  ctx: ServiceContext,
+  idOrName: string,
+): Promise<{ key: ApiKey; secret: string; retired: ApiKey }> {
+  const [current] = await ctx.handle.db
+    .select()
+    .from(apiKeys)
+    .where(
+      and(
+        idOrName.startsWith("key_") ? eq(apiKeys.id, idOrName) : eq(apiKeys.name, idOrName),
+        isNull(apiKeys.revokedAt),
+      ),
+    )
+    .limit(1);
+  if (!current) throw ApiError.notFound("API key", idOrName);
+  const now = new Date(ctx.clock.now());
+  const secret = issueSecret();
+  const next: KeyRow = {
+    ...current,
+    id: ctx.ids.next("key"),
+    prefix: prefixOf(secret),
+    secretHash: hashSecret(secret),
+    createdAt: iso(now),
+    lastUsedAt: null,
+    revokedAt: null,
+  };
+  const retired = await ctx.handle.db.transaction(async (tx) => {
+    const [old] = await tx
+      .update(apiKeys)
+      .set({ name: retiredName(current.name, now), revokedAt: iso(now) })
+      .where(eq(apiKeys.id, current.id))
+      .returning();
+    await tx.insert(apiKeys).values(next);
+    return old as KeyRow;
+  });
+  return { key: toApiKey(next), secret, retired: toApiKey(retired) };
 }
 
 /** Revoke a key by id or name; a revoked key is refused from the next request on. */

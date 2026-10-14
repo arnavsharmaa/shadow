@@ -394,6 +394,12 @@ export const api = {
     request<{ key: ApiKey; secret: string }>("POST", "/api/v1/keys", body),
   revokeApiKey: (nameOrId: string) =>
     request<ApiKey>("DELETE", `/api/v1/keys/${encodeURIComponent(nameOrId)}`),
+  rotateApiKey: (nameOrId: string) =>
+    request<{ key: ApiKey; secret: string; retired: ApiKey }>(
+      "POST",
+      `/api/v1/keys/${encodeURIComponent(nameOrId)}/rotate`,
+      {},
+    ),
   collections: (traceId?: string) =>
     request<{ items: Collection[] }>("GET", `/api/v1/collections${query({ traceId })}`),
   addToCollection: (collection: string, traceIds: string[]) =>

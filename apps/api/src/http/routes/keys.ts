@@ -1,7 +1,7 @@
 import { createApiKeyBodySchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { createApiKey, listApiKeys, revokeApiKey } from "../../services/keys.js";
+import { createApiKey, listApiKeys, revokeApiKey, rotateApiKey } from "../../services/keys.js";
 import { audit } from "../audit.js";
 
 const params = z.object({ key: z.string().min(1).max(64) });
@@ -26,6 +26,23 @@ export const keyRoutes: FastifyPluginAsyncZod = async (app) => {
       return reply.status(201).send({ key, secret });
     },
   );
+
+  /** Issue a replacement secret and retire the current one in the same step. */
+  app.post("/keys/:key/rotate", { schema: { tags: ["keys"], params } }, async (request, reply) => {
+    const result = await rotateApiKey(app.services, request.params.key);
+    await audit(app, request, {
+      action: "key.rotated",
+      targetType: "key",
+      targetId: result.key.id,
+      details: {
+        name: result.key.name,
+        scope: result.key.scope,
+        prefix: result.key.prefix,
+        retired: result.retired.id,
+      },
+    });
+    return reply.status(201).send(result);
+  });
 
   app.delete("/keys/:key", { schema: { tags: ["keys"], params } }, async (request) => {
     const key = await revokeApiKey(app.services, request.params.key);

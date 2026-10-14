@@ -950,6 +950,23 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   keys
+    .command("rotate")
+    .description("issue a replacement secret for a key and retire the current one")
+    .argument("<nameOrId>", "key name or id")
+    .option("--json", "print JSON")
+    .action(async (nameOrId: string, opts: { json?: boolean }) => {
+      const result = await client().post<{ key: ApiKey; secret: string; retired: ApiKey }>(
+        `/api/v1/keys/${encodeURIComponent(nameOrId)}/rotate`,
+        {},
+      );
+      if (opts.json) return json(result);
+      out(result.secret);
+      out(
+        `rotated ${result.key.name}: new key ${result.key.id}, previous key ${result.retired.id} retired as ${result.retired.name} and no longer accepted. Store the secret now: it cannot be shown again.`,
+      );
+    });
+
+  keys
     .command("revoke")
     .description("revoke an API key by name or id")
     .argument("<nameOrId>", "key name or id")
