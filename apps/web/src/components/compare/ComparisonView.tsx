@@ -11,6 +11,7 @@ import type {
   Override,
   ToolCallDiff,
 } from "@shadow/schemas";
+import { comparisonReportMarkdown } from "@shadow/core";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -59,7 +60,7 @@ function ComparisonBody({ traceId, comparison }: { traceId: string; comparison: 
   const r = comparison.result;
   const [showShared, setShowShared] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(r.firstDivergence?.stepIndex ?? null);
-  const markdown = useMemo(() => toMarkdown(comparison), [comparison]);
+  const markdown = useMemo(() => comparisonReportMarkdown(comparison), [comparison]);
   const [copied, setCopied] = useState(false);
 
   const visibleSteps = showShared ? r.steps : r.steps.filter((s) => s.kind !== "shared");
@@ -117,8 +118,9 @@ function ComparisonBody({ traceId, comparison }: { traceId: string; comparison: 
                 setCopied(false);
               }
             }}
+            data-testid="copy-markdown"
           >
-            {copied ? "Copied" : "Copy Markdown summary"}
+            {copied ? "Copied" : "Copy Markdown report"}
           </Button>
         </div>
       </div>
@@ -601,36 +603,4 @@ export function describeOverride(o: Override): string {
     case "policy":
       return `policy ${o.policy} config ${JSON.stringify(o.config)}`;
   }
-}
-
-function toMarkdown(c: Comparison): string {
-  const r = c.result;
-  const lines = [
-    `# Shadow comparison: ${r.base.name} vs ${r.target.name}`,
-    "",
-    `Trace: \`${c.traceId}\`${c.targetTraceId ? ` vs \`${c.targetTraceId}\`` : ""} · comparison \`${c.id}\``,
-    "",
-    "| Metric | Original | Counterfactual | Delta |",
-    "| --- | --- | --- | --- |",
-    `| Outcome | ${r.outcome.base?.label ?? "-"} | ${r.outcome.target?.label ?? "-"} | ${r.outcome.changed ? "changed" : "same"} |`,
-    `| Est. cost | ${money(r.metrics.totalEstimatedCost.base)} | ${money(r.metrics.totalEstimatedCost.target)} | ${percent(r.metrics.totalEstimatedCost.percent)} |`,
-    `| Latency | ${duration(r.metrics.durationMs.base)} | ${duration(r.metrics.durationMs.target)} | ${percent(r.metrics.durationMs.percent)} |`,
-    `| Tokens | ${r.metrics.totalTokens.base} | ${r.metrics.totalTokens.target} | ${percent(r.metrics.totalTokens.percent)} |`,
-    `| Tool calls | ${r.metrics.toolCalls.base} | ${r.metrics.toolCalls.target} | ${r.metrics.toolCalls.delta} |`,
-    `| Policy | ${policyLabel(r.policy.base)} | ${policyLabel(r.policy.target)} | ${r.policy.changed ? "changed" : "same"} |`,
-    "",
-    "## Overrides",
-    ...(r.overrides.length ? r.overrides.map((o) => `- ${describeOverride(o)}`) : ["- none"]),
-    "",
-    "## First divergence",
-    r.firstDivergence
-      ? `Sequence ${r.firstDivergence.sequence}: ${r.firstDivergence.summary}`
-      : "None",
-    ...(r.firstDivergence?.fields.map(
-      (f) => `- \`${f.path}\`: ${JSON.stringify(f.before)} → ${JSON.stringify(f.after)}`,
-    ) ?? []),
-    "",
-    `Added ${r.addedEvents.length}, removed ${r.removedEvents.length}, modified ${r.modifiedEvents.length} events.`,
-  ];
-  return lines.join("\n");
 }

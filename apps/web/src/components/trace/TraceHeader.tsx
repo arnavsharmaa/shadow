@@ -176,6 +176,14 @@ export function TraceHeader({
         >
           Export JSON
         </a>
+        <a
+          href={`${api.exportUrl(trace.id)}?format=markdown`}
+          className="inline-flex h-6 items-center rounded border border-border px-2 text-[11px] text-fg-muted hover:bg-hover"
+          download
+          data-testid="export-markdown"
+        >
+          Markdown report
+        </a>
       </div>
     </div>
   );

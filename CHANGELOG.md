@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The trace page links to its Markdown report and the comparison view's copy button now copies
+  the same report the API and CLI render, replacing the web app's own summary.
 - Markdown reports: `GET /api/v1/traces/:id/export?format=markdown` and
   `GET /api/v1/comparisons/:id?format=markdown` render a trace (summary, branches with their
   overrides, execution tree, replays, comparisons) or a comparison (overrides, outcome and metric

@@ -13,7 +13,11 @@ async function openRefundTrace(page: Page) {
 }
 
 test.describe("Refund agent: rewind, fork, replay, compare", () => {
-  test("the canonical counterfactual workflow works end to end", async ({ page }) => {
+  test("the canonical counterfactual workflow works end to end", async ({
+    page,
+    request,
+    context,
+  }) => {
     // 1. Trace Explorer lists the seeded traces with their key columns.
     await page.goto("/");
     await expect(page.getByTestId("trace-table")).toBeVisible();
@@ -98,6 +102,20 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("first-divergence-fields")).toContainText("output.decision");
     await expect(page.getByTestId("applied-overrides")).toContainText("refundLimit = 100");
     await expect(page.getByTestId("context-diff")).toContainText("refundLimit");
+
+    // The report that the copy button and the API share.
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByTestId("copy-markdown").click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toContain("# main vs fork-limit-100");
+    const comparisonId = new URL(page.url()).searchParams.get("comparison") ?? "";
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const report = await request.get(
+      `${apiUrl}/api/v1/comparisons/${comparisonId}?format=markdown`,
+    );
+    expect(report.headers()["content-type"]).toContain("text/markdown");
+    expect(await report.text()).toContain("# main vs fork-limit-100");
 
     // The new branch is visible in the trace detail and its lineage shows the override.
     await page.getByTestId("target-branch-name").click();
