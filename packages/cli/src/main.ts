@@ -1,7 +1,12 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import path from "node:path";
-import { buildEventTree, flattenTree } from "@shadow/core";
+import {
+  buildEventTree,
+  comparisonReportMarkdown,
+  flattenTree,
+  traceReportMarkdown,
+} from "@shadow/core";
 import type {
   AlertRule,
   ApiKey,
@@ -494,23 +499,31 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   traces
     .command("export")
-    .description("export a trace (all branches) as a portable JSON bundle")
+    .description("export a trace (all branches) as a portable JSON bundle, or as a Markdown report")
     .argument("<traceId>", "trace id")
     .option("-o, --out <file>", "write to a file instead of stdout")
-    .action(async (traceId: string, opts: { out?: string }) => {
-      const bundle = await client().get<TraceExport>(
-        `/api/v1/traces/${encodeURIComponent(traceId)}/export`,
-      );
-      const text = JSON.stringify(bundle, null, 2);
-      if (opts.out) {
-        await writeFile(opts.out, text, "utf8");
-        out(
-          `wrote ${bundle.events.length} events (${bundle.branches.length} branches) to ${opts.out}`,
+    .option("--markdown", "a human-readable report instead of the JSON bundle")
+    .option("--max-events <n>", "events listed per branch in the report", positiveInt, 60)
+    .action(
+      async (traceId: string, opts: { out?: string; markdown?: boolean; maxEvents: number }) => {
+        const bundle = await client().get<TraceExport>(
+          `/api/v1/traces/${encodeURIComponent(traceId)}/export`,
         );
-      } else {
-        out(text);
-      }
-    });
+        const text = opts.markdown
+          ? traceReportMarkdown(bundle, { maxEvents: opts.maxEvents })
+          : JSON.stringify(bundle, null, 2);
+        if (opts.out) {
+          await writeFile(opts.out, text, "utf8");
+          out(
+            opts.markdown
+              ? `wrote a report of ${bundle.events.length} events (${bundle.branches.length} branches) to ${opts.out}`
+              : `wrote ${bundle.events.length} events (${bundle.branches.length} branches) to ${opts.out}`,
+          );
+        } else {
+          out(text);
+        }
+      },
+    );
 
   /** Every `.json` file under a directory, deepest last, in a stable order. */
   const bundleFiles = async (dir: string): Promise<string[]> => {
@@ -2395,11 +2408,13 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .description("print a saved comparison")
     .argument("<comparisonId>", "comparison id")
     .option("--json", "print JSON")
-    .action(async (comparisonId: string, opts: { json?: boolean }) => {
+    .option("--markdown", "print a Markdown report (paste it into an issue or a thread)")
+    .action(async (comparisonId: string, opts: { json?: boolean; markdown?: boolean }) => {
       const comparison = await client().get<Comparison>(
         `/api/v1/comparisons/${encodeURIComponent(comparisonId)}`,
       );
       if (opts.json) return json(comparison);
+      if (opts.markdown) return out(comparisonReportMarkdown(comparison));
       printComparison(comparison);
     });
 

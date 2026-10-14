@@ -393,6 +393,10 @@ describe("shadow cli", () => {
     const file = path.join(dir, "trace.json");
     const bundle = {
       format: "shadow.trace",
+      schemaVersion: "1.0",
+      exportedAt: "2026-09-01T10:00:00.000Z",
+      project: { slug: "support-agent", name: "Support Agent", description: null, metadata: {} },
+      agent: { slug: "refund-agent", name: "Refund Agent", description: null, metadata: {} },
       trace,
       branches: [branch],
       events: [ev(0, "trace.started", "x")],
@@ -412,6 +416,24 @@ describe("shadow cli", () => {
     });
     expect(await runWith(api, ["traces", "export", "trc_1", "--out", file])).toBe(0);
     expect(JSON.parse(await readFile(file, "utf8")).format).toBe("shadow.trace");
+    expect(await runWith(api, ["traces", "export", "trc_1", "--markdown"])).toBe(0);
+    expect(api.captured.out.at(-1)).toContain("## Execution");
+    expect(api.captured.out.at(-1)?.startsWith("# ")).toBe(true);
+    const report = path.join(dir, "trace.md");
+    expect(
+      await runWith(api, [
+        "traces",
+        "export",
+        "trc_1",
+        "--markdown",
+        "--out",
+        report,
+        "--max-events",
+        "1",
+      ]),
+    ).toBe(0);
+    expect(await readFile(report, "utf8")).toContain("| Trace | `trc_1` |");
+    expect(api.captured.out.at(-1)).toContain("wrote a report of 1 events");
     expect(await runWith(api, ["traces", "import", file, "--regenerate-ids"])).toBe(0);
     expect(api.captured.out.at(-1)).toContain("imported trace trc_copy");
     expect((api.captured.calls.at(-1)?.body as { idStrategy: string }).idStrategy).toBe(

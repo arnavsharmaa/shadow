@@ -21,3 +21,4 @@ export * from "./runtime/run.js";
 export * from "./runtime/replay.js";
 export * from "./comparison/compare.js";
 export * from "./bundle/bundle.js";
+export * from "./report/markdown.js";

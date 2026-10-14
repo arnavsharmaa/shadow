@@ -8,7 +8,7 @@ shadow --help
 shadow status [--json]
 shadow traces list [--project <slug>] [--agent <slug>] [--status <s>] [--tag <t>] [--tool <name>] [-q <text>] [--limit <n>] [--json]
 shadow traces inspect <traceId> [--branch <branchId>] [--json]
-shadow traces export <traceId> [--out <file>]
+shadow traces export <traceId> [--out <file>] [--markdown [--max-events <n>]]
 shadow traces import <file|dir|share-url> [--regenerate-ids] [--json]
 shadow fork <traceId> --at <eventId> [--set key=value ...] [--unset key ...] [--state /path=value ...]
                       [--tool-result tool=json ...] [--tool-error tool=message ...] [--policy id=json ...]

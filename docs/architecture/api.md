@@ -531,6 +531,13 @@ as `application/x-protobuf` (`<traceId>.otlp.bin`). Unknown formats or encodings
 `400 bad_request`. CLI: `shadow otlp export <traceId> [--out file] [--protobuf] [--collector
 <url>]`.
 
+`format=markdown` returns a human-readable report instead (`text/markdown`): a summary table,
+the branches with their fork overrides, the root branch's execution as a nested list (capped at
+60 events), and the trace's replays and comparisons. `GET /comparisons/:id?format=markdown`
+renders a comparison the same way (overrides, outcome and metric deltas, first divergence, tool
+call and state differences). CLI: `shadow traces export <id> --markdown [--max-events <n>]` and
+`shadow comparisons show <id> --markdown`.
+
 ### `GET /api/v1/branches/:branchId`
 
 `Branch`.

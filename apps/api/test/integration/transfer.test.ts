@@ -53,6 +53,44 @@ describe("export and import", () => {
     await t.close();
   });
 
+  it("exports a Markdown report of the trace and of a comparison", async () => {
+    // Its own trace, so the fork and comparison do not change what later tests count.
+    const own = await ingestRefundScenario(t, "trc_test_report", { seed: "report" });
+    const forked = await forkReplayCompare(t, own, { name: "report fork" });
+    const report = await t.app.inject({
+      url: `/api/v1/traces/${own.traceId}/export?format=markdown`,
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.headers["content-type"]).toContain("text/markdown");
+    expect(report.headers["content-disposition"]).toContain(`${own.traceId}.md`);
+    expect(report.body.startsWith("# refund-request: defective headphones\n")).toBe(true);
+    expect(report.body).toContain("| Project / agent | Support Agent (`support-agent`) / ");
+    expect(report.body).toContain("## Branches");
+    expect(report.body).toContain("report fork");
+    expect(report.body).toContain("context `refundLimit` = `100`");
+    expect(report.body).toContain("## Execution (main)");
+    expect(report.body).toContain("`tool.request` refund_order");
+    expect(report.body).toContain("## Replays");
+    expect(report.body).toContain("## Comparisons");
+    expect(report.body).toContain("Policy violation → Approval requested");
+
+    const comparison = await t.app.inject({
+      url: `/api/v1/comparisons/${forked.comparison.id}?format=markdown`,
+    });
+    expect(comparison.statusCode).toBe(200);
+    expect(comparison.headers["content-type"]).toContain("text/markdown");
+    expect(comparison.body.startsWith("# main vs report fork\n")).toBe(true);
+    expect(comparison.body).toContain("## Overrides\n- context `refundLimit` = `100`");
+    expect(comparison.body).toContain(
+      "| Outcome | Policy violation | Approval requested | **changed** |",
+    );
+    expect(comparison.body).toContain("## First divergence\n\nAt sequence ");
+    expect(comparison.body).toContain("## Context and state");
+    expect(comparison.body).toContain("| context | `/refundLimit` | changed | `500` | `100` |");
+    const asJson = await t.app.inject({ url: `/api/v1/comparisons/${forked.comparison.id}` });
+    expect(asJson.headers["content-type"]).toContain("application/json");
+  });
+
   it("exports a self-contained bundle", async () => {
     const response = await t.app.inject({
       method: "GET",

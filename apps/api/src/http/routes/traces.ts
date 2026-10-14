@@ -1,4 +1,4 @@
-import { buildEventTree, diffJson, flattenTree } from "@shadow/core";
+import { buildEventTree, diffJson, flattenTree, traceReportMarkdown } from "@shadow/core";
 import {
   artifactListQuerySchema,
   createArtifactBodySchema,
@@ -44,7 +44,7 @@ import { encodeOtlpProtobuf } from "../../otlp/protobuf.js";
 const traceParams = z.object({ traceId: idSchema });
 /** `shadow` is the self-contained bundle; `otlp` is an OTLP ExportTraceServiceRequest. */
 const exportQuerySchema = z.object({
-  format: z.enum(["shadow", "otlp"]).default("shadow"),
+  format: z.enum(["shadow", "otlp", "markdown"]).default("shadow"),
   encoding: z.enum(["json", "protobuf"]).optional(),
 });
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
@@ -357,6 +357,11 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["transfer"], params: traceParams, querystring: exportQuerySchema } },
     async (request, reply) => {
       const bundle = await exportTrace(app.services, request.params.traceId);
+      if (request.query.format === "markdown") {
+        reply.header("content-type", "text/markdown; charset=utf-8");
+        reply.header("content-disposition", `attachment; filename="${bundle.trace.id}.md"`);
+        return reply.send(traceReportMarkdown(bundle));
+      }
       if (request.query.format === "otlp") {
         const payload = exportTraceToOtlp(bundle);
         const protobuf =

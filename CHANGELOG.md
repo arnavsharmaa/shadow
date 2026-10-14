@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Markdown reports: `GET /api/v1/traces/:id/export?format=markdown` and
+  `GET /api/v1/comparisons/:id?format=markdown` render a trace (summary, branches with their
+  overrides, execution tree, replays, comparisons) or a comparison (overrides, outcome and metric
+  deltas, first divergence, tool call and state differences) as text to paste into an issue or
+  a thread; `shadow traces export --markdown` and `shadow comparisons show --markdown` print
+  the same, from the shared `traceReportMarkdown` / `comparisonReportMarkdown` in `@shadow/core`.
 - API key rotation: `POST /api/v1/keys/:nameOrId/rotate` (`shadow keys rotate`, a Rotate button
   on the Settings page) issues a new secret under the same name, scope, project pin and expiry
   and retires the current key immediately (revoked and renamed `<name>:rotated:<stamp>`);
