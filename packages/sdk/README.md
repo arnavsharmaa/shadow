@@ -117,6 +117,21 @@ The wrapper returns the client's own type and has no dependency on `@anthropic-a
 options and the event mapping are in
 [docs/integrations/anthropic.md](../../docs/integrations/anthropic.md).
 
+## OpenAI API
+
+`traceOpenAI` wraps an OpenAI client so `chat.completions.create` and `responses.create` are
+recorded as model spans, streamed or not, with no dependency on the `openai` package:
+
+```ts
+import OpenAI from "openai";
+import { Shadow, traceOpenAI } from "@shadow/sdk";
+
+const client = traceOpenAI(trace, new OpenAI());
+const completion = await client.chat.completions.create({ model: "gpt-5", messages, tools });
+```
+
+Details in [docs/integrations/openai.md](../../docs/integrations/openai.md).
+
 ## MCP clients
 
 `traceMcpClient` wraps a Model Context Protocol client so tool calls, resource reads,

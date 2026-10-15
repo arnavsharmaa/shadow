@@ -53,7 +53,9 @@ is welcome through GitHub issues; integration proposals have their own
   from GenAI semantic-convention spans ([details](./docs/integrations/opentelemetry.md));
   remaining: OTLP/gRPC and cross-batch buffering.
 - **OpenAI Agents SDK adapter**: record runs, handoffs, tool calls and guardrails
-  ([proposal](./docs/integrations/openai-agents-sdk.md)).
+  ([proposal](./docs/integrations/openai-agents-sdk.md)); the direct API is covered by
+  `traceOpenAI` ([details](./docs/integrations/openai.md)), which records Chat Completions and
+  Responses calls, streamed or not.
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state
   snapshots ([proposal](./docs/integrations/langgraph.md)).
 - **MCP tracing**: record Model Context Protocol tool and resource calls between hosts and servers

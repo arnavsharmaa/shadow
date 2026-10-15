@@ -33,9 +33,11 @@ Start with the [project README](../README.md) for installation and the demo, the
 | [Integrations overview](./integrations/README.md)        | Mapping principles, the `AgentHost` contract, how adapters plug in               |
 | [Custom runtime](./integrations/custom-runtime.md)       | Available now: SDK instrumentation and bundle import with a worked event mapping |
 | [OpenTelemetry / OTLP](./integrations/opentelemetry.md)  | OTLP/HTTP JSON ingestion (GenAI semantic conventions)                            |
+| [Anthropic Messages API](./integrations/anthropic.md)    | Available: live wrapper, tool loop and conversation importer                     |
+| [OpenAI API](./integrations/openai.md)                   | Available: `traceOpenAI` for Chat Completions and Responses, streamed or not     |
+| [Model Context Protocol](./integrations/mcp.md)          | Available: client wrapper including server-initiated requests                    |
 | [OpenAI Agents SDK](./integrations/openai-agents-sdk.md) | Proposal for v0.2                                                                |
 | [LangGraph](./integrations/langgraph.md)                 | Proposal for v0.2                                                                |
-| [Model Context Protocol](./integrations/mcp.md)          | Proposal for v0.2                                                                |
 | [Anthropic tool-use traces](./integrations/anthropic.md) | Proposal for v0.2                                                                |
 
 ## Decisions

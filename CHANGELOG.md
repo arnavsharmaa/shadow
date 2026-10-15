@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OpenAI recording in the SDK: `traceOpenAI(trace, client)` wraps an OpenAI client so
+  `chat.completions.create` and `responses.create` become model spans (messages or input items,
+  parameters, tool calls with parsed arguments, finish reason, token usage with cached prompt
+  tokens), streamed calls included (recorded from the folded chunks or the terminal response
+  event once consumed), with the system message, instructions and tool names as context and
+  reasoning summaries as notes. No dependency on the `openai` package.
 - The trace page links to its Markdown report and the comparison view's copy button now copies
   the same report the API and CLI render, replacing the web app's own summary.
 - Markdown reports: `GET /api/v1/traces/:id/export?format=markdown` and

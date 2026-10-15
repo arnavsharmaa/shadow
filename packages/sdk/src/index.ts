@@ -21,6 +21,16 @@ export {
   type TraceAnthropicOptions,
 } from "./anthropic.js";
 export { traceMcpClient, type McpToolResultLike, type TraceMcpOptions } from "./mcp.js";
+export {
+  accumulateChatChunks,
+  openAITokenUsage,
+  traceOpenAI,
+  type OpenAIChatCompletionLike,
+  type OpenAIChatParamsLike,
+  type OpenAIResponseLike,
+  type OpenAIResponsesParamsLike,
+  type TraceOpenAIOptions,
+} from "./openai.js";
 export type {
   AgentHost,
   AgentProgram,

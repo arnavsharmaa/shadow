@@ -6,14 +6,15 @@ organises that work. Integrations map a framework's execution model onto that ev
 
 ## Status
 
-| Integration                                       | Status                                 | Document                                       |
-| ------------------------------------------------- | -------------------------------------- | ---------------------------------------------- |
-| Custom runtime via `@shadow/sdk` or bundle import | **Available in v0.1**                  | [custom-runtime.md](./custom-runtime.md)       |
-| OpenTelemetry / OTLP                              | **OTLP/HTTP JSON ingestion available** | [opentelemetry.md](./opentelemetry.md)         |
-| OpenAI Agents SDK                                 | Proposal for v0.2 (not implemented)    | [openai-agents-sdk.md](./openai-agents-sdk.md) |
-| LangGraph                                         | Proposal for v0.2 (not implemented)    | [langgraph.md](./langgraph.md)                 |
-| Model Context Protocol (MCP)                      | Proposal for v0.2 (not implemented)    | [mcp.md](./mcp.md)                             |
-| Anthropic tool-use traces                         | Proposal for v0.2 (not implemented)    | [anthropic.md](./anthropic.md)                 |
+| Integration                                       | Status                                               | Document                                       |
+| ------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
+| Custom runtime via `@shadow/sdk` or bundle import | **Available in v0.1**                                | [custom-runtime.md](./custom-runtime.md)       |
+| OpenTelemetry / OTLP                              | **OTLP/HTTP JSON ingestion available**               | [opentelemetry.md](./opentelemetry.md)         |
+| Anthropic Messages API                            | **Available**: `traceAnthropic`, tool loop, importer | [anthropic.md](./anthropic.md)                 |
+| OpenAI API (Chat Completions, Responses)          | **Available**: `traceOpenAI`                         | [openai.md](./openai.md)                       |
+| Model Context Protocol (MCP)                      | **Available**: `traceMcpClient`                      | [mcp.md](./mcp.md)                             |
+| OpenAI Agents SDK                                 | Proposal for v0.2 (not implemented)                  | [openai-agents-sdk.md](./openai-agents-sdk.md) |
+| LangGraph                                         | Proposal for v0.2 (not implemented)                  | [langgraph.md](./langgraph.md)                 |
 
 Proposals describe the intended mapping so they can be reviewed before code is written. They may
 change; nothing in them is a commitment to a specific API surface. Requests for other frameworks
