@@ -408,12 +408,16 @@ export const api = {
       `/api/v1/collections/${encodeURIComponent(collection)}/traces`,
       { traceIds },
     ),
-  createCollection: (name: string, traceIds: string[]) =>
+  createCollection: (name: string, traceIds: string[], description?: string) =>
     request<{ collection: Collection; added: string[]; missing: string[] }>(
       "POST",
       "/api/v1/collections",
-      { name, traceIds },
+      { name, traceIds, ...(description ? { description } : {}) },
     ),
+  updateCollection: (name: string, body: { name?: string; description?: string | null }) =>
+    request<Collection>("PATCH", `/api/v1/collections/${encodeURIComponent(name)}`, body),
+  deleteCollection: (name: string) =>
+    request<void>("DELETE", `/api/v1/collections/${encodeURIComponent(name)}`),
   removeFromCollection: (collection: string, traceId: string) =>
     request<Collection>(
       "DELETE",

@@ -804,6 +804,31 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await expect(page).toHaveURL(/collection=e2e-collection-/);
       await expect(rows).toHaveCount(2);
       for (const text of await rows.allInnerTexts()) expect(text).toContain("refund");
+
+      // The Collections page lists it, shows its traces and manages it.
+      await page.getByTestId("nav-collections").click();
+      await expect(page.getByTestId("collections")).toBeVisible();
+      const item = page.locator(`[data-testid="collection-item"][data-collection-name="${name}"]`);
+      await expect(item).toContainText("2 traces");
+      await item.click();
+      const detail = page.getByTestId("collection-detail");
+      await expect(detail.getByTestId("collection-title")).toHaveText(name);
+      await expect(detail.locator('[data-testid="collection-trace"]')).toHaveCount(2);
+      await detail
+        .locator('[data-testid="collection-trace"]')
+        .first()
+        .getByTestId("collection-remove-trace")
+        .click();
+      await expect(detail.locator('[data-testid="collection-trace"]')).toHaveCount(1);
+      await expect(item).toContainText("1 trace");
+      await detail.getByTestId("collection-edit").click();
+      await detail.getByTestId("collection-edit-description").fill("incident 4471");
+      await detail.getByTestId("collection-save").click();
+      await expect(detail.getByTestId("collection-description")).toHaveText("incident 4471");
+      await detail.getByTestId("collection-delete").click();
+      await detail.getByTestId("collection-delete-confirm").click();
+      await expect(item).toHaveCount(0);
+      await expect(page.getByTestId("collection-detail")).toHaveCount(0);
     } finally {
       await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(name)}`);
     }

@@ -76,6 +76,16 @@ export function TopNav() {
           Agents
         </Link>
         <Link
+          href="/collections"
+          className={classNames(
+            "text-[12px] text-fg-muted hover:text-fg",
+            pathname === "/collections" && "text-fg font-medium",
+          )}
+          data-testid="nav-collections"
+        >
+          Collections
+        </Link>
+        <Link
           href="/audit"
           className={classNames(
             "text-[12px] text-fg-muted hover:text-fg",

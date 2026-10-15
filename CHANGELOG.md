@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Collections page (`/collections`): lists collections with their trace counts, creates them
+  with a description, shows a collection's traces with links and per-trace removal, renames
+  and re-describes it, opens it in the explorer and deletes it after a confirmation.
 - OpenAI recording in the SDK: `traceOpenAI(trace, client)` wraps an OpenAI client so
   `chat.completions.create` and `responses.create` become model spans (messages or input items,
   parameters, tool calls with parsed arguments, finish reason, token usage with cached prompt
