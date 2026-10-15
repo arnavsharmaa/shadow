@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `runOpenAIToolLoop` runs the Chat Completions function-calling loop on a client wrapped with
+  `traceOpenAI`: every tool the model asks for runs through `trace.tool` (a tool span with an
+  optional policy guard), answers go back as `tool` messages, and failures, unknown tools and
+  blocked calls become JSON error results the model can react to.
 - Collections page (`/collections`): lists collections with their trace counts, creates them
   with a description, shows a collection's traces with links and per-trace removal, renames
   and re-describes it, opens it in the explorer and deletes it after a confirmation.

@@ -56,6 +56,26 @@ namespace is wrapped the same way.
 - A failed request is noted as `openai.request_failed` (message, error name, HTTP status) and
   re-thrown.
 
+## Tool loop
+
+`runOpenAIToolLoop` runs the Chat Completions function-calling loop on a wrapped client: it
+calls the model, executes the function tools it asks for through `trace.tool(...)` (so each is a
+tool span, with an optional policy `guard`), appends one `tool` message per call and repeats
+until the model stops asking or `maxTurns` (default 20) is reached. A tool that throws, is
+unknown or is blocked by its guard answers with a JSON `{ "error": ... }` result so the model
+can react. Tool arguments are parsed from their JSON string when they parse.
+
+```ts
+const { completion, messages } = await runOpenAIToolLoop(trace, client, {
+  params: { model: "gpt-5", messages: history, tools },
+  tools: { lookup_order: (input) => lookupOrder(input) },
+  guard: (tool) => (tool === "refund_order" ? refundPolicy : undefined),
+});
+```
+
+The Responses API has no loop helper yet; run its `function_call` items through `trace.tool`
+and send `function_call_output` items back.
+
 ## Costs
 
 Shadow's built-in price table covers Anthropic models. OpenAI calls record token usage, and
@@ -65,8 +85,5 @@ costs are estimated when the deployment supplies prices for the models in use th
 ## Limitations
 
 - Only the first choice of a chat completion (`n > 1`) is recorded.
-- Tool execution is the caller's: run tools through `trace.tool(...)` so they become tool spans
-  with policy guards, as `runAnthropicToolLoop` does for the Messages API. A matching loop for
-  OpenAI function calling is not provided yet.
 - Audio, image and file inputs are recorded as the JSON the caller sent; large payloads are not
   capped by the wrapper (the API caps event size).

@@ -24,7 +24,10 @@ export { traceMcpClient, type McpToolResultLike, type TraceMcpOptions } from "./
 export {
   accumulateChatChunks,
   openAITokenUsage,
+  runOpenAIToolLoop,
   traceOpenAI,
+  type OpenAIToolLoopOptions,
+  type OpenAIToolLoopResult,
   type OpenAIChatCompletionLike,
   type OpenAIChatParamsLike,
   type OpenAIResponseLike,

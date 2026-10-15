@@ -4,6 +4,7 @@ import {
   Shadow,
   accumulateChatChunks,
   openAITokenUsage,
+  runOpenAIToolLoop,
   traceOpenAI,
   type IngestEventInput,
   type OpenAIChatCompletionLike,
@@ -115,6 +116,12 @@ function setup() {
 }
 
 const named = (list: IngestEventInput[], type: string) => list.filter((e) => e.eventType === type);
+
+/** The loop wants a typed `create`; the fake returns `unknown` so it can also stream. */
+type LoopClient = {
+  chat: { completions: { create(params: ChatParams): Promise<OpenAIChatCompletionLike> } };
+};
+const asLoopClient = (client: FakeClient): LoopClient => client as unknown as LoopClient;
 
 describe("openAITokenUsage", () => {
   it("reads chat and responses usage, with cached tokens inside the prompt", () => {
@@ -444,5 +451,129 @@ describe("traceOpenAI", () => {
       name: "openai.request_failed",
       output: { message: "rate limited", status: 429 },
     });
+  });
+});
+
+describe("runOpenAIToolLoop", () => {
+  const call = (id: string, name: string, args: string) => ({
+    id,
+    type: "function",
+    function: { name, arguments: args },
+  });
+
+  it("runs tools as spans, answers each call with a tool message and stops at stop", async () => {
+    const { trace, events } = setup();
+    const raw = new FakeClient([
+      completion(null, {
+        message: {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            call("call_1", "lookup_order", '{"orderId":"ord_1"}'),
+            call("call_2", "explode", "{}"),
+            call("call_3", "missing", "not json"),
+          ],
+        },
+        finish_reason: "tool_calls",
+      }),
+      completion("All done."),
+    ]);
+    const client = traceOpenAI(trace, raw);
+    const result = await runOpenAIToolLoop(trace, asLoopClient(client), {
+      params: {
+        model: "gpt-5",
+        messages: [{ role: "user", content: "Refund order ord_1" }],
+        tools: [{ type: "function", function: { name: "lookup_order" } }],
+      },
+      tools: {
+        lookup_order: (input) => ({ status: "shipped", input }),
+        explode: () => {
+          throw new Error("boom");
+        },
+      },
+    });
+    expect(result.turns).toBe(2);
+    expect(result.stopReason).toBe("stop");
+    expect(result.completion.choices[0]?.message?.content).toBe("All done.");
+    expect(result.messages.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "tool",
+      "tool",
+      "assistant",
+    ]);
+    expect(result.messages[2]).toEqual({
+      role: "tool",
+      tool_call_id: "call_1",
+      content: JSON.stringify({ status: "shipped", input: { orderId: "ord_1" } }),
+    });
+    expect(result.messages[3]).toEqual({
+      role: "tool",
+      tool_call_id: "call_2",
+      content: JSON.stringify({ error: "boom" }),
+    });
+    expect(result.messages[4]).toEqual({
+      role: "tool",
+      tool_call_id: "call_3",
+      content: JSON.stringify({ error: "no implementation for tool 'missing'" }),
+    });
+    // The second request carried the tool results; the starting history was not mutated.
+    expect(raw.chat.completions.seen[1]?.messages).toHaveLength(5);
+    expect(raw.chat.completions.seen[0]?.messages).toHaveLength(1);
+
+    const list = await events();
+    expect(named(list, "model.request")).toHaveLength(2);
+    expect(named(list, "tool.request").map((e) => e.name)).toEqual([
+      "lookup_order",
+      "explode",
+      "missing",
+    ]);
+    expect(named(list, "tool.request")[0]).toMatchObject({
+      input: { tool: "lookup_order", arguments: { orderId: "ord_1" } },
+      metadata: { openai: { toolCallId: "call_1" } },
+    });
+    expect(named(list, "tool.request")[2]?.input).toMatchObject({ arguments: "not json" });
+    expect(named(list, "tool.response")).toHaveLength(1);
+    expect(
+      named(list, "tool.error").map(
+        (e) => (e.output as { error: { message: string } }).error.message,
+      ),
+    ).toEqual(["boom", "no implementation for tool 'missing'"]);
+  });
+
+  it("blocks guarded tools and respects maxTurns", async () => {
+    const { trace, events } = setup();
+    const asking = () =>
+      completion(null, {
+        message: { role: "assistant", content: null, tool_calls: [call("c", "delete_all", "{}")] },
+        finish_reason: "tool_calls",
+      });
+    const raw = new FakeClient([asking(), asking(), asking()]);
+    const client = traceOpenAI(trace, raw);
+    const ran: string[] = [];
+    const result = await runOpenAIToolLoop(trace, asLoopClient(client), {
+      params: { model: "gpt-5", messages: [{ role: "user", content: "wipe it" }] },
+      tools: {
+        delete_all: () => {
+          ran.push("delete_all");
+          return "done";
+        },
+      },
+      guard: (tool) => ({
+        policy: "ops.destructive",
+        subject: { tool },
+        evaluate: () => ({ decision: "deny" }),
+      }),
+      maxTurns: 2,
+    });
+    expect(ran).toEqual([]);
+    expect(result.turns).toBe(2);
+    expect(result.stopReason).toBe("max_turns");
+    expect(result.messages.filter((m) => m.role === "tool")).toHaveLength(2);
+    expect(String(result.messages[2]?.content)).toContain("blocked");
+    const list = await events();
+    expect(named(list, "policy.evaluated")).toHaveLength(2);
+    expect(named(list, "tool.error")).toHaveLength(2);
   });
 });

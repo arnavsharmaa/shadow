@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, ModelResult, TokenUsage } from "@shadow/schemas";
+import type { JsonObject, JsonValue, ModelResult, PolicyCall, TokenUsage } from "@shadow/schemas";
 import { toJson } from "./pointer.js";
 import type { Trace } from "./trace.js";
 
@@ -656,4 +656,83 @@ export function traceOpenAI<C extends object>(
       },
     });
   return wrapNamespace(client) as C;
+}
+
+export interface OpenAIToolLoopOptions<P extends OpenAIChatParamsLike> {
+  /** Request parameters; `messages` is the starting history and is not mutated. */
+  params: P;
+  /** Implementations of the function tools, by name. The return value becomes the tool result. */
+  tools: Record<string, (input: JsonValue) => unknown>;
+  /** Policy to evaluate inside a tool's span before it runs; a blocked call returns an error result. */
+  guard?: (tool: string, input: JsonValue) => PolicyCall | undefined;
+  /** Stop after this many model calls (default 20). */
+  maxTurns?: number;
+}
+
+export interface OpenAIToolLoopResult<M> {
+  /** The last completion from the model. */
+  completion: M;
+  /** The full history, including every assistant turn and tool result message. */
+  messages: { role: string; content?: unknown; tool_calls?: unknown; tool_call_id?: string }[];
+  turns: number;
+  /** The last finish reason, or `max_turns` when the loop stopped with the model still asking for tools. */
+  stopReason: string | null;
+}
+
+/**
+ * Run the Chat Completions function-calling loop on a client wrapped with `traceOpenAI`: call
+ * the model, execute the function tools it asks for through `trace.tool` (so each is a tool span,
+ * with an optional policy guard), append one `tool` message per call and repeat until the model
+ * stops asking. A tool that throws, is unknown or is blocked by its guard answers with a JSON
+ * `{ "error": ... }` result so the model can react. Tools run one after another so their spans
+ * nest correctly.
+ */
+export async function runOpenAIToolLoop<
+  P extends OpenAIChatParamsLike,
+  M extends OpenAIChatCompletionLike,
+>(
+  trace: Trace,
+  client: { chat: { completions: { create(params: P): PromiseLike<M> } } },
+  // The parameter type comes from the client; `params` must then satisfy it.
+  options: OpenAIToolLoopOptions<NoInfer<P>>,
+): Promise<OpenAIToolLoopResult<M>> {
+  const messages: OpenAIToolLoopResult<M>["messages"] = [...options.params.messages];
+  const maxTurns = options.maxTurns ?? 20;
+  for (let turn = 1; ; turn++) {
+    const completion = await client.chat.completions.create({ ...options.params, messages });
+    const choice = completion.choices[0];
+    const message = choice?.message ?? { role: "assistant", content: null };
+    messages.push({ role: "assistant", ...message });
+    const calls = message.tool_calls ?? [];
+    const stop = choice?.finish_reason ?? null;
+    if (calls.length === 0 || (stop !== null && stop !== "tool_calls")) {
+      return { completion, messages, turns: turn, stopReason: stop };
+    }
+    for (const call of calls) {
+      const name = call.function?.name ?? "unknown";
+      const id = call.id ?? "";
+      const input = parseArguments(call.function?.arguments);
+      const implementation = options.tools[name];
+      let content: string;
+      try {
+        const result = await trace.tool({
+          name,
+          arguments: input,
+          metadata: { openai: { toolCallId: id } },
+          guard: options.guard?.(name, input),
+          execute: async () => {
+            if (!implementation) throw new Error(`no implementation for tool '${name}'`);
+            return toJson(await implementation(input));
+          },
+        });
+        content = typeof result === "string" ? result : JSON.stringify(result);
+      } catch (error) {
+        content = JSON.stringify({ error: error instanceof Error ? error.message : String(error) });
+      }
+      messages.push({ role: "tool", tool_call_id: id, content });
+    }
+    if (turn >= maxTurns) {
+      return { completion, messages, turns: turn, stopReason: "max_turns" };
+    }
+  }
 }

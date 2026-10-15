@@ -120,14 +120,18 @@ options and the event mapping are in
 ## OpenAI API
 
 `traceOpenAI` wraps an OpenAI client so `chat.completions.create` and `responses.create` are
-recorded as model spans, streamed or not, with no dependency on the `openai` package:
+recorded as model spans, streamed or not, with no dependency on the `openai` package, and
+`runOpenAIToolLoop` runs the function-calling loop with every tool execution recorded:
 
 ```ts
 import OpenAI from "openai";
-import { Shadow, traceOpenAI } from "@shadow/sdk";
+import { Shadow, traceOpenAI, runOpenAIToolLoop } from "@shadow/sdk";
 
 const client = traceOpenAI(trace, new OpenAI());
-const completion = await client.chat.completions.create({ model: "gpt-5", messages, tools });
+const { completion } = await runOpenAIToolLoop(trace, client, {
+  params: { model: "gpt-5", messages, tools },
+  tools: { lookup_order: (input) => lookupOrder(input) },
+});
 ```
 
 Details in [docs/integrations/openai.md](../../docs/integrations/openai.md).
