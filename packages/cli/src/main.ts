@@ -1458,6 +1458,120 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         },
       );
 
+  const spool = program
+    .command("spool")
+    .description("send traces recorded offline with the SDK's SpoolTransport");
+
+  spool
+    .command("send")
+    .description("replay a spool file's records against the API, in order")
+    .argument("<file...>", "newline-delimited JSON written by SpoolTransport")
+    .option("--json", "print JSON")
+    .action(async (files: string[], opts: { json?: boolean }) => {
+      type Record_ =
+        | { kind: "trace"; body: { id: string } & Record<string, unknown> }
+        | { kind: "events"; traceId: string; events: unknown[] }
+        | { kind: "artifact"; traceId: string; artifact: unknown }
+        | { kind: "update"; traceId: string; update: unknown };
+      const api = client();
+      const summary = {
+        files: files.length,
+        traces: 0,
+        skippedTraces: 0,
+        events: 0,
+        artifacts: 0,
+        updates: 0,
+        malformed: 0,
+        failed: 0,
+      };
+      const problems: string[] = [];
+      // Records of a trace that already existed (or failed to create) are not sent.
+      const skipped = new Set<string>();
+      for (const file of files) {
+        let raw: string;
+        try {
+          raw = await readFile(file, "utf8");
+        } catch (error) {
+          throw new CliError(
+            `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
+            EXIT.usage,
+          );
+        }
+        for (const [index, line] of raw.split("\n").entries()) {
+          if (!line.trim()) continue;
+          let record: Record_;
+          try {
+            record = JSON.parse(line) as Record_;
+            const ok =
+              record.kind === "trace"
+                ? typeof record.body?.id === "string"
+                : ["events", "artifact", "update"].includes(record.kind) &&
+                  typeof record.traceId === "string";
+            if (!ok) throw new Error("not a spool record");
+          } catch (error) {
+            summary.malformed += 1;
+            problems.push(
+              `${file}:${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            continue;
+          }
+          const traceId = record.kind === "trace" ? record.body.id : record.traceId;
+          if (skipped.has(traceId)) continue;
+          try {
+            if (record.kind === "trace") {
+              try {
+                await api.post("/api/v1/traces", record.body);
+                summary.traces += 1;
+              } catch (error) {
+                if (error instanceof CliError && error.status === 409) {
+                  summary.skippedTraces += 1;
+                  skipped.add(traceId);
+                  continue;
+                }
+                throw error;
+              }
+            } else if (record.kind === "events") {
+              if (record.events.length === 0) continue;
+              await api.post(`/api/v1/traces/${encodeURIComponent(traceId)}/events`, {
+                events: record.events,
+              });
+              summary.events += record.events.length;
+            } else if (record.kind === "artifact") {
+              await api.post(
+                `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`,
+                record.artifact,
+              );
+              summary.artifacts += 1;
+            } else {
+              await api.patch(`/api/v1/traces/${encodeURIComponent(traceId)}`, record.update);
+              summary.updates += 1;
+            }
+          } catch (error) {
+            if (error instanceof CliError && error.exitCode === EXIT.connection) throw error;
+            summary.failed += 1;
+            problems.push(
+              `${file}:${index + 1} (${record.kind} ${traceId}): ${error instanceof Error ? error.message : String(error)}`,
+            );
+            if (record.kind === "trace") skipped.add(traceId);
+          }
+        }
+      }
+      if (opts.json) {
+        json({ ...summary, problems });
+      } else {
+        for (const problem of problems) out(problem);
+        out(
+          `sent ${summary.traces} trace(s), ${summary.events} event(s), ${summary.artifacts} artifact(s), ${summary.updates} update(s); ${summary.skippedTraces} trace(s) already present, ${summary.malformed} malformed line(s), ${summary.failed} failed`,
+        );
+      }
+      if (summary.failed > 0 || summary.malformed > 0) {
+        throw new CliError(
+          `${summary.failed + summary.malformed} record(s) could not be sent`,
+          EXIT.error,
+        );
+      }
+    });
+
   const otlp = program.command("otlp").description("OpenTelemetry (OTLP) tools");
 
   otlp

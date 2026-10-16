@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Offline recording: the SDK's `SpoolTransport` writes traces, events, artifacts and updates as
+  ordered newline-delimited JSON records (`SpoolTransport.toFile(path)` appends to a file,
+  `parseSpool` reads one back), and `shadow spool send <file...>` replays the records against
+  the API in order, skipping traces that already exist and reporting malformed lines and
+  failures per line.
 - OpenAI conversation import: `POST /api/v1/import/openai` and `shadow import openai <file>`
   store a Chat Completions `messages` history (with `tool_calls` and `tool` messages, optional
   `tools`, `model` and per-turn `responses`) as a trace with model and tool spans, the

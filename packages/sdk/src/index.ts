@@ -11,6 +11,12 @@ export {
 } from "./transport.js";
 export { createRedactor, DEFAULT_KEY_PATTERNS, type RedactOptions } from "./redact.js";
 export {
+  parseSpool,
+  SpoolTransport,
+  type SpoolRecord,
+  type SpoolTransportOptions,
+} from "./spool.js";
+export {
   anthropicTokenUsage,
   runAnthropicToolLoop,
   traceAnthropic,

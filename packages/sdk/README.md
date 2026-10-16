@@ -171,6 +171,11 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.
 - `MemoryTransport` keeps events in memory for tests; implement `Transport` for custom destinations.
+- `SpoolTransport` records to a newline-delimited JSON file instead of an API, for runs where the
+  API is not reachable (CI jobs, batch runs offline): `new Shadow({ transport:
+SpoolTransport.toFile("./shadow-spool.ndjson") })`, then `shadow spool send
+./shadow-spool.ndjson` replays the records in order. A trace that already exists is skipped
+  with its records, so a spool can be sent twice; `parseSpool` reads a spool back.
 
 ## Replay
 

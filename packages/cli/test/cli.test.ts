@@ -1152,6 +1152,79 @@ describe("shadow cli", () => {
     expect(text).toContain("1 tool call(s) have no result in the file");
   });
 
+  it("sends a spool file's records in order, skipping traces that already exist", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-spool-"));
+    const file = path.join(dir, "run.ndjson");
+    const lines = [
+      JSON.stringify({
+        kind: "trace",
+        body: { id: "trc_new", project: "ci", agent: "a", name: "new" },
+      }),
+      JSON.stringify({
+        kind: "events",
+        traceId: "trc_new",
+        events: [{ eventType: "trace.started", name: "trace.started" }],
+      }),
+      JSON.stringify({
+        kind: "artifact",
+        traceId: "trc_new",
+        artifact: { kind: "report", name: "r", content: "x" },
+      }),
+      JSON.stringify({ kind: "update", traceId: "trc_new", update: { addTags: ["green"] } }),
+      JSON.stringify({
+        kind: "trace",
+        body: { id: "trc_old", project: "ci", agent: "a", name: "old" },
+      }),
+      JSON.stringify({
+        kind: "events",
+        traceId: "trc_old",
+        events: [{ eventType: "trace.started", name: "x" }],
+      }),
+      "{ not json",
+      JSON.stringify({ kind: "events", events: [] }),
+    ];
+    await writeFile(file, `${lines.join("\n")}\n`);
+    const api = fakeApi({
+      "POST /api/v1/traces": (body) =>
+        (body as { id: string }).id === "trc_old"
+          ? {
+              status: 409,
+              body: { error: { code: "conflict", message: "trace trc_old already exists" } },
+            }
+          : { status: 201, body: { id: (body as { id: string }).id, rootBranchId: "br_x" } },
+      "POST /api/v1/traces/trc_new/events": () => ({ status: 201, body: { accepted: 1 } }),
+      "POST /api/v1/traces/trc_new/artifacts": () => ({ status: 201, body: { id: "art_1" } }),
+      "PATCH /api/v1/traces/trc_new": () => ({ body: { id: "trc_new", tags: ["green"] } }),
+    });
+    expect(await runWith(api, ["spool", "send", file])).toBe(1);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain(
+      "sent 1 trace(s), 1 event(s), 1 artifact(s), 1 update(s); 1 trace(s) already present, 2 malformed line(s), 0 failed",
+    );
+    expect(text).toContain(`${file}:7:`);
+    expect(text).toContain(`${file}:8: not a spool record`);
+    // The existing trace's events were not sent; the new trace's records went in order.
+    expect(api.captured.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+      "POST /api/v1/traces",
+      "POST /api/v1/traces/trc_new/events",
+      "POST /api/v1/traces/trc_new/artifacts",
+      "PATCH /api/v1/traces/trc_new",
+      "POST /api/v1/traces",
+    ]);
+    const clean = path.join(dir, "clean.ndjson");
+    await writeFile(clean, `${lines[0]}\n${lines[1]}\n`);
+    const ok = fakeApi({
+      "POST /api/v1/traces": (body) => ({ status: 201, body: { id: (body as { id: string }).id } }),
+      "POST /api/v1/traces/trc_new/events": () => ({ status: 201, body: { accepted: 1 } }),
+    });
+    expect(await runWith(ok, ["spool", "send", clean, "--json"])).toBe(0);
+    expect(JSON.parse(ok.captured.out.join("\n"))).toMatchObject({
+      traces: 1,
+      events: 1,
+      failed: 0,
+    });
+  });
+
   it("manages collections and lists traces through one", async () => {
     const collection = (traceCount: number) => ({
       id: "col_1",
