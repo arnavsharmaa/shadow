@@ -1,6 +1,7 @@
 import type { JsonObject, JsonValue } from "@shadow/schemas";
 import { createRedactor, type RedactOptions } from "./redact.js";
 import { Trace } from "./trace.js";
+import { SpoolTransport } from "./spool.js";
 import { HttpTransport, NoopTransport, type Transport } from "./transport.js";
 
 export interface ShadowOptions {
@@ -12,6 +13,12 @@ export interface ShadowOptions {
   endpoint?: string;
   /** Custom transport (tests, file export, future async transports). */
   transport?: Transport;
+  /**
+   * Record to a spool file instead of the API (default: `SHADOW_SPOOL` env), for runs where the
+   * API is not reachable; `shadow spool send <file>` replays it later. Ignored when a
+   * `transport` is given.
+   */
+  spool?: string;
   headers?: Record<string, string>;
   /** Bearer token for APIs started with SHADOW_API_TOKEN (default: SHADOW_TOKEN env). */
   token?: string;
@@ -102,10 +109,12 @@ export class Shadow {
       enabled: options.enabled ?? envEnabled(),
       sampleRate,
     };
+    const spool = options.spool ?? readEnv("SHADOW_SPOOL");
     this.transport =
       this.options.enabled === false
         ? new NoopTransport()
         : (options.transport ??
+          (spool ? SpoolTransport.toFile(spool) : undefined) ??
           new HttpTransport({
             endpoint: options.endpoint ?? readEnv("SHADOW_ENDPOINT") ?? "http://localhost:4000",
             headers: {

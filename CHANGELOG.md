@@ -16,6 +16,9 @@ migration (see `docs/concepts/schema-versioning.md`).
   `parseSpool` reads one back), and `shadow spool send <file...>` replays the records against
   the API in order, skipping traces that already exist and reporting malformed lines and
   failures per line.
+- `SHADOW_SPOOL=<path>` (or the `spool` option) makes `new Shadow()` record to that spool file
+  when no transport is given, so a deployment switches to offline recording without a code
+  change.
 - OpenAI conversation import: `POST /api/v1/import/openai` and `shadow import openai <file>`
   store a Chat Completions `messages` history (with `tool_calls` and `tool` messages, optional
   `tools`, `model` and per-turn `responses`) as a trace with model and tool spans, the

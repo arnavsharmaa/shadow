@@ -322,6 +322,53 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("records to a spool file when SHADOW_SPOOL or the spool option is set", async () => {
+    const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = await mkdtemp(join(tmpdir(), "shadow-sdk-spool-"));
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_SPOOL = join(dir, "env.ndjson");
+      const fromEnv = new Shadow({ project: "p", agent: "a", flushIntervalMs: 0 });
+      const trace = fromEnv.startTrace({ name: "offline" });
+      await trace.end();
+      const lines = (await readFile(join(dir, "env.ndjson"), "utf8")).trim().split("\n");
+      expect(lines.map((l) => (JSON.parse(l) as { kind: string }).kind)).toEqual([
+        "trace",
+        "events",
+      ]);
+      expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({
+        body: { id: trace.traceId, project: "p", agent: "a", name: "offline" },
+      });
+
+      delete process.env.SHADOW_SPOOL;
+      const fromOption = new Shadow({
+        project: "p",
+        agent: "a",
+        spool: join(dir, "option.ndjson"),
+        flushIntervalMs: 0,
+      });
+      await fromOption.startTrace({ name: "second" }).end();
+      expect((await readFile(join(dir, "option.ndjson"), "utf8")).split("\n").length).toBe(3);
+
+      // An explicit transport wins over the spool, and a disabled SDK writes nothing.
+      const transport = new MemoryTransport();
+      process.env.SHADOW_SPOOL = join(dir, "ignored.ndjson");
+      await new Shadow({ project: "p", agent: "a", transport, flushIntervalMs: 0 })
+        .startTrace({ name: "memory" })
+        .end();
+      expect(transport.traces).toHaveLength(1);
+      await new Shadow({ project: "p", agent: "a", enabled: false })
+        .startTrace({ name: "off" })
+        .end();
+      await expect(readFile(join(dir, "ignored.ndjson"), "utf8")).rejects.toThrow();
+    } finally {
+      process.env = saved;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("samples traces by rate, deterministically by id, with per-trace overrides", async () => {
     const transport = new MemoryTransport();
     const none = new Shadow({

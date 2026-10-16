@@ -175,7 +175,7 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   API is not reachable (CI jobs, batch runs offline): `new Shadow({ transport:
 SpoolTransport.toFile("./shadow-spool.ndjson") })`, then `shadow spool send
 ./shadow-spool.ndjson` replays the records in order. A trace that already exists is skipped
-  with its records, so a spool can be sent twice; `parseSpool` reads a spool back.
+  with its records, so a spool can be sent twice; `parseSpool` reads a spool back. Setting `SHADOW_SPOOL=<path>` (or the `spool` option) does the same without a code change, so a deployment can switch to offline recording the way `SHADOW_ENABLED=false` switches recording off.
 
 ## Replay
 
