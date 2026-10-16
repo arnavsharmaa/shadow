@@ -33,6 +33,7 @@ const PROJECT_FILTERED_ROUTES = new Set([
 const SELF_SCOPED_ROUTES = new Set([
   "/api/v1/otlp/v1/traces",
   "/api/v1/import/anthropic",
+  "/api/v1/import/openai",
   "/api/v1/projects",
   "/api/v1/agents",
   "/api/v1/pricing",

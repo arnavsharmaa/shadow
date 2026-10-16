@@ -411,6 +411,81 @@ export const importAnthropicBodySchema = z.object({
 });
 export type ImportAnthropicBody = z.infer<typeof importAnthropicBodySchema>;
 
+/**
+ * A stored OpenAI Chat Completions conversation to import as a trace: the `messages` array as it
+ * was sent to (and returned by) the API, with `tool_calls` and `tool` messages kept verbatim,
+ * plus the optional `tools`. Response metadata (`finish_reason`, `usage`, `model`, `id`) can be
+ * supplied per assistant turn in `responses`, in order.
+ */
+export const importOpenAIBodySchema = z.object({
+  /** Project slug (default `openai`, or the project an ingest key is pinned to). */
+  project: z.string().min(1).max(64).optional(),
+  agent: z.string().min(1).max(64).default("gpt-agent"),
+  name: z.string().min(1).max(256).optional(),
+  traceId: idSchema.optional(),
+  tags: z.array(z.string().min(1).max(64)).max(32).default([]),
+  metadata: jsonObjectSchema.optional(),
+  startedAt: z.iso.datetime({ offset: true }).optional(),
+  model: z.string().min(1).max(128).optional(),
+  tools: z
+    .array(
+      z.looseObject({
+        type: z.string().max(64).optional(),
+        name: z.string().min(1).max(128).optional(),
+        function: z.looseObject({ name: z.string().min(1).max(128) }).optional(),
+      }),
+    )
+    .max(500)
+    .optional(),
+  messages: z
+    .array(
+      z.looseObject({
+        role: z.enum(["system", "developer", "user", "assistant", "tool"]),
+        content: jsonValueSchema.optional(),
+        tool_calls: z
+          .array(
+            z.looseObject({
+              id: z.string().max(128).optional(),
+              type: z.string().max(64).optional(),
+              function: z
+                .looseObject({
+                  name: z.string().max(128).optional(),
+                  arguments: z.string().max(200_000).optional(),
+                })
+                .optional(),
+            }),
+          )
+          .max(200)
+          .optional(),
+        tool_call_id: z.string().max(128).optional(),
+      }),
+    )
+    .min(1)
+    .max(2000),
+  responses: z
+    .array(
+      z.looseObject({
+        id: z.string().max(128).optional(),
+        model: z.string().max(128).optional(),
+        finish_reason: z.string().max(64).nullable().optional(),
+        usage: z
+          .looseObject({
+            prompt_tokens: z.number().int().nonnegative().optional(),
+            completion_tokens: z.number().int().nonnegative().optional(),
+            total_tokens: z.number().int().nonnegative().optional(),
+            prompt_tokens_details: z
+              .looseObject({ cached_tokens: z.number().int().nonnegative().nullable().optional() })
+              .nullable()
+              .optional(),
+          })
+          .optional(),
+      }),
+    )
+    .max(2000)
+    .optional(),
+});
+export type ImportOpenAIBody = z.infer<typeof importOpenAIBodySchema>;
+
 export const MAX_API_KEY_DAYS = 365;
 
 export const createApiKeyBodySchema = z.object({

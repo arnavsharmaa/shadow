@@ -76,6 +76,30 @@ const { completion, messages } = await runOpenAIToolLoop(trace, client, {
 The Responses API has no loop helper yet; run its `function_call` items through `trace.tool`
 and send `function_call_output` items back.
 
+## Importing a conversation
+
+Conversations recorded elsewhere (a log of the `messages` array as sent to Chat Completions,
+including the assistant turns with their `tool_calls` and the `tool` messages that answered
+them) can be imported as traces:
+
+```bash
+shadow import openai examples/openai-chat/refund-conversation.json
+# or: POST /api/v1/import/openai with the same JSON
+```
+
+The file is either a `messages` array or an object with `messages` plus the optional `tools`,
+`model`, `project` (default `openai`), `agent` (default `gpt-agent`), `name`, `tags`,
+`metadata`, `startedAt` and `responses` (per assistant turn, in order: `finish_reason`,
+`usage`, `model`, `id`). Each assistant message becomes a model span whose request carries the
+messages added since the previous call (the whole history is the trace's state at `/messages`),
+`tool_calls` open tool spans that the matching `tool` messages close (a `tool` message whose
+content is `{"error": "..."}` closes its span as `tool.error`, which is what `runOpenAIToolLoop`
+sends), `system` and `developer` messages are recorded as the `system` context, and the
+outcome follows the last finish reason (`length` is truncated, `content_filter` a refusal, a
+pending tool call or a trailing user message incomplete). The response reports the turns, tool
+calls, unmatched calls and orphan results. Imported traces can be forked and compared like any
+other; replay needs a registered program.
+
 ## Costs
 
 Shadow's built-in price table covers Anthropic models. OpenAI calls record token usage, and

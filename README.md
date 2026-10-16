@@ -197,6 +197,7 @@ shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow agents --from 7d
 shadow otlp import ./collector-export.json
 shadow import anthropic examples/anthropic-messages/refund-conversation.json
+shadow import openai examples/openai-chat/refund-conversation.json
 shadow otlp export trc_demo_refund_violation --collector http://localhost:4318/v1/traces
 shadow traces inspect trc_demo_refund_violation
 shadow traces inspect trc_demo_refund_violation --grep refund_order

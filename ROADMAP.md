@@ -55,7 +55,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **OpenAI Agents SDK adapter**: record runs, handoffs, tool calls and guardrails
   ([proposal](./docs/integrations/openai-agents-sdk.md)); the direct API is covered by
   `traceOpenAI` ([details](./docs/integrations/openai.md)), which records Chat Completions and
-  Responses calls, streamed or not.
+  Responses calls, streamed or not, plus `runOpenAIToolLoop` and an importer for stored Chat
+  Completions conversations.
 - **LangGraph adapter**: map graph nodes, edges and checkpoints to spans, events and state
   snapshots ([proposal](./docs/integrations/langgraph.md)).
 - **MCP tracing**: record Model Context Protocol tool and resource calls between hosts and servers

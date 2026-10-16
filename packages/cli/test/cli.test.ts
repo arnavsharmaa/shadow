@@ -1104,6 +1104,54 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["import", "anthropic", path.join(dir, "missing.json")])).toBe(2);
   });
 
+  it("imports an OpenAI Chat Completions conversation from a file", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-openai-"));
+    const file = path.join(dir, "chat.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        tags: ["refund"],
+        messages: [
+          { role: "user", content: "hi" },
+          { role: "assistant", content: "hello" },
+        ],
+      }),
+    );
+    const api = fakeApi({
+      "POST /api/v1/import/openai": (body) => ({
+        status: 201,
+        body: {
+          traceId: "trc_openai_1",
+          name: "hi",
+          events: 9,
+          summary: {
+            turns: 1,
+            toolCalls: 0,
+            unmatchedToolCalls: 1,
+            orphanToolResults: 0,
+            finishReason: (body as { model?: string }).model ? "stop" : null,
+          },
+        },
+      }),
+    });
+    expect(
+      await runWith(api, ["import", "openai", file, "--model", "gpt-5", "--tag", "support"]),
+    ).toBe(0);
+    expect(api.captured.calls[0]?.body).toMatchObject({
+      model: "gpt-5",
+      tags: ["refund", "support"],
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+      ],
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain(
+      "imported trc_openai_1: 1 turn(s), 0 tool call(s), 9 event(s), stop reason stop",
+    );
+    expect(text).toContain("1 tool call(s) have no result in the file");
+  });
+
   it("manages collections and lists traces through one", async () => {
     const collection = (traceCount: number) => ({
       id: "col_1",

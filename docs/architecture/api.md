@@ -842,6 +842,19 @@ exists, `400` for malformed bodies. The mapping to model spans, tool spans, note
 state is described in [the Anthropic integration](../integrations/anthropic.md). CLI: `shadow
 import anthropic <file> [--agent …] [--model …] [--tag …]`.
 
+### `POST /api/v1/import/openai`
+
+Imports a stored OpenAI Chat Completions conversation as a new trace (`source: "openai"`, tag
+`openai`). Body `{ messages, tools?, model?, responses?, project?, agent?, name?, traceId?,
+tags?, metadata?, startedAt? }`: `messages` is the array as sent to the API (1 to 2000 entries of
+`{ role: "system" | "developer" | "user" | "assistant" | "tool", content?, tool_calls?,
+tool_call_id? }` kept verbatim), and `responses` optionally supplies `finish_reason`, `usage`,
+`model` and `id` per assistant message. Returns `201 { traceId, name, events, summary: { turns,
+toolCalls, unmatchedToolCalls, orphanToolResults, finishReason } }`; `409` when `traceId`
+exists, `400` for malformed bodies. The mapping is described in
+[the OpenAI integration](../integrations/openai.md). CLI: `shadow import openai <file>
+[--agent …] [--model …] [--tag …]`.
+
 ## OpenTelemetry ingestion
 
 ### `POST /api/v1/otlp/v1/traces`

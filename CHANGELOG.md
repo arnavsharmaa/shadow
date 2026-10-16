@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OpenAI conversation import: `POST /api/v1/import/openai` and `shadow import openai <file>`
+  store a Chat Completions `messages` history (with `tool_calls` and `tool` messages, optional
+  `tools`, `model` and per-turn `responses`) as a trace with model and tool spans, the
+  conversation as state and an outcome from the last finish reason; example in
+  `examples/openai-chat`.
 - `runOpenAIToolLoop` runs the Chat Completions function-calling loop on a client wrapped with
   `traceOpenAI`: every tool the model asks for runs through `trace.tool` (a tool span with an
   optional policy guard), answers go back as `tool` messages, and failures, unknown tools and

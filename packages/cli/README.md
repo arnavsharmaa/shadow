@@ -10,6 +10,7 @@ shadow traces list [--project <slug>] [--agent <slug>] [--status <s>] [--tag <t>
 shadow traces inspect <traceId> [--branch <branchId>] [--json]
 shadow traces export <traceId> [--out <file>] [--markdown [--max-events <n>]]
 shadow traces import <file|dir|share-url> [--regenerate-ids] [--json]
+shadow import anthropic|openai <file> [--project <slug>] [--agent <slug>] [--model <id>] [--tag <tag>]
 shadow fork <traceId> --at <eventId> [--set key=value ...] [--unset key ...] [--state /path=value ...]
                       [--tool-result tool=json ...] [--tool-error tool=message ...] [--policy id=json ...]
                       [--name <name>] [--replay] [--json]

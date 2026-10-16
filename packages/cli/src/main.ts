@@ -1371,83 +1371,92 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .command("import")
     .description("import conversation logs recorded outside Shadow");
 
-  importers
-    .command("anthropic")
-    .description("import a stored Anthropic Messages API conversation as a trace")
-    .argument(
-      "<file>",
-      "JSON file: a messages array, or an object with messages plus system, tools, model, responses",
-    )
-    .option("--project <slug>", "project (default: the file's, or anthropic)")
-    .option("--agent <slug>", "agent (default: the file's, or claude-agent)")
-    .option("--name <name>", "trace name (default: the first user message)")
-    .option("--model <id>", "model id, when the file does not say")
-    .option("--tag <tag>", "tag to add (repeatable)", (value: string, previous: string[] = []) => [
-      ...previous,
-      value,
-    ])
-    .option("--json", "print JSON")
-    .action(
-      async (
-        file: string,
-        opts: {
-          project?: string;
-          agent?: string;
-          name?: string;
-          model?: string;
-          tag?: string[];
-          json?: boolean;
-        },
-      ) => {
-        let raw: unknown;
-        try {
-          raw = JSON.parse(await readFile(file, "utf8"));
-        } catch (error) {
-          throw new CliError(
-            `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
-            EXIT.usage,
+  const conversationImporter = (
+    source: "anthropic" | "openai",
+    description: string,
+    defaults: { project: string; agent: string },
+  ) =>
+    importers
+      .command(source)
+      .description(description)
+      .argument(
+        "<file>",
+        "JSON file: a messages array, or an object with messages plus system, tools, model, responses",
+      )
+      .option("--project <slug>", `project (default: the file's, or ${defaults.project})`)
+      .option("--agent <slug>", `agent (default: the file's, or ${defaults.agent})`)
+      .option("--name <name>", "trace name (default: the first user message)")
+      .option("--model <id>", "model id, when the file does not say")
+      .option(
+        "--tag <tag>",
+        "tag to add (repeatable)",
+        (value: string, previous: string[] = []) => [...previous, value],
+      )
+      .option("--json", "print JSON")
+      .action(
+        async (
+          file: string,
+          opts: {
+            project?: string;
+            agent?: string;
+            name?: string;
+            model?: string;
+            tag?: string[];
+            json?: boolean;
+          },
+        ) => {
+          let raw: unknown;
+          try {
+            raw = JSON.parse(await readFile(file, "utf8"));
+          } catch (error) {
+            throw new CliError(
+              `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
+              EXIT.usage,
+            );
+          }
+          const base: Record<string, unknown> = Array.isArray(raw)
+            ? { messages: raw }
+            : raw !== null && typeof raw === "object"
+              ? { ...(raw as Record<string, unknown>) }
+              : {};
+          if (!Array.isArray(base.messages)) {
+            throw new CliError(`${file} has no messages array`, EXIT.usage);
+          }
+          const fileTags = Array.isArray(base.tags) ? (base.tags as unknown[]) : [];
+          const endpoint = `/api/v1/import/${source}`;
+          const result = await client().post<{
+            traceId: string;
+            name: string;
+            events: number;
+            summary: {
+              turns: number;
+              toolCalls: number;
+              serverToolCalls?: number;
+              unmatchedToolUses?: number;
+              unmatchedToolCalls?: number;
+              orphanToolResults?: number;
+              stopReason?: string | null;
+              finishReason?: string | null;
+            };
+          }>(endpoint, {
+            ...base,
+            ...(opts.project ? { project: opts.project } : {}),
+            ...(opts.agent ? { agent: opts.agent } : {}),
+            ...(opts.name ? { name: opts.name } : {}),
+            ...(opts.model ? { model: opts.model } : {}),
+            ...(opts.tag ? { tags: [...fileTags, ...opts.tag] } : {}),
+          });
+          if (opts.json) return json(result);
+          const s = result.summary;
+          out(
+            `imported ${result.traceId}: ${s.turns} turn(s), ${s.toolCalls + (s.serverToolCalls ?? 0)} tool call(s), ${result.events} event(s), stop reason ${s.stopReason ?? s.finishReason ?? "none"}`,
           );
-        }
-        const base: Record<string, unknown> = Array.isArray(raw)
-          ? { messages: raw }
-          : raw !== null && typeof raw === "object"
-            ? { ...(raw as Record<string, unknown>) }
-            : {};
-        if (!Array.isArray(base.messages)) {
-          throw new CliError(`${file} has no messages array`, EXIT.usage);
-        }
-        const fileTags = Array.isArray(base.tags) ? (base.tags as unknown[]) : [];
-        const result = await client().post<{
-          traceId: string;
-          name: string;
-          events: number;
-          summary: {
-            turns: number;
-            toolCalls: number;
-            serverToolCalls: number;
-            unmatchedToolUses: number;
-            orphanToolResults: number;
-            stopReason: string | null;
-          };
-        }>("/api/v1/import/anthropic", {
-          ...base,
-          ...(opts.project ? { project: opts.project } : {}),
-          ...(opts.agent ? { agent: opts.agent } : {}),
-          ...(opts.name ? { name: opts.name } : {}),
-          ...(opts.model ? { model: opts.model } : {}),
-          ...(opts.tag ? { tags: [...fileTags, ...opts.tag] } : {}),
-        });
-        if (opts.json) return json(result);
-        const s = result.summary;
-        out(
-          `imported ${result.traceId}: ${s.turns} turn(s), ${s.toolCalls + s.serverToolCalls} tool call(s), ${result.events} event(s), stop reason ${s.stopReason ?? "none"}`,
-        );
-        if (s.unmatchedToolUses > 0)
-          out(`${s.unmatchedToolUses} tool call(s) have no result in the file`);
-        if (s.orphanToolResults > 0)
-          out(`${s.orphanToolResults} tool result(s) match no tool call`);
-      },
-    );
+          const unmatched = s.unmatchedToolUses ?? s.unmatchedToolCalls ?? 0;
+          if (unmatched > 0) out(`${unmatched} tool call(s) have no result in the file`);
+          if ((s.orphanToolResults ?? 0) > 0)
+            out(`${s.orphanToolResults} tool result(s) match no tool call`);
+        },
+      );
 
   const otlp = program.command("otlp").description("OpenTelemetry (OTLP) tools");
 
@@ -1648,6 +1657,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       diffs("state diff", state.stateDiff);
       diffs("context diff", state.contextDiff);
     });
+
+  conversationImporter(
+    "anthropic",
+    "import a stored Anthropic Messages API conversation as a trace",
+    { project: "anthropic", agent: "claude-agent" },
+  );
+  conversationImporter(
+    "openai",
+    "import a stored OpenAI Chat Completions conversation as a trace",
+    { project: "openai", agent: "gpt-agent" },
+  );
 
   program
     .command("audit")
