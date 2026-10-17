@@ -431,6 +431,9 @@ export const api = {
       "GET",
       `/api/v1/audit${query(filter)}`,
     ),
+  /** A link that downloads the filtered audit log as CSV (the browser follows it directly). */
+  auditCsvUrl: (filter: { action?: string; actor?: string }) =>
+    `${apiBaseUrl()}/api/v1/audit${query({ ...filter, format: "csv" })}`,
   audit: (traceId: string) =>
     request<{ items: AuditEntry[]; nextCursor: string | null }>(
       "GET",

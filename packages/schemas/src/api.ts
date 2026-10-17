@@ -522,6 +522,8 @@ export const auditListQuerySchema = cursorPageQuerySchema.extend({
   action: z.string().max(64).optional(),
   actor: z.string().max(128).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
+  /** `csv` streams every matching entry (newest first, up to 10,000) as a CSV document. */
+  format: z.enum(["json", "csv"]).default("json"),
 });
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
 

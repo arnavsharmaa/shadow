@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Audit log export: `GET /api/v1/audit?format=csv` returns every matching entry as CSV
+  (newest first, up to 10,000, `details` as JSON), `shadow audit --csv [--out <file>]` saves
+  it and the Audit page has a Download CSV link that keeps the current filters.
 - Bulk actions in the explorer: any number of traces can be ticked; the selection bar adds a
   tag to all of them or deletes them after a confirmation (each trace its own request, with
   failures counted), next to the existing compare (exactly two) and add-to-collection actions.

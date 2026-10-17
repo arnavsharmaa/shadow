@@ -801,6 +801,12 @@ The `actor` is whatever the client sends in the `x-shadow-actor` header: the CLI
 treat the log as an operational record, not as proof of identity. CLI: `shadow audit [--trace
 <traceId>] [--action <action>] [--by <actor>]`; the web app lists it at `/audit`.
 
+`format=csv` returns every matching entry as one `text/csv` document instead (newest first,
+columns `at, actor, action, targetType, targetId, traceId, requestId, details` with `details`
+as JSON), following the cursors server-side up to 10,000 entries; `x-shadow-truncated: true`
+says the cap was hit. CLI: `shadow audit --csv [--out <file>]`; the Audit page has a Download
+CSV link that keeps the current filters.
+
 ## Shared saved views
 
 Named trace-explorer filter sets stored by the API, so everyone using the same deployment sees

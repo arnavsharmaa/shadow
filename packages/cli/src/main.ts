@@ -1791,6 +1791,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--by <actor>", "only entries by this actor")
     .option("--limit <n>", "maximum rows", positiveInt, 50)
     .option("--json", "print JSON instead of a table")
+    .option("--csv", "export every matching entry as CSV (newest first, up to 10,000)")
+    .option("-o, --out <file>", "write the CSV to a file instead of stdout")
     .action(
       async (opts: {
         trace?: string;
@@ -1798,7 +1800,25 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         by?: string;
         limit: number;
         json?: boolean;
+        csv?: boolean;
+        out?: string;
       }) => {
+        if (opts.csv || opts.out) {
+          const { bytes } = await client().download(
+            "/api/v1/audit",
+            { traceId: opts.trace, action: opts.action, actor: opts.by, format: "csv" },
+            "text/csv",
+          );
+          const text = new TextDecoder().decode(bytes);
+          if (opts.out) {
+            await writeFile(opts.out, text, "utf8");
+            const rows = text.split("\r\n").filter((l) => l.length > 0).length - 1;
+            out(`wrote ${rows} audit entr${rows === 1 ? "y" : "ies"} to ${opts.out}`);
+          } else {
+            out(text.replace(/\r\n$/, ""));
+          }
+          return;
+        }
         const page = await client().get<{ items: AuditEntry[]; nextCursor: string | null }>(
           "/api/v1/audit",
           { traceId: opts.trace, action: opts.action, actor: opts.by, limit: opts.limit },

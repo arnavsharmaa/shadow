@@ -76,6 +76,14 @@ export function AuditLog() {
             Filter
           </Button>
         </form>
+        <a
+          href={api.auditCsvUrl({ action, actor })}
+          className="ml-auto inline-flex h-6 items-center rounded border border-border px-2 text-[11px] text-fg-muted hover:bg-hover"
+          download
+          data-testid="audit-csv"
+        >
+          Download CSV
+        </a>
         <span className="ml-auto text-[11px] text-fg-faint">
           Actors are self-reported unless a request used an API key.
         </span>

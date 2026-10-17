@@ -11,7 +11,12 @@ interface Captured {
   calls: { method: string; url: string; body?: unknown; headers?: Record<string, string> }[];
 }
 
-function fakeApi(routes: Record<string, (body: unknown) => { status?: number; body: unknown }>): {
+function fakeApi(
+  routes: Record<
+    string,
+    (body: unknown) => { status?: number; body: unknown; raw?: boolean; contentType?: string }
+  >,
+): {
   fetch: typeof fetch;
   captured: Captured;
 } {
@@ -39,9 +44,10 @@ function fakeApi(routes: Record<string, (body: unknown) => { status?: number; bo
       );
     const result = handler(body);
     if (result.status === 204) return new Response(null, { status: 204 });
-    return new Response(JSON.stringify(result.body), {
+    // `raw` answers with the body text as is (CSV, Markdown); otherwise JSON.
+    return new Response(result.raw ? String(result.body) : JSON.stringify(result.body), {
       status: result.status ?? 200,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": result.contentType ?? "application/json" },
     });
   }) as unknown as typeof fetch;
   return { fetch: fetchImpl, captured };
@@ -1548,6 +1554,23 @@ describe("shadow cli", () => {
     });
     expect(await runWith(empty, ["audit"])).toBe(0);
     expect(empty.captured.out.join("\n")).toContain("no audit entries");
+  });
+
+  it("exports the audit log as CSV to stdout or a file", async () => {
+    const csv =
+      'at,actor,action,targetType,targetId,traceId,requestId,details\r\n2026-10-04T09:00:00.000Z,arnav,fork.created,branch,br_1,trc_1,,"{""name"":""x""}"\r\n';
+    const api = fakeApi({
+      "GET /api/v1/audit": () => ({ body: csv, raw: true, contentType: "text/csv" }),
+    });
+    expect(await runWith(api, ["audit", "--csv", "--action", "fork.created"])).toBe(0);
+    expect(api.captured.calls[0]?.url).toContain("format=csv");
+    expect(api.captured.calls[0]?.url).toContain("action=fork.created");
+    expect(api.captured.out.join("\n")).toContain("at,actor,action,targetType");
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-audit-"));
+    const file = path.join(dir, "audit.csv");
+    expect(await runWith(api, ["audit", "--out", file])).toBe(0);
+    expect(api.captured.out.at(-1)).toBe(`wrote 1 audit entry to ${file}`);
+    expect(await readFile(file, "utf8")).toBe(csv);
   });
 
   it("runs batches in the background and follows jobs", async () => {

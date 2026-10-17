@@ -187,6 +187,28 @@ describe("audit log", () => {
 });
 
 describe("actorFrom", () => {
+  it("exports the log as CSV with the same filters", async () => {
+    const response = await t.app.inject({ url: "/api/v1/audit?format=csv&action=fork.created" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toContain("shadow-audit.csv");
+    expect(response.headers["x-shadow-truncated"]).toBe("false");
+    const lines = response.body.split("\r\n").filter((l) => l.length > 0);
+    expect(lines[0]).toBe("at,actor,action,targetType,targetId,traceId,requestId,details");
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines.slice(1)) {
+      expect(line).toContain(",fork.created,branch,");
+      // details is JSON with commas and quotes, so it arrives quoted with doubled quotes.
+      expect(line).toMatch(/,"\{""/);
+    }
+    const all = await t.app.inject({ url: "/api/v1/audit?format=csv&limit=2" });
+    const total = json<{ items: unknown[] }>(
+      await t.app.inject({ url: "/api/v1/audit?limit=500" }),
+    );
+    // The CSV follows the cursors itself: `limit` only sizes the pages it reads.
+    expect(all.body.split("\r\n").filter((l) => l.length > 0).length - 1).toBe(total.items.length);
+  });
+
   it("accepts plain names and rejects anything else", () => {
     expect(actorFrom("arnav")).toBe("arnav");
     expect(actorFrom(" ci-bot:deploy ")).toBe("ci-bot:deploy");
