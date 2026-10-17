@@ -57,6 +57,8 @@ describe("health and error envelope", () => {
         SHADOW_API_TOKEN: "secret",
         SHADOW_RETENTION_DAYS: "30",
         SHADOW_RETENTION_INTERVAL_MINUTES: "15",
+        SHADOW_RETENTION_PROJECT_DAYS: "ci=7",
+
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
         SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
         SHADOW_WEBHOOK_EVENTS: "all",
@@ -73,7 +75,13 @@ describe("health and error envelope", () => {
       );
       expect(enabled.features).toEqual({
         auth: true,
-        retention: { enabled: true, days: 30, intervalMinutes: 15, keepTag: "keep" },
+        retention: {
+          enabled: true,
+          days: 30,
+          intervalMinutes: 15,
+          keepTag: "keep",
+          projects: { ci: 7 },
+        },
         sampling: { enabled: true, rate: 0.25 },
         otlp: {
           path: "/api/v1/otlp/v1/traces",

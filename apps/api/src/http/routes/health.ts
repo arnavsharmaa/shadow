@@ -18,6 +18,8 @@ const healthSchema = z.object({
       days: z.number().optional(),
       intervalMinutes: z.number().optional(),
       keepTag: z.string().optional(),
+      /** Projects with their own retention window, in days. */
+      projects: z.record(z.string(), z.number()).optional(),
     }),
     sampling: z.object({ enabled: z.boolean(), rate: z.number() }),
     otlp: z.object({
@@ -42,6 +44,7 @@ export interface HealthRouteOptions {
     | "SHADOW_RETENTION_DAYS"
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
     | "SHADOW_RETENTION_KEEP_TAG"
+    | "SHADOW_RETENTION_PROJECT_DAYS"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
     | "SHADOW_INGEST_SAMPLE_RATE"
     | "SHADOW_OTLP_EXPORT_URL"
@@ -62,6 +65,7 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
     async (_request, reply) => {
       const healthy = await app.services.handle.ping();
       const retentionDays = config.SHADOW_RETENTION_DAYS;
+      const projectDays = Object.entries(config.SHADOW_RETENTION_PROJECT_DAYS ?? {});
       const body = {
         status: healthy ? ("ok" as const) : ("degraded" as const),
         version: API_VERSION,
@@ -80,15 +84,16 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
         features: {
           auth: config.SHADOW_API_TOKEN !== undefined,
           retention:
-            retentionDays === undefined
+            retentionDays === undefined && projectDays.length === 0
               ? { enabled: false }
               : {
                   enabled: true,
-                  days: retentionDays,
+                  ...(retentionDays !== undefined ? { days: retentionDays } : {}),
                   intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
                   ...(config.SHADOW_RETENTION_KEEP_TAG
                     ? { keepTag: config.SHADOW_RETENTION_KEEP_TAG }
                     : {}),
+                  ...(projectDays.length > 0 ? { projects: Object.fromEntries(projectDays) } : {}),
                 },
           sampling: {
             enabled: config.SHADOW_INGEST_SAMPLE_RATE < 1,

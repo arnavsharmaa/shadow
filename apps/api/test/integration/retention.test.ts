@@ -79,6 +79,7 @@ describe("retention", () => {
       deleted: 2,
       truncated: false,
       auditDeleted: 0,
+      projects: [],
     });
     // The kept trace survives although it is the oldest of all.
     expect(await listNames()).toEqual(["old-kept", "edge-30d", "fresh"]);
@@ -98,6 +99,91 @@ describe("retention", () => {
 
     // A second sweep finds nothing new.
     expect((await retention.runOnce())?.deleted).toBe(0);
+  });
+
+  it("applies per-project windows and leaves those projects out of the global pass", async () => {
+    const make = (project: string, name: string, startedAt: string) =>
+      t.app.inject({
+        method: "POST",
+        url: "/api/v1/traces",
+        payload: { project, agent: "a", name, startedAt },
+      });
+    // NOW is 2026-09-11T12:00Z: ages below are relative to that.
+    await make("ci", "ci-8d", "2026-09-03T12:00:00.000Z");
+    await make("ci", "ci-2d", "2026-09-09T12:00:00.000Z");
+    await make("support", "support-40d", "2026-08-02T12:00:00.000Z");
+    await make("support", "support-20d", "2026-08-22T12:00:00.000Z");
+    await make("other", "other-40d", "2026-08-02T12:00:00.000Z");
+    await make("other", "other-20d", "2026-08-22T12:00:00.000Z");
+    const mine = ["ci", "support", "other"];
+    const names = async () => {
+      const out: string[] = [];
+      for (const project of ["other", "support", "ci"]) {
+        const page = json<{ items: TraceSummary[] }>(
+          await t.app.inject({ url: `/api/v1/traces?limit=200&order=asc&project=${project}` }),
+        );
+        out.push(...page.items.map((i) => i.name));
+      }
+      return out;
+    };
+
+    // Project windows alone: the global pass is off, so "other" is untouched.
+    const projectOnly = createRetention({
+      services: t.services,
+      config: {
+        SHADOW_RETENTION_DAYS: undefined,
+        SHADOW_RETENTION_INTERVAL_MINUTES: 60,
+        SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
+        SHADOW_RETENTION_PROJECT_DAYS: { ci: 7, support: 30 },
+      },
+      logger: t.services.logger,
+    });
+    expect(projectOnly.enabled).toBe(true);
+    const first = await projectOnly.runOnce();
+    expect(first).toMatchObject({
+      cutoff: null,
+      deleted: 0,
+      projects: [
+        { project: "ci", days: 7, deleted: 1, truncated: false },
+        { project: "support", days: 30, deleted: 1, truncated: false },
+      ],
+    });
+    expect(await names()).toEqual(["other-40d", "other-20d", "support-20d", "ci-2d"]);
+
+    // With a global window too, listed projects keep their own and the rest follow the global.
+    const both = createRetention({
+      services: t.services,
+      config: {
+        SHADOW_RETENTION_DAYS: 30,
+        SHADOW_RETENTION_INTERVAL_MINUTES: 60,
+        SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
+        SHADOW_RETENTION_PROJECT_DAYS: { ci: 1 },
+      },
+      logger: t.services.logger,
+    });
+    const second = await both.runOnce();
+    expect(second).toMatchObject({
+      deleted: 1,
+      projects: [{ project: "ci", days: 1, deleted: 1 }],
+    });
+    expect(await names()).toEqual(["other-20d", "support-20d"]);
+    const log = await t.handle.db.select().from(auditLog);
+    const projectEntries = log.filter(
+      (e) => e.action === "traces.pruned" && (e.details as { project?: string }).project === "ci",
+    );
+    expect(projectEntries).toHaveLength(2);
+    expect(projectEntries[0]?.details).toMatchObject({ retentionDays: 7, project: "ci" });
+    // Leave the shared database as the later tests expect it.
+    for (const project of mine) {
+      const page = json<{ items: TraceSummary[] }>(
+        await t.app.inject({ url: `/api/v1/traces?limit=200&project=${project}` }),
+      );
+      for (const item of page.items) {
+        await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${item.id}` });
+      }
+    }
   });
 
   it("does not overlap concurrent sweeps", async () => {
@@ -153,6 +239,7 @@ describe("audit retention", () => {
       deleted: 0,
       truncated: false,
       auditDeleted: 1,
+      projects: [],
     });
     const remaining = json<{ items: { id: string }[] }>(
       await t.app.inject({ url: "/api/v1/audit?limit=500" }),

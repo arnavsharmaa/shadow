@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Per-project retention: `SHADOW_RETENTION_PROJECT_DAYS=support=90,ci=7` gives listed projects
+  their own windows, swept on the same schedule even without a global `SHADOW_RETENTION_DAYS`
+  and left alone by the global pass; each pass is audited with its project and `/health` lists
+  the windows.
 - Offline recording: the SDK's `SpoolTransport` writes traces, events, artifacts and updates as
   ordered newline-delimited JSON records (`SpoolTransport.toFile(path)` appends to a file,
   `parseSpool` reads one back), and `shadow spool send <file...>` replays the records against

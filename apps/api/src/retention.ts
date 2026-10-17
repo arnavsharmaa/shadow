@@ -18,6 +18,14 @@ export interface RetentionSweep {
   truncated: boolean;
   /** Audit entries deleted under SHADOW_AUDIT_RETENTION_DAYS. */
   auditDeleted: number;
+  /** Per-project passes under SHADOW_RETENTION_PROJECT_DAYS, in configuration order. */
+  projects: {
+    project: string;
+    days: number;
+    cutoff: string;
+    deleted: number;
+    truncated: boolean;
+  }[];
 }
 
 export interface Retention {
@@ -42,13 +50,15 @@ export function createRetention(input: {
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_AUDIT_RETENTION_DAYS"
-  >;
+  > &
+    Partial<Pick<ApiConfig, "SHADOW_RETENTION_PROJECT_DAYS">>;
   logger: Logger;
 }): Retention {
   const { services, config, logger } = input;
   const days = config.SHADOW_RETENTION_DAYS;
   const auditDays = config.SHADOW_AUDIT_RETENTION_DAYS;
-  const enabled = days !== undefined || auditDays !== undefined;
+  const perProject = Object.entries(config.SHADOW_RETENTION_PROJECT_DAYS ?? {});
+  const enabled = days !== undefined || auditDays !== undefined || perProject.length > 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let running: Promise<RetentionSweep | null> | null = null;
 
@@ -60,48 +70,66 @@ export function createRetention(input: {
       auditDeleted = await pruneAudit(services, before);
       if (auditDeleted > 0) logger.info({ before, auditDeleted }, "audit log pruned");
     }
-    if (days === undefined) return { cutoff: null, deleted: 0, truncated: false, auditDeleted };
-    const cutoff = new Date(services.clock.now() - days * DAY_MS).toISOString();
-    let deleted = 0;
-    let truncated = false;
-    for (let i = 0; i < MAX_BATCHES; i++) {
-      const result = await pruneTraces(services, {
-        before: cutoff,
-        dryRun: false,
-        limit: BATCH,
-        excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
-      });
-      deleted += result.matched;
-      if (result.traceIds.length > 0) {
-        await recordAudit(services, {
-          actor: "system:retention",
-          action: "traces.pruned",
-          targetType: "trace",
-          targetId: result.traceIds.length === 1 ? (result.traceIds[0] ?? "-") : "*",
-          details: {
+    /** One bounded, audited prune pass over traces older than `retentionDays`. */
+    const pass = async (retentionDays: number, project?: string) => {
+      const cutoff = new Date(services.clock.now() - retentionDays * DAY_MS).toISOString();
+      let deleted = 0;
+      let truncated = false;
+      for (let i = 0; i < MAX_BATCHES; i++) {
+        const result = await pruneTraces(
+          services,
+          {
             before: cutoff,
-            deleted: result.traceIds.length,
-            traceIds: result.traceIds.slice(0, 100),
-            retentionDays: days,
+            dryRun: false,
+            limit: BATCH,
+            excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
+            ...(project ? { project } : {}),
           },
-        });
+          // The global pass leaves projects with their own retention alone.
+          project ? {} : { excludeProjects: perProject.map(([slug]) => slug) },
+        );
+        deleted += result.matched;
+        if (result.traceIds.length > 0) {
+          await recordAudit(services, {
+            actor: "system:retention",
+            action: "traces.pruned",
+            targetType: "trace",
+            targetId: result.traceIds.length === 1 ? (result.traceIds[0] ?? "-") : "*",
+            details: {
+              before: cutoff,
+              deleted: result.traceIds.length,
+              traceIds: result.traceIds.slice(0, 100),
+              retentionDays,
+              ...(project ? { project } : {}),
+            },
+          });
+        }
+        truncated = result.truncated;
+        if (!truncated) break;
       }
-      truncated = result.truncated;
-      if (!truncated) break;
+      if (deleted > 0 || truncated) {
+        logger.info(
+          {
+            cutoff,
+            deleted,
+            truncated,
+            retentionDays,
+            ...(project ? { project } : {}),
+            keepTag: config.SHADOW_RETENTION_KEEP_TAG,
+          },
+          "retention sweep",
+        );
+      }
+      return { cutoff, deleted, truncated };
+    };
+    const projects: RetentionSweep["projects"] = [];
+    for (const [project, projectDays] of perProject) {
+      projects.push({ project, days: projectDays, ...(await pass(projectDays, project)) });
     }
-    if (deleted > 0 || truncated) {
-      logger.info(
-        {
-          cutoff,
-          deleted,
-          truncated,
-          retentionDays: days,
-          keepTag: config.SHADOW_RETENTION_KEEP_TAG,
-        },
-        "retention sweep",
-      );
+    if (days === undefined) {
+      return { cutoff: null, deleted: 0, truncated: false, auditDeleted, projects };
     }
-    return { cutoff, deleted, truncated, auditDeleted };
+    return { ...(await pass(days)), auditDeleted, projects };
   };
 
   const runOnce = (): Promise<RetentionSweep | null> => {
@@ -129,6 +157,7 @@ export function createRetention(input: {
         {
           retentionDays: days ?? null,
           auditRetentionDays: auditDays ?? null,
+          ...(perProject.length > 0 ? { projectDays: Object.fromEntries(perProject) } : {}),
           intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
           keepTag: config.SHADOW_RETENTION_KEEP_TAG,
         },

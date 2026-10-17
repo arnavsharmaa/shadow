@@ -105,6 +105,33 @@ const configSchema = z.object({
       }
       return n;
     }),
+  /**
+   * Per-project retention, `slug=days` pairs separated by commas (`support=90,ci=7`). A listed
+   * project keeps its traces for its own number of days instead of SHADOW_RETENTION_DAYS, and
+   * is swept even when the global retention is off.
+   */
+  SHADOW_RETENTION_PROJECT_DAYS: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      const out: Record<string, number> = {};
+      for (const item of (v ?? "").split(",")) {
+        const pair = item.trim();
+        if (!pair) continue;
+        const index = pair.indexOf("=");
+        const slug = index > 0 ? pair.slice(0, index).trim() : "";
+        const n = Number(pair.slice(index + 1).trim());
+        if (!slug || index <= 0 || !Number.isFinite(n) || n <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: `'${pair}' is not <project>=<positive days>`,
+          });
+          return z.NEVER;
+        }
+        out[slug] = n;
+      }
+      return out;
+    }),
   /** Traces tagged with this are exempt from retention (empty disables the exemption). */
   SHADOW_RETENTION_KEEP_TAG: z
     .string()

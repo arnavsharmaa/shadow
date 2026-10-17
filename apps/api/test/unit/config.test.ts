@@ -78,6 +78,19 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ SHADOW_RETENTION_INTERVAL_MINUTES: "0" })).toThrow();
   });
 
+  it("parses per-project retention and rejects malformed pairs", () => {
+    expect(loadConfig({}).SHADOW_RETENTION_PROJECT_DAYS).toEqual({});
+    expect(
+      loadConfig({ SHADOW_RETENTION_PROJECT_DAYS: " support=90, ci=7 ,, lab = 0.5 " })
+        .SHADOW_RETENTION_PROJECT_DAYS,
+    ).toEqual({ support: 90, ci: 7, lab: 0.5 });
+    for (const bad of ["support", "support=", "=7", "support=0", "support=-1", "ci=soon"]) {
+      expect(() => loadConfig({ SHADOW_RETENTION_PROJECT_DAYS: bad })).toThrow(
+        /<project>=<positive days>/,
+      );
+    }
+  });
+
   it("rejects an invalid port", () => {
     expect(() => loadConfig({ SHADOW_API_PORT: "99999" })).toThrow(/Invalid configuration/);
     expect(() => loadConfig({ SHADOW_API_PORT: "-1" })).toThrow(/Invalid configuration/);

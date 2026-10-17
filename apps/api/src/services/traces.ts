@@ -7,7 +7,7 @@ import {
   type TraceSummary,
   type UpdateTraceBody,
 } from "@shadow/schemas";
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, notInArray, sql, type SQL } from "drizzle-orm";
 import { agents, branches, collectionTraces, collections, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -255,9 +255,13 @@ export interface PruneResult {
 export async function pruneTraces(
   ctx: ServiceContext,
   body: PruneTracesBody,
+  options: { excludeProjects?: readonly string[] } = {},
 ): Promise<PruneResult> {
   const filters: SQL[] = [lt(traces.startedAt, body.before)];
   if (body.project) filters.push(eq(projects.slug, body.project));
+  if (options.excludeProjects && options.excludeProjects.length > 0) {
+    filters.push(notInArray(projects.slug, [...options.excludeProjects]));
+  }
   if (body.agent) filters.push(eq(agents.slug, body.agent));
   if (body.status) filters.push(eq(traces.status, body.status));
   if (body.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([body.tag])}::jsonb`);
