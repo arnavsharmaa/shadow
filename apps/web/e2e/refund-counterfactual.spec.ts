@@ -376,7 +376,8 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await rows.nth(0).getByTestId("trace-select").check();
     await expect(page.getByTestId("compare-selected")).toBeDisabled();
     await rows.nth(1).getByTestId("trace-select").check();
-    await expect(rows.nth(2).getByTestId("trace-select")).toBeDisabled();
+    await expect(page.getByTestId("picked-count")).toContainText("2 selected");
+    await expect(page.getByTestId("compare-selected")).toBeEnabled();
     const baseId = await rows.nth(0).getAttribute("data-trace-id");
     const targetId = await rows.nth(1).getAttribute("data-trace-id");
     await page.getByTestId("compare-selected").click();
@@ -782,6 +783,38 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(dialog.getByTestId("cancel-batch-job")).toHaveCount(0);
     await expect(dialog.getByTestId("batch-summary")).toContainText("changed");
     expect(await dialog.locator('[data-testid="batch-row"]').count()).toBeGreaterThanOrEqual(2);
+  });
+
+  test("ticked traces can be tagged and deleted together", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const stamp = Date.now();
+    const ids: string[] = [];
+    for (const n of [1, 2, 3]) {
+      const created = await request.post(`${apiUrl}/api/v1/traces`, {
+        data: { project: "e2e-bulk", agent: "bulk-bot", name: `bulk ${stamp} ${n}` },
+      });
+      ids.push(((await created.json()) as { id: string }).id);
+    }
+    try {
+      await page.goto("/?project=e2e-bulk");
+      const rows = page.locator('[data-testid="trace-row"]');
+      await expect(rows).toHaveCount(3);
+      for (const i of [0, 1, 2]) await rows.nth(i).getByTestId("trace-select").check();
+      await expect(page.getByTestId("picked-count")).toContainText("3 selected");
+      await expect(page.getByTestId("compare-selected")).toBeDisabled();
+      await page.getByTestId("bulk-tag").fill(`reviewed-${stamp}`);
+      await page.getByTestId("bulk-add-tag").click();
+      await expect(page.getByTestId("bulk-message")).toHaveText("Tagged 3 traces");
+      for (const i of [0, 1, 2]) await expect(rows.nth(i)).toContainText(`reviewed-${stamp}`);
+      await page.getByTestId("bulk-delete").click();
+      await page.getByTestId("bulk-delete-confirm").click();
+      await expect(page.getByTestId("bulk-message")).toHaveText("Deleted 3 traces");
+      await expect(rows).toHaveCount(0);
+      await expect(page.getByTestId("compare-bar")).toHaveCount(0);
+      await expect(page.getByTestId("bulk-notice")).toBeVisible();
+    } finally {
+      for (const id of ids) await request.delete(`${apiUrl}/api/v1/traces/${id}`);
+    }
   });
 
   test("ticked traces can be grouped into a collection and filtered by it", async ({

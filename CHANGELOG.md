@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Bulk actions in the explorer: any number of traces can be ticked; the selection bar adds a
+  tag to all of them or deletes them after a confirmation (each trace its own request, with
+  failures counted), next to the existing compare (exactly two) and add-to-collection actions.
 - Per-project retention: `SHADOW_RETENTION_PROJECT_DAYS=support=90,ci=7` gives listed projects
   their own windows, swept on the same schedule even without a global `SHADOW_RETENTION_DAYS`
   and left alone by the global pass; each pass is audited with its project and `/health` lists

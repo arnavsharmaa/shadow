@@ -16,6 +16,7 @@ import {
   outcomeTone,
   statusTone,
 } from "../ui/primitives";
+import { BulkActions } from "./BulkActions";
 import { CollectionAdder } from "./CollectionAdder";
 import { SavedViews } from "./SavedViews";
 
@@ -46,16 +47,18 @@ export function TraceExplorer() {
   const params = useSearchParams();
   const filters = useMemo(() => readFilters(params), [params]);
   const [search, setSearch] = useState(filters.q ?? "");
-  /** Traces ticked for a cross-trace comparison (at most two). */
+  /** Ticked traces: two compare, any number can be tagged, collected or deleted. */
   const [picked, setPicked] = useState<TraceSummary[]>([]);
-  const togglePick = (trace: TraceSummary) =>
+  /** What the last bulk action did, shown until the next selection or dismissed. */
+  const [notice, setNotice] = useState<string | null>(null);
+  const togglePick = (trace: TraceSummary) => {
+    setNotice(null);
     setPicked((current) =>
       current.some((t) => t.id === trace.id)
         ? current.filter((t) => t.id !== trace.id)
-        : current.length >= 2
-          ? current
-          : [...current, trace],
+        : [...current, trace],
     );
+  };
 
   const setFilter = useCallback(
     (patch: Partial<Record<string, string | undefined>>) => {
@@ -286,7 +289,6 @@ export function TraceExplorer() {
                   key={t.id}
                   trace={t}
                   picked={picked.some((p) => p.id === t.id)}
-                  pickable={picked.length < 2 || picked.some((p) => p.id === t.id)}
                   onTogglePick={() => togglePick(t)}
                 />
               ))}
@@ -294,19 +296,37 @@ export function TraceExplorer() {
           </table>
         )}
       </div>
+      {picked.length === 0 && notice && (
+        <div
+          className="flex items-center gap-3 border-t border-border bg-panel px-3 py-1.5 text-[11px]"
+          data-testid="bulk-notice"
+        >
+          <span className="text-fg-muted" role="status" data-testid="bulk-message">
+            {notice}
+          </span>
+          <Button size="xs" variant="ghost" onClick={() => setNotice(null)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
       {picked.length > 0 && (
         <div
           className="flex items-center gap-3 border-t border-border bg-panel px-3 py-1.5 text-[11px]"
           data-testid="compare-bar"
         >
-          <span className="text-fg-muted">
-            {picked.length} of 2 selected:{" "}
-            <span className="mono">{picked.map((p) => p.id).join(" vs ")}</span>
+          <span className="text-fg-muted" data-testid="picked-count">
+            {picked.length} selected
+            {picked.length === 2 && (
+              <>
+                : <span className="mono">{picked.map((p) => p.id).join(" vs ")}</span>
+              </>
+            )}
           </span>
           <Button
             size="xs"
             variant="primary"
             disabled={picked.length !== 2}
+            title={picked.length === 2 ? undefined : "Select exactly two traces to compare"}
             data-testid="compare-selected"
             onClick={() => {
               const [base, target] = picked;
@@ -321,6 +341,13 @@ export function TraceExplorer() {
           <CollectionAdder
             traceIds={picked.map((p) => p.id)}
             collections={collections.data?.items ?? []}
+          />
+          <BulkActions
+            traces={picked}
+            onDone={(removed, text) => {
+              setPicked((current) => current.filter((t) => !removed.includes(t.id)));
+              if (removed.length > 0) setNotice(text);
+            }}
           />
           <Button size="xs" variant="ghost" onClick={() => setPicked([])}>
             Clear
@@ -352,12 +379,10 @@ export function TraceExplorer() {
 function TraceRow({
   trace,
   picked,
-  pickable,
   onTogglePick,
 }: {
   trace: TraceSummary;
   picked: boolean;
-  pickable: boolean;
   onTogglePick: () => void;
 }) {
   return (
@@ -370,10 +395,9 @@ function TraceRow({
         <input
           type="checkbox"
           checked={picked}
-          disabled={!pickable}
           onChange={onTogglePick}
-          aria-label={`Select ${trace.name} for comparison`}
-          title={pickable ? "Select for a cross-trace comparison" : "Two traces already selected"}
+          aria-label={`Select ${trace.name}`}
+          title="Select to compare (two), tag, collect or delete"
           data-testid="trace-select"
         />
       </td>
