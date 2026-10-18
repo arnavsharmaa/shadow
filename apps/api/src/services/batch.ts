@@ -226,24 +226,40 @@ export async function startBatchJob(
   await ctx.handle.db.insert(batchJobs).values(row);
   ctx.jobs.enqueue(row.id, async (control) => {
     if (control.cancelled()) return;
-    await updateJob(ctx, row.id, { status: "running", startedAt: now(ctx) });
+    const startedAt = now(ctx);
+    await updateJob(ctx, row.id, { status: "running", startedAt });
+    /** Tell the webhook how the job ended; delivery is off the job's path and never throws. */
+    const announce = async (status: "completed" | "failed" | "cancelled", error: string | null) => {
+      if (!ctx.webhook.enabled) return;
+      const job = await getBatchJob(ctx, row.id);
+      void ctx.webhook.jobFinished({
+        job: {
+          id: job.id,
+          kind: job.kind,
+          status,
+          agent: body.agent,
+          project: body.project ?? null,
+          at: `${body.at.eventType} ${body.at.name}`,
+          progress: job.progress,
+          error,
+          startedAt,
+          finishedAt: job.finishedAt ?? now(ctx),
+        },
+      });
+    };
     try {
       const result = await runBatchCounterfactual(ctx, body, {
         control,
         onProgress: (progress) => updateJob(ctx, row.id, { progress }),
       });
-      await updateJob(ctx, row.id, {
-        status: control.cancelled() ? "cancelled" : "completed",
-        result: toJson(result),
-        finishedAt: now(ctx),
-      });
+      const status = control.cancelled() ? "cancelled" : "completed";
+      await updateJob(ctx, row.id, { status, result: toJson(result), finishedAt: now(ctx) });
+      await announce(status, null);
     } catch (error) {
       ctx.logger.error({ jobId: row.id, err: error }, "batch job failed");
-      await updateJob(ctx, row.id, {
-        status: "failed",
-        error: error instanceof Error ? error.message : String(error),
-        finishedAt: now(ctx),
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      await updateJob(ctx, row.id, { status: "failed", error: message, finishedAt: now(ctx) });
+      await announce("failed", message);
     }
   });
   return toBatchJob(row);

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Batch jobs notify: a background batch job that completes, fails or is cancelled posts a
+  `job.finished` webhook notification (JSON or chat format) with the agent, fork point,
+  progress counts, error and timings, regardless of `SHADOW_WEBHOOK_EVENTS`.
 - Audit log export: `GET /api/v1/audit?format=csv` returns every matching entry as CSV
   (newest first, up to 10,000, `details` as JSON), `shadow audit --csv [--out <file>]` saves
   it and the Audit page has a Download CSV link that keeps the current filters.

@@ -499,6 +499,11 @@ then finishes as `cancelled` with the partial result). Returns the `BatchJob`; `
 for a job that has already finished. CLI: `shadow batch … --background` (print the job id) or
 `--wait` (poll and print the results), and `shadow jobs list|show <jobId>|cancel <jobId>`.
 
+With `SHADOW_WEBHOOK_URL` set, every job that ends posts a `job.finished` notification
+regardless of `SHADOW_WEBHOOK_EVENTS`, with `job.status` `completed`, `failed` or `cancelled`,
+the agent, project and fork point, the progress counts, the error if any and the start and
+finish times (as JSON, or as a chat message with `SHADOW_WEBHOOK_FORMAT=slack`).
+
 ### `GET /api/v1/traces/:traceId/replays`
 
 `{ items: Replay[] }`.
@@ -1004,7 +1009,8 @@ includes policy violations), `policy_violations` only, or `all`. The body is:
 ```
 
 Headers: `x-shadow-event` (the notification type: `trace.finished` here, `alert.firing` /
-`alert.resolved` for [alerts](#alerts), `replay.failed` for failed replays), `x-shadow-delivery: <traceId or ruleId>:<sentAt>` and, when
+`alert.resolved` for [alerts](#alerts), `replay.failed` for failed replays, `job.finished` for
+background batch jobs), `x-shadow-delivery: <traceId or ruleId>:<sentAt>` and, when
 `SHADOW_WEBHOOK_SECRET` is set, `x-shadow-signature-256: sha256=<HMAC-SHA256 hex of the body>`
 so receivers can verify authenticity. Deliveries never block ingestion; 5xx and 429 responses
 are retried three times with backoff, other rejections are logged once. `/health` reports

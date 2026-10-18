@@ -58,7 +58,37 @@ export interface ReplayFailedNotification {
   branch: { id: string; name: string };
 }
 
-export type Notification = TraceFinishedNotification | AlertNotification | ReplayFailedNotification;
+/** A background batch job ended, however it ended. */
+export interface JobFinishedNotification {
+  type: "job.finished";
+  sentAt: string;
+  job: {
+    id: string;
+    kind: string;
+    status: "completed" | "failed" | "cancelled";
+    agent: string;
+    project: string | null;
+    /** The fork point the batch applied (`<eventType> <name>`). */
+    at: string;
+    progress: {
+      total: number;
+      done: number;
+      changed: number;
+      unchanged: number;
+      skipped: number;
+      failed: number;
+    };
+    error: string | null;
+    startedAt: string | null;
+    finishedAt: string;
+  };
+}
+
+export type Notification =
+  | TraceFinishedNotification
+  | AlertNotification
+  | ReplayFailedNotification
+  | JobFinishedNotification;
 
 export interface WebhookOptions {
   config: Pick<
@@ -83,6 +113,8 @@ export interface Webhook {
   alert(input: Omit<AlertNotification, "sentAt">): Promise<void>;
   /** Send a failed replay; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
   replayFailed(input: Omit<ReplayFailedNotification, "type" | "sentAt">): Promise<void>;
+  /** Send a finished batch job; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
+  jobFinished(input: Omit<JobFinishedNotification, "type" | "sentAt">): Promise<void>;
   /** Outstanding deliveries, so shutdown can wait for them. */
   settle(): Promise<void>;
 }
@@ -132,7 +164,9 @@ export function createWebhook(options: WebhookOptions): Webhook {
         ? notification.trace.id
         : notification.type === "replay.failed"
           ? notification.replay.id
-          : notification.rule.id;
+          : notification.type === "job.finished"
+            ? notification.job.id
+            : notification.rule.id;
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "user-agent": "shadow-webhook",
@@ -205,6 +239,16 @@ export function createWebhook(options: WebhookOptions): Webhook {
       inflight.add(task);
       await task;
     },
+    async jobFinished(input) {
+      if (!url) return;
+      const task = deliver({
+        type: "job.finished",
+        sentAt: new Date().toISOString(),
+        ...input,
+      }).finally(() => inflight.delete(task));
+      inflight.add(task);
+      await task;
+    },
     async settle() {
       await Promise.allSettled([...inflight]);
     },
@@ -217,5 +261,6 @@ export const noopWebhook: Webhook = {
   traceFinished: async () => undefined,
   alert: async () => undefined,
   replayFailed: async () => undefined,
+  jobFinished: async () => undefined,
   settle: async () => undefined,
 };

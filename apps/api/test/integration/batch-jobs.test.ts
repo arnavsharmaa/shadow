@@ -1,6 +1,8 @@
 import type { BatchJob } from "@shadow/schemas";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { batchJobs } from "../../src/db/schema.js";
+import { createLogger } from "../../src/logger.js";
+import { createWebhook, type Notification } from "../../src/notify/webhook.js";
 import {
   failInterruptedJobs,
   runBatchCounterfactual,
@@ -15,6 +17,7 @@ import {
 } from "../helpers.js";
 
 let t: TestApp;
+const received: Notification[] = [];
 
 const body = {
   agent: "refund-agent",
@@ -24,6 +27,19 @@ const body = {
 
 beforeAll(async () => {
   t = await createTestApp();
+  const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+    received.push(JSON.parse(String(init?.body)) as Notification);
+    return new Response("ok", { status: 200 });
+  }) as unknown as typeof fetch;
+  t.services.webhook = createWebhook({
+    config: {
+      SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+      SHADOW_WEBHOOK_SECRET: undefined,
+      SHADOW_WEBHOOK_EVENTS: "failures",
+    },
+    logger: createLogger({ level: "silent" }),
+    fetch: fetchImpl,
+  });
   await ingestRefundScenario(t, "trc_job_a", { seed: "ja", startAt: "2026-09-01T09:00:00.000Z" });
   await ingestRefundScenario(t, "trc_job_b", { seed: "jb", startAt: "2026-09-02T09:00:00.000Z" });
   await ingestRefundScenario(t, "trc_job_c", { seed: "jc", startAt: "2026-09-03T09:00:00.000Z" });
@@ -80,6 +96,27 @@ describe("background batch counterfactuals", () => {
       url: `/api/v1/batch/jobs/${job.id}/cancel`,
     });
     expect(again.statusCode).toBe(409);
+  });
+
+  it("notifies the webhook when a job finishes", async () => {
+    await t.services.webhook.settle();
+    const jobs = received.filter((n) => n.type === "job.finished");
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      type: "job.finished",
+      job: {
+        kind: "batch_counterfactual",
+        status: "completed",
+        agent: "refund-agent",
+        project: null,
+        at: "tool.request refund_order",
+        progress: { total: 3, done: 3, changed: 3, failed: 0 },
+        error: null,
+      },
+    });
+    const job = jobs[0]?.type === "job.finished" ? jobs[0].job : null;
+    expect(job?.startedAt).toMatch(/^2026-/);
+    expect(job?.finishedAt).toMatch(/^2026-/);
   });
 
   it("cancels a queued job before it starts", async () => {

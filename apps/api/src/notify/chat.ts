@@ -1,5 +1,6 @@
 import type {
   AlertNotification,
+  JobFinishedNotification,
   Notification,
   ReplayFailedNotification,
   TraceFinishedNotification,
@@ -173,12 +174,54 @@ export function formatReplayFailed(
   };
 }
 
+export function formatJobFinished(
+  notification: JobFinishedNotification,
+  webUrl?: string,
+): ChatMessage {
+  const { job } = notification;
+  const icon =
+    job.status === "completed"
+      ? ":white_check_mark:"
+      : job.status === "failed"
+        ? ":x:"
+        : ":no_entry:";
+  const headline = `${icon} Batch job ${job.status}: ${job.agent}`;
+  const p = job.progress;
+  const counts = `${p.changed} changed / ${p.unchanged} unchanged / ${p.skipped} skipped / ${p.failed} failed`;
+  const elapsed =
+    job.startedAt !== null
+      ? formatDuration(Date.parse(job.finishedAt) - Date.parse(job.startedAt))
+      : "-";
+  const text = `${headline} - ${counts} (${p.done} of ${p.total} traces, ${elapsed})${job.error ? `: ${job.error}` : ""}`;
+  const fields = [
+    `*Job*\n${link(agentsUrl(webUrl), job.id)}`,
+    `*Agent*\n${escapeMrkdwn(job.agent)}${job.project ? ` in ${escapeMrkdwn(job.project)}` : ""}`,
+    `*Fork point*\n${escapeMrkdwn(job.at)}`,
+    `*Outcomes*\n${escapeMrkdwn(counts)}`,
+    `*Traces*\n${p.done} of ${p.total}, ${elapsed}`,
+  ];
+  if (job.error) fields.push(`*Error*\n${escapeMrkdwn(job.error)}`);
+  return {
+    text,
+    blocks: [
+      { type: "header", text: { type: "plain_text", text: headline, emoji: true } },
+      { type: "section", fields: fields.map((f) => ({ type: "mrkdwn", text: f })) },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `${escapeMrkdwn(job.id)} · ${job.finishedAt}` }],
+      },
+    ],
+  };
+}
+
 export function formatChatMessage(notification: Notification, webUrl?: string): ChatMessage {
   switch (notification.type) {
     case "trace.finished":
       return formatTraceFinished(notification, webUrl);
     case "replay.failed":
       return formatReplayFailed(notification, webUrl);
+    case "job.finished":
+      return formatJobFinished(notification, webUrl);
     default:
       return formatAlert(notification, webUrl);
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { escapeMrkdwn, formatChatMessage } from "../../src/notify/chat.js";
 import type {
   AlertNotification,
+  JobFinishedNotification,
   ReplayFailedNotification,
   TraceFinishedNotification,
 } from "../../src/notify/webhook.js";
@@ -136,6 +137,57 @@ describe("chat formatting", () => {
     });
     expect(unknown.text).toContain(": unknown error");
     expect(JSON.stringify(unknown.blocks)).toContain("rpl_1 · 2026-09-01T09:20:00.000Z");
+  });
+
+  it("renders finished, failed and cancelled batch jobs", () => {
+    const finished: JobFinishedNotification = {
+      type: "job.finished",
+      sentAt: "2026-09-01T10:00:05.000Z",
+      job: {
+        id: "job_1",
+        kind: "batch_counterfactual",
+        status: "completed",
+        agent: "refund-agent",
+        project: "support",
+        at: "tool.request refund_order",
+        progress: { total: 16, done: 16, changed: 12, unchanged: 3, skipped: 1, failed: 0 },
+        error: null,
+        startedAt: "2026-09-01T10:00:00.800Z",
+        finishedAt: "2026-09-01T10:00:05.000Z",
+      },
+    };
+    const message = formatChatMessage(finished, "https://shadow.example.com");
+    expect(message.text).toBe(
+      ":white_check_mark: Batch job completed: refund-agent - 12 changed / 3 unchanged / 1 skipped / 0 failed (16 of 16 traces, 4.2 s)",
+    );
+    const fields = (message.blocks[1] as { fields: { text: string }[] }).fields.map((f) => f.text);
+    expect(fields).toEqual([
+      "*Job*\n<https://shadow.example.com/agents|job_1>",
+      "*Agent*\nrefund-agent in support",
+      "*Fork point*\ntool.request refund_order",
+      "*Outcomes*\n12 changed / 3 unchanged / 1 skipped / 0 failed",
+      "*Traces*\n16 of 16, 4.2 s",
+    ]);
+    const failed = formatChatMessage({
+      ...finished,
+      job: {
+        ...finished.job,
+        status: "failed",
+        error: "database went away",
+        startedAt: null,
+        project: null,
+      },
+    });
+    expect(failed.text).toBe(
+      ":x: Batch job failed: refund-agent - 12 changed / 3 unchanged / 1 skipped / 0 failed (16 of 16 traces, -): database went away",
+    );
+    expect(JSON.stringify(failed.blocks)).toContain("*Error*\\ndatabase went away");
+    expect(JSON.stringify(failed.blocks)).toContain('*Agent*\\nrefund-agent"');
+    const cancelled = formatChatMessage({
+      ...finished,
+      job: { ...finished.job, status: "cancelled" },
+    });
+    expect(cancelled.text).toContain(":no_entry: Batch job cancelled: refund-agent");
   });
 
   it("renders threshold and baseline alerts", () => {
