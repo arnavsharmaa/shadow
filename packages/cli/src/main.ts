@@ -373,6 +373,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--type <eventType>", "only events of this type, e.g. tool.request")
     .option("--severity <level>", "debug | info | warn | error")
     .option("--json", "print JSON instead of text")
+    .option("--csv", "export the branch's events as CSV (for spreadsheets)")
+    .option("-o, --out <file>", "write the CSV to a file instead of stdout")
     .action(
       async (
         traceId: string,
@@ -382,6 +384,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           type?: string;
           severity?: string;
           json?: boolean;
+          csv?: boolean;
+          out?: string;
         },
       ) => {
         const api = client();
@@ -389,6 +393,28 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           `/api/v1/traces/${encodeURIComponent(traceId)}`,
         );
         const branchId = opts.branch ?? detail.trace.rootBranchId;
+        if (opts.csv || opts.out) {
+          const { bytes } = await api.download(
+            `/api/v1/traces/${encodeURIComponent(traceId)}/events`,
+            {
+              branchId,
+              q: opts.grep,
+              eventType: opts.type,
+              severity: opts.severity,
+              format: "csv",
+            },
+            "text/csv",
+          );
+          const text = new TextDecoder().decode(bytes);
+          if (opts.out) {
+            await writeFile(opts.out, text, "utf8");
+            const rows = text.split("\r\n").filter((l) => l.length > 0).length - 1;
+            out(`wrote ${rows} event${rows === 1 ? "" : "s"} of ${branchId} to ${opts.out}`);
+          } else {
+            out(text.replace(/\r\n$/, ""));
+          }
+          return;
+        }
         const events = await allEvents(api, traceId, branchId, {
           q: opts.grep,
           eventType: opts.type,

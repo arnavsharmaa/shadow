@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Events CSV export: `GET /api/v1/traces/:id/events?format=csv` returns a branch's events as
+  one document for spreadsheets (payloads as JSON, up to 100,000 rows, filters as for the
+  listing); `shadow inspect <traceId> --csv [--out <file>]` saves it.
 - Batch jobs notify: a background batch job that completes, fails or is cancelled posts a
   `job.finished` webhook notification (JSON or chat format) with the agent, fork point,
   progress counts, error and timings, regardless of `SHADOW_WEBHOOK_EVENTS`.

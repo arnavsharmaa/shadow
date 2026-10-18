@@ -106,6 +106,42 @@ describe("event pagination", () => {
     expect(json<Page>(response).items).toHaveLength(TOTAL);
   });
 
+  it("exports a branch's events as one CSV document", async () => {
+    const response = await t.app.inject({
+      url: `/api/v1/traces/${trace.id}/events?format=csv&limit=4`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toContain(
+      `${trace.id}-${trace.rootBranchId}.events.csv`,
+    );
+    expect(response.headers["x-shadow-truncated"]).toBe("false");
+    const lines = response.body.split("\r\n").filter((l) => l.length > 0);
+    expect(lines[0]).toBe(
+      "sequence,timestamp,eventType,name,severity,source,branchId,durationMs,spanId,parentEventId,inputTokens,outputTokens,totalTokens,estimatedCost,tags,input,output,id",
+    );
+    // `limit` only sizes the pages the route reads; every event of the branch is in the document.
+    expect(lines.length - 1).toBe(TOTAL);
+    expect(lines[1]?.startsWith("0,")).toBe(true);
+    expect(lines[1]).toContain(",tool.request,tool_0,info,sdk,");
+    // JSON payloads arrive quoted with their quotes doubled.
+    expect(lines[1]).toContain(',"{""i"":0}",');
+    const filtered = await t.app.inject({
+      url: `/api/v1/traces/${trace.id}/events?format=csv&eventType=tool.request`,
+    });
+    const rows = filtered.body
+      .split("\r\n")
+      .filter((l) => l.length > 0)
+      .slice(1);
+    expect(rows).toHaveLength(5);
+    expect(rows.every((l) => l.includes(",tool.request,tool_"))).toBe(true);
+    const child = await t.app.inject({
+      url: `/api/v1/traces/${trace.id}/events?format=csv&branchId=${fork.branch.id}&inherited=false`,
+    });
+    expect(child.headers["content-disposition"]).toContain(`-${fork.branch.id}.events.csv`);
+    expect(child.body.split("\r\n").filter((l) => l.length > 0).length - 1).toBe(1);
+  });
+
   it("rejects invalid limits and cursors", async () => {
     for (const query of ["limit=0", "limit=1001", "limit=abc"]) {
       const response = await t.app.inject({

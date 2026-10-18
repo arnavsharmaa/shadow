@@ -360,6 +360,13 @@ Execution hierarchy for a branch (default root), flattened depth-first:
 `nodes[i]` describes `events` by id; children nest under `parentEventId`, or under the opener of
 their span (see [Events](../concepts/events.md#spans-and-hierarchy)).
 
+`format=csv` returns every matching event of the branch as one `text/csv` document instead
+(columns `sequence, timestamp, eventType, name, severity, source, branchId, durationMs, spanId,
+parentEventId, inputTokens, outputTokens, totalTokens, estimatedCost, tags, input, output, id`,
+with `input` and `output` as JSON), following the cursors server-side up to 100,000 rows;
+`x-shadow-truncated: true` says the cap was hit. CLI: `shadow inspect <traceId> --csv [--out
+<file>]` with the usual `--branch`, `--type`, `--grep` and `--severity` filters.
+
 ### `GET /api/v1/traces/:traceId/events/:eventId`
 
 A single `ShadowEvent`.

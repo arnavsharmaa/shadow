@@ -1573,6 +1573,28 @@ describe("shadow cli", () => {
     expect(await readFile(file, "utf8")).toBe(csv);
   });
 
+  it("exports a branch's events as CSV", async () => {
+    const csv =
+      "sequence,timestamp,eventType,name\r\n0,2026-09-01T09:12:04.000Z,trace.started,x\r\n";
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1": () => ({ body: { trace, branches: [branch] } }),
+      "GET /api/v1/traces/trc_1/events": () => ({ body: csv, raw: true, contentType: "text/csv" }),
+    });
+    expect(
+      await runWith(api, ["traces", "inspect", "trc_1", "--csv", "--type", "trace.started"]),
+    ).toBe(0);
+    const url = api.captured.calls[1]?.url ?? "";
+    expect(url).toContain("format=csv");
+    expect(url).toContain("branchId=br_main");
+    expect(url).toContain("eventType=trace.started");
+    expect(api.captured.out.at(-1)).toContain("sequence,timestamp,eventType,name");
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-events-"));
+    const file = path.join(dir, "events.csv");
+    expect(await runWith(api, ["traces", "inspect", "trc_1", "--out", file])).toBe(0);
+    expect(api.captured.out.at(-1)).toBe(`wrote 1 event of br_main to ${file}`);
+    expect(await readFile(file, "utf8")).toBe(csv);
+  });
+
   it("runs batches in the background and follows jobs", async () => {
     const result = {
       matched: 2,

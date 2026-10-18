@@ -37,6 +37,7 @@ import {
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
 import { audit } from "../audit.js";
+import { csvLine } from "../csv.js";
 import { forcedKeep, unlessSampledOut } from "../../sampling.js";
 import { exportTraceToOtlp } from "../../otlp/export.js";
 import { encodeOtlpProtobuf } from "../../otlp/protobuf.js";
@@ -48,6 +49,28 @@ const exportQuerySchema = z.object({
   encoding: z.enum(["json", "protobuf"]).optional(),
 });
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
+/** Rows an events CSV may hold; larger branches are cut and flagged with `x-shadow-truncated`. */
+const MAX_EVENT_CSV_ROWS = 100_000;
+const EVENT_CSV_COLUMNS = [
+  "sequence",
+  "timestamp",
+  "eventType",
+  "name",
+  "severity",
+  "source",
+  "branchId",
+  "durationMs",
+  "spanId",
+  "parentEventId",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "estimatedCost",
+  "tags",
+  "input",
+  "output",
+  "id",
+] as const;
 const facetsQuerySchema = z.object({ project: z.string().max(64).optional() });
 
 export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -167,7 +190,58 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/traces/:traceId/events",
     { schema: { tags: ["events"], params: traceParams, querystring: eventListQuerySchema } },
-    async (request) => pageEvents(app.services, request.params.traceId, request.query),
+    async (request, reply) => {
+      if (request.query.format !== "csv") {
+        return pageEvents(app.services, request.params.traceId, request.query);
+      }
+      // One document for spreadsheets: the route follows the cursors itself.
+      const lines = [csvLine(EVENT_CSV_COLUMNS)];
+      let cursor = request.query.cursor;
+      let count = 0;
+      let branchId = request.query.branchId;
+      while (count < MAX_EVENT_CSV_ROWS) {
+        const page = await pageEvents(app.services, request.params.traceId, {
+          ...request.query,
+          cursor,
+          limit: Math.min(1000, MAX_EVENT_CSV_ROWS - count),
+        });
+        for (const e of page.items) {
+          branchId ??= e.branchId;
+          lines.push(
+            csvLine([
+              e.sequence,
+              e.timestamp,
+              e.eventType,
+              e.name,
+              e.severity,
+              e.source,
+              e.branchId,
+              e.durationMs,
+              e.spanId,
+              e.parentEventId,
+              e.tokenUsage?.inputTokens ?? null,
+              e.tokenUsage?.outputTokens ?? null,
+              e.tokenUsage?.totalTokens ?? null,
+              e.estimatedCost?.amount ?? null,
+              e.tags.join(" "),
+              e.input ?? null,
+              e.output ?? null,
+              e.id,
+            ]),
+          );
+        }
+        count += page.items.length;
+        if (!page.nextCursor || page.items.length === 0) break;
+        cursor = page.nextCursor;
+      }
+      reply.header("content-type", "text/csv; charset=utf-8");
+      reply.header(
+        "content-disposition",
+        `attachment; filename="${request.params.traceId}${branchId ? `-${branchId}` : ""}.events.csv"`,
+      );
+      reply.header("x-shadow-truncated", count >= MAX_EVENT_CSV_ROWS ? "true" : "false");
+      return reply.send(lines.join(""));
+    },
   );
 
   app.post(

@@ -194,6 +194,8 @@ export const eventListQuerySchema = cursorPageQuerySchema.extend({
     .union([z.boolean(), z.enum(["true", "false"])])
     .transform((v) => v === true || v === "true")
     .default(true),
+  /** `csv` returns every matching event of the branch as one CSV document (up to 100,000). */
+  format: z.enum(["json", "csv"]).default("json"),
 });
 
 export const createForkBodySchema = z.object({
