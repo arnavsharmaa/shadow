@@ -736,3 +736,86 @@ export async function runOpenAIToolLoop<
     }
   }
 }
+
+export interface OpenAIResponsesLoopOptions<P extends OpenAIResponsesParamsLike> {
+  /** Request parameters; `input` is the starting conversation and is not mutated. */
+  params: P;
+  /** Implementations of the function tools, by name. The return value becomes the tool output. */
+  tools: Record<string, (input: JsonValue) => unknown>;
+  /** Policy to evaluate inside a tool's span before it runs; a blocked call returns an error output. */
+  guard?: (tool: string, input: JsonValue) => PolicyCall | undefined;
+  /** Stop after this many model calls (default 20). */
+  maxTurns?: number;
+}
+
+export interface OpenAIResponsesLoopResult<R> {
+  /** The last response from the model. */
+  response: R;
+  /** The full item list: the starting input, every output item and every function call output. */
+  input: unknown[];
+  turns: number;
+  /** The last response status, or `max_turns` when the loop stopped with calls still pending. */
+  stopReason: string | null;
+}
+
+/**
+ * Run the Responses API function-calling loop on a client wrapped with `traceOpenAI`: call the
+ * model with the item list, append its output items, execute every `function_call` item through
+ * `trace.tool` (a tool span with an optional policy guard), append one `function_call_output`
+ * item per call and repeat until the model stops calling functions or `maxTurns` is reached.
+ * A tool that throws, is unknown or is blocked answers with a JSON `{ "error": ... }` output.
+ * Pass `store: false` or handle `previous_response_id` yourself if you do not want the whole
+ * item list resent each turn.
+ */
+export async function runOpenAIResponsesLoop<
+  P extends OpenAIResponsesParamsLike,
+  R extends OpenAIResponseLike,
+>(
+  trace: Trace,
+  client: { responses: { create(params: P): PromiseLike<R> } },
+  // The parameter type comes from the client; `params` must then satisfy it.
+  options: OpenAIResponsesLoopOptions<NoInfer<P>>,
+): Promise<OpenAIResponsesLoopResult<R>> {
+  const input: unknown[] = Array.isArray(options.params.input)
+    ? [...options.params.input]
+    : [{ role: "user", content: options.params.input }];
+  const maxTurns = options.maxTurns ?? 20;
+  for (let turn = 1; ; turn++) {
+    const response = await client.responses.create({ ...options.params, input });
+    const output = response.output ?? [];
+    input.push(...output);
+    const calls = output.filter((item) => item.type === "function_call");
+    const status = response.status ?? null;
+    if (calls.length === 0 || (status !== null && status !== "completed")) {
+      return { response, input, turns: turn, stopReason: status };
+    }
+    for (const call of calls) {
+      const name = typeof call.name === "string" ? call.name : "unknown";
+      const callId = typeof call.call_id === "string" ? call.call_id : "";
+      const args = parseArguments(call.arguments);
+      const implementation = options.tools[name];
+      let outputText: string;
+      try {
+        const result = await trace.tool({
+          name,
+          arguments: args,
+          metadata: { openai: { callId } },
+          guard: options.guard?.(name, args),
+          execute: async () => {
+            if (!implementation) throw new Error(`no implementation for tool '${name}'`);
+            return toJson(await implementation(args));
+          },
+        });
+        outputText = typeof result === "string" ? result : JSON.stringify(result);
+      } catch (error) {
+        outputText = JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      input.push({ type: "function_call_output", call_id: callId, output: outputText });
+    }
+    if (turn >= maxTurns) {
+      return { response, input, turns: turn, stopReason: "max_turns" };
+    }
+  }
+}

@@ -4,6 +4,7 @@ import {
   Shadow,
   accumulateChatChunks,
   openAITokenUsage,
+  runOpenAIResponsesLoop,
   runOpenAIToolLoop,
   traceOpenAI,
   type IngestEventInput,
@@ -56,7 +57,11 @@ class FakeResponses {
     this.#queue = queue;
   }
   async create(params: ResponsesParams): Promise<unknown> {
-    this.seen.push(params);
+    // Copy the item list: the loop keeps appending to the array it passed.
+    this.seen.push({
+      ...params,
+      input: Array.isArray(params.input) ? [...params.input] : params.input,
+    });
     const next = this.#queue.shift();
     if (!next) throw new Error("no more canned responses");
     if (next instanceof Error) throw next;
@@ -575,5 +580,140 @@ describe("runOpenAIToolLoop", () => {
     const list = await events();
     expect(named(list, "policy.evaluated")).toHaveLength(2);
     expect(named(list, "tool.error")).toHaveLength(2);
+  });
+});
+
+describe("runOpenAIResponsesLoop", () => {
+  type ResponsesLoopClient = {
+    responses: { create(params: ResponsesParams): Promise<OpenAIResponseLike> };
+  };
+  const asResponsesClient = (client: FakeClient): ResponsesLoopClient =>
+    client as unknown as ResponsesLoopClient;
+  const call = (call_id: string, name: string, args: string) => ({
+    type: "function_call",
+    call_id,
+    name,
+    arguments: args,
+  });
+  const reply = (
+    id: string,
+    output: { type: string; [key: string]: unknown }[],
+    status = "completed",
+  ): OpenAIResponseLike => ({
+    id,
+    model: "gpt-5",
+    status,
+    output,
+    usage: { input_tokens: 10, output_tokens: 4, total_tokens: 14 },
+  });
+
+  it("appends outputs and function call outputs until the model stops calling tools", async () => {
+    const { trace, events } = setup();
+    const raw = new FakeClient(
+      [],
+      [
+        reply("resp_1", [
+          { type: "reasoning", summary: [] },
+          call("c1", "lookup_order", '{"orderId":"ord_1"}'),
+          call("c2", "explode", "{}"),
+        ]),
+        reply("resp_2", [
+          { type: "message", role: "assistant", content: [{ type: "output_text", text: "Done." }] },
+        ]),
+      ],
+    );
+    const client = traceOpenAI(trace, raw);
+    const result = await runOpenAIResponsesLoop(trace, asResponsesClient(client), {
+      params: {
+        model: "gpt-5",
+        input: "Refund order ord_1",
+        tools: [{ type: "function", name: "lookup_order" }],
+      },
+      tools: {
+        lookup_order: (input) => ({ status: "shipped", input }),
+        explode: () => {
+          throw new Error("boom");
+        },
+      },
+    });
+    expect(result.turns).toBe(2);
+    expect(result.stopReason).toBe("completed");
+    expect(result.response.id).toBe("resp_2");
+    expect(
+      result.input.map(
+        (i) => (i as { type?: string; role?: string }).type ?? (i as { role: string }).role,
+      ),
+    ).toEqual([
+      "user",
+      "reasoning",
+      "function_call",
+      "function_call",
+      "function_call_output",
+      "function_call_output",
+      "message",
+    ]);
+    expect(result.input[4]).toEqual({
+      type: "function_call_output",
+      call_id: "c1",
+      output: JSON.stringify({ status: "shipped", input: { orderId: "ord_1" } }),
+    });
+    expect(result.input[5]).toEqual({
+      type: "function_call_output",
+      call_id: "c2",
+      output: JSON.stringify({ error: "boom" }),
+    });
+    // The second request carried the whole item list; the string input became a user item.
+    expect(raw.responses.seen[1]?.input).toHaveLength(6);
+    expect(raw.responses.seen[0]?.input).toEqual([{ role: "user", content: "Refund order ord_1" }]);
+
+    const list = await events();
+    expect(named(list, "model.request")).toHaveLength(2);
+    expect(named(list, "tool.request").map((e) => e.name)).toEqual(["lookup_order", "explode"]);
+    expect(named(list, "tool.request")[0]).toMatchObject({
+      input: { tool: "lookup_order", arguments: { orderId: "ord_1" } },
+      metadata: { openai: { callId: "c1" } },
+    });
+    expect(named(list, "tool.error")).toHaveLength(1);
+    expect(named(list, "agent.note").map((e) => e.name)).toEqual(["reasoning"]);
+  });
+
+  it("stops on incomplete responses, blocks guarded tools and respects maxTurns", async () => {
+    const { trace, events } = setup();
+    const asking = (id: string) => reply(id, [call("c", "delete_all", "{}")]);
+    const raw = new FakeClient([], [asking("r1"), asking("r2"), reply("r3", [], "incomplete")]);
+    const client = traceOpenAI(trace, raw);
+    const ran: string[] = [];
+    const result = await runOpenAIResponsesLoop(trace, asResponsesClient(client), {
+      params: { model: "gpt-5", input: [{ role: "user", content: "wipe it" }] },
+      tools: {
+        delete_all: () => {
+          ran.push("delete_all");
+          return "done";
+        },
+      },
+      guard: (tool) => ({
+        policy: "ops.destructive",
+        subject: { tool },
+        evaluate: () => ({ decision: "deny" }),
+      }),
+      maxTurns: 2,
+    });
+    expect(ran).toEqual([]);
+    expect(result.turns).toBe(2);
+    expect(result.stopReason).toBe("max_turns");
+    const outputs = result.input.filter(
+      (i) => (i as { type?: string }).type === "function_call_output",
+    );
+    expect(outputs).toHaveLength(2);
+    expect(String((outputs[0] as { output: string }).output)).toContain("blocked");
+    const incomplete = await runOpenAIResponsesLoop(trace, asResponsesClient(client), {
+      params: { model: "gpt-5", input: "again" },
+      tools: {},
+    });
+    expect(incomplete.stopReason).toBe("incomplete");
+    expect(incomplete.turns).toBe(1);
+    const list = await events();
+    expect(named(list, "policy.evaluated")).toHaveLength(2);
+    expect(named(list, "model.request")).toHaveLength(3);
   });
 });

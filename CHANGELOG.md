@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `runOpenAIResponsesLoop` runs the Responses API function-calling loop on a client wrapped
+  with `traceOpenAI`: output items are appended to the item list, every `function_call` runs
+  through `trace.tool` with an optional policy guard, and answers go back as
+  `function_call_output` items until the model stops, the response is not completed or
+  `maxTurns` is reached.
 - Events CSV export: `GET /api/v1/traces/:id/events?format=csv` returns a branch's events as
   one document for spreadsheets (payloads as JSON, up to 100,000 rows, filters as for the
   listing); `shadow inspect <traceId> --csv [--out <file>]` saves it.

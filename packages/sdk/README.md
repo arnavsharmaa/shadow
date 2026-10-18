@@ -121,7 +121,8 @@ options and the event mapping are in
 
 `traceOpenAI` wraps an OpenAI client so `chat.completions.create` and `responses.create` are
 recorded as model spans, streamed or not, with no dependency on the `openai` package, and
-`runOpenAIToolLoop` runs the function-calling loop with every tool execution recorded:
+`runOpenAIToolLoop` (Chat Completions) and `runOpenAIResponsesLoop` (Responses API) run the
+function-calling loop with every tool execution recorded:
 
 ```ts
 import OpenAI from "openai";

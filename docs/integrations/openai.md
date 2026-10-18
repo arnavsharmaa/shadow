@@ -73,8 +73,12 @@ const { completion, messages } = await runOpenAIToolLoop(trace, client, {
 });
 ```
 
-The Responses API has no loop helper yet; run its `function_call` items through `trace.tool`
-and send `function_call_output` items back.
+`runOpenAIResponsesLoop` does the same for the Responses API: it calls the model with the item
+list, appends the output items, runs every `function_call` item through `trace.tool`, appends
+one `function_call_output` item per call and repeats until the model stops calling functions,
+the response is not `completed` (for example `incomplete`) or `maxTurns` is reached. A string
+`input` becomes one user item; the whole item list is resent each turn, so pass
+`previous_response_id` handling of your own if you want the server to keep the conversation.
 
 ## Importing a conversation
 
