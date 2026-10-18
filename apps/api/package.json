@@ -42,7 +42,7 @@
     "fastify": "5.12.5",
     "fastify-type-provider-zod": "7.0.0",
     "pg": "8.23.0",
-    "pino": "9.14.0",
+    "pino": "10.3.1",
     "protobufjs": "8.8.0",
     "zod": "4.6.5"
   },
