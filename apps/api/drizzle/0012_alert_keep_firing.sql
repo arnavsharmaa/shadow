@@ -1,0 +1,1 @@
+ALTER TABLE "alert_rules" ADD COLUMN "keep_firing_minutes" integer DEFAULT 0 NOT NULL;

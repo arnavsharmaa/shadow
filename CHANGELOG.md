@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules take `keepFiringMinutes` (`shadow alerts add --keep-firing 30m`, a "Keep firing"
+  field in the web dialog): once fired, the rule stays firing for at least that long even if the
+  value drops back, so a metric hovering around its limit raises one alert and one resolution
+  instead of a burst. Evaluations report `held` while only the hold keeps a rule firing.
 - The trace page's header has an "Events CSV" link that downloads the selected branch's events
   through the events CSV export.
 - `runOpenAIResponsesLoop` runs the Responses API function-calling loop on a client wrapped

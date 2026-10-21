@@ -32,6 +32,16 @@ const WINDOWS: { minutes: number; label: string }[] = [
   { minutes: 10080, label: "7 days" },
 ];
 
+/** How long a fired rule keeps firing even if the value drops back (0 = until it recovers). */
+const HOLDS: { minutes: number; label: string }[] = [
+  { minutes: 0, label: "until it recovers" },
+  { minutes: 15, label: "15 minutes" },
+  { minutes: 30, label: "30 minutes" },
+  { minutes: 60, label: "1 hour" },
+  { minutes: 360, label: "6 hours" },
+  { minutes: 1440, label: "1 day" },
+];
+
 function formatValue(metric: AlertMetric, value: number | null): string {
   if (value === null) return "–";
   if (metric === "failure_rate") return `${Math.round(value * 100)}%`;
@@ -64,6 +74,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
   const [threshold, setThreshold] = useState("0.25");
   const [windowMinutes, setWindowMinutes] = useState(60);
   const [minTraces, setMinTraces] = useState("1");
+  const [keepFiringMinutes, setKeepFiringMinutes] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
@@ -115,6 +126,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             mode,
             windowMinutes,
             minTraces: Math.max(1, Number(minTraces) || 1),
+            keepFiringMinutes,
             ...(agent.trim() ? { agent: agent.trim() } : {}),
           });
         }}
@@ -214,6 +226,22 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             data-testid="rule-min-traces"
           />
         </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-fg-muted">Keep firing</span>
+          <select
+            value={keepFiringMinutes}
+            onChange={(e) => setKeepFiringMinutes(Number(e.target.value))}
+            className="h-7 rounded border border-border bg-bg px-1"
+            title="Once fired, the rule stays firing for at least this long, so a metric hovering around the limit raises one alert"
+            data-testid="rule-keep-firing"
+          >
+            {HOLDS.map((h) => (
+              <option key={h.minutes} value={h.minutes}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <Button type="submit" variant="primary" disabled={!canCreate} data-testid="create-rule">
           Add rule
         </Button>
@@ -272,6 +300,9 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
                     : `≥ ${formatValue(rule.metric, rule.threshold)}`}{" "}
                   over {windowLabel(rule.windowMinutes)}
                   {rule.minTraces > 1 ? `, ${rule.minTraces}+ traces` : ""}
+                  {rule.keepFiringMinutes > 0
+                    ? `, held ${windowLabel(rule.keepFiringMinutes)}`
+                    : ""}
                 </td>
                 <td className="px-3 py-1.5">
                   {rule.agent ?? <span className="text-fg-faint">every agent</span>}

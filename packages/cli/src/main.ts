@@ -1191,6 +1191,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "only this project's traces")
     .option("--window <age>", "look-back window such as 30m, 6h or 7d", "1h")
     .option("--min-traces <n>", "traces needed in the window before it can fire", positiveInt, 1)
+    .option(
+      "--keep-firing <age>",
+      "once fired, stay firing for at least this long (such as 30m or 2h) so a flapping metric raises one alert",
+    )
     .option("--json", "print JSON")
     .action(
       async (
@@ -1204,6 +1208,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project?: string;
           window: string;
           minTraces: number;
+          keepFiring?: string;
           json?: boolean;
         },
       ) => {
@@ -1216,12 +1221,16 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project: opts.project,
           windowMinutes: windowMinutes(opts.window),
           minTraces: opts.minTraces,
+          ...(opts.keepFiring !== undefined
+            ? { keepFiringMinutes: ageMinutes(opts.keepFiring, "--keep-firing", 0, 10_080) }
+            : {}),
         });
         if (opts.json) return json(rule);
+        const hold = rule.keepFiringMinutes > 0 ? `, held for ${rule.keepFiringMinutes}m` : "";
         out(
           rule.mode === "baseline"
-            ? `created ${rule.id}: ${rule.name} fires when ${rule.metric} over ${rule.windowMinutes}m >= ${rule.threshold}x its baseline (previous ${rule.baselineWindows} windows)`
-            : `created ${rule.id}: ${rule.name} fires when ${rule.metric} >= ${rule.threshold} over ${rule.windowMinutes}m`,
+            ? `created ${rule.id}: ${rule.name} fires when ${rule.metric} over ${rule.windowMinutes}m >= ${rule.threshold}x its baseline (previous ${rule.baselineWindows} windows)${hold}`
+            : `created ${rule.id}: ${rule.name} fires when ${rule.metric} >= ${rule.threshold} over ${rule.windowMinutes}m${hold}`,
         );
       },
     );
@@ -2805,14 +2814,20 @@ function alertTable(rules: AlertRule[]): string {
 
 /** Parse a window such as `30m`, `6h` or `7d` into minutes (1 minute to 30 days). */
 function windowMinutes(value: string): number {
-  const match = /^(\d+)\s*(m|h|d)$/i.exec(value.trim());
-  if (!match)
-    throw new CliError(`--window expects an age such as 30m or 6h, got '${value}'`, EXIT.usage);
+  return ageMinutes(value, "--window", 1, 43_200);
+}
+
+/** Parse an age such as `30m`, `6h` or `7d` (or `0`) into minutes within `[min, max]`. */
+function ageMinutes(value: string, flag: string, min: number, max: number): number {
+  const match = /^(\d+)\s*(m|h|d)?$/i.exec(value.trim());
+  if (!match || (match[2] === undefined && match[1] !== "0"))
+    throw new CliError(`${flag} expects an age such as 30m or 6h, got '${value}'`, EXIT.usage);
   const amount = Number(match[1]);
   const unit = (match[2] ?? "m").toLowerCase();
   const minutes = unit === "m" ? amount : unit === "h" ? amount * 60 : amount * 1440;
-  if (minutes < 1 || minutes > 43_200)
-    throw new CliError("--window must be between 1m and 30d", EXIT.usage);
+  const label = (n: number) => (n % 1440 === 0 && n > 0 ? `${n / 1440}d` : `${n}m`);
+  if (minutes < min || minutes > max)
+    throw new CliError(`${flag} must be between ${label(min)} and ${label(max)}`, EXIT.usage);
   return minutes;
 }
 

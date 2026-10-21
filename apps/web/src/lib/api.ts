@@ -259,6 +259,7 @@ export interface AlertRuleInput {
   project?: string;
   windowMinutes?: number;
   minTraces?: number;
+  keepFiringMinutes?: number;
   baselineWindows?: number;
 }
 

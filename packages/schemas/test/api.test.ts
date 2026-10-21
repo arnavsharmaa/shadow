@@ -109,6 +109,7 @@ describe("alert rule bodies", () => {
       baselineWindows: 7,
       windowMinutes: 60,
       minTraces: 1,
+      keepFiringMinutes: 0,
       enabled: true,
     });
     expect(

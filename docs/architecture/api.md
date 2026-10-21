@@ -694,15 +694,19 @@ and fires while the value is at or above its threshold.
 ### `GET /api/v1/alerts/rules`
 
 `{ items: [AlertRule] }` sorted by name. An `AlertRule` is `{ id, name, agent, project, metric,
-threshold, windowMinutes, minTraces, enabled, state, lastValue, lastTraces, lastEvaluatedAt,
-lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or `firing`.
+threshold, windowMinutes, minTraces, keepFiringMinutes, enabled, state, lastValue, lastTraces,
+lastEvaluatedAt, lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or `firing`.
 
 ### `POST /api/v1/alerts/rules`
 
 Body `{ name, metric, threshold, mode?, baselineWindows?, agent?, project?, windowMinutes?,
-minTraces?, enabled? }`.
+minTraces?, keepFiringMinutes?, enabled? }`.
 `windowMinutes` is 1 to 43200 (default 60); `minTraces` (default 1) is how many traces the window
 must hold before the rule can fire, which keeps a single failed run from tripping a rate rule.
+`keepFiringMinutes` (0 to 10080, default 0) is how long a rule keeps firing after it fired even
+if the value drops back under the limit, so a metric hovering around the limit raises one alert
+and one resolution instead of a burst; the rule resolves at the first evaluation after the hold
+that finds it under the limit.
 Returns `201`; `409` for a duplicate name, `400` for a `failure_rate` threshold above 1. At most
 200 rules.
 
@@ -718,14 +722,16 @@ rule and `baseline` in the webhook payload carry the value used.
 
 ### `GET | PATCH | DELETE /api/v1/alerts/rules/:ruleId`
 
-`PATCH` accepts `{ name?, threshold?, baselineWindows?, windowMinutes?, minTraces?, enabled? }`
+`PATCH` accepts `{ name?, threshold?, baselineWindows?, windowMinutes?, minTraces?,
+keepFiringMinutes?, enabled? }`
 (the metric and mode are fixed; delete and recreate to change them); disabling a rule
 resets it to `ok`. `DELETE` answers `204`. Creating, changing and deleting rules is audited.
 
 ### `POST /api/v1/alerts/evaluate`
 
-Evaluates every enabled rule now and returns `{ items: [{ rule, transition }] }` with
-`transition` `fired`, `resolved` or `none`. The API also evaluates on a timer, every
+Evaluates every enabled rule now and returns `{ items: [{ rule, transition, held }] }` with
+`transition` `fired`, `resolved` or `none` and `held` true while only `keepFiringMinutes` keeps
+the rule firing. The API also evaluates on a timer, every
 `SHADOW_ALERT_INTERVAL_MINUTES` (default 5; `0` turns the timer off). Only a change of state
 notifies: with `SHADOW_WEBHOOK_URL` set, the webhook receives `alert.firing` when a rule crosses
 its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHOOK_EVENTS`:
@@ -753,7 +759,8 @@ its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHO
 `shadow_alert_transitions_total{transition}` on `/metrics` counts state changes. The Agents page
 shows firing rules in a banner. CLI: `shadow alerts list`, `shadow alerts add <name> --metric
 failure_rate --threshold 0.5 --agent refund-agent --window 6h` (add `--baseline
-[--baseline-windows 14]` to make `--threshold` a multiple of the baseline), `shadow alerts remove
+[--baseline-windows 14]` to make `--threshold` a multiple of the baseline and `--keep-firing 30m`
+to hold a fired rule), `shadow alerts remove
 <nameOrId>` and `shadow alerts check`, which evaluates and exits 1 while any rule is firing.
 
 ## Share links

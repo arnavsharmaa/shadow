@@ -707,9 +707,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await dialog.getByTestId("rule-threshold").fill("12.5");
     await dialog.getByTestId("rule-window").selectOption("1440");
     await dialog.getByTestId("rule-min-traces").fill("3");
+    await dialog.getByTestId("rule-keep-firing").selectOption("30");
     await dialog.getByTestId("create-rule").click();
     const row = dialog.locator(`[data-testid="rule-row"][data-rule-name="${name}"]`);
-    await expect(row).toContainText("estimated cost ≥ $12.50 over 1d, 3+ traces");
+    await expect(row).toContainText("estimated cost ≥ $12.50 over 1d, 3+ traces, held 30m");
     await expect(row).toContainText("refund-agent");
     await expect(row.getByTestId("rule-state")).toHaveText("ok");
     await row.getByTestId("toggle-rule").click();

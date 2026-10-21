@@ -135,6 +135,55 @@ describe("alert rules", () => {
     expect(received.map((n) => n.type)).toEqual(["alert.firing", "alert.resolved"]);
   });
 
+  it("keeps a fired rule firing for keepFiringMinutes before it may resolve", async () => {
+    // The clock is at 13:05; the two runs started at 09:00 and 09:30.
+    received.length = 0;
+    const rule = await createRule({
+      name: "held failures",
+      agent: "refund-agent",
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 250,
+      keepFiringMinutes: 90,
+    });
+    expect(rule.keepFiringMinutes).toBe(90);
+    const byName = (items: AlertEvaluation[]) => items.find((e) => e.rule.name === "held failures");
+    expect(byName(await evaluate())).toMatchObject({
+      transition: "fired",
+      held: false,
+      rule: { state: "firing", lastValue: 1, lastTriggeredAt: "2026-09-01T13:05:00.000Z" },
+    });
+
+    // 14:05: both runs have left the window, but the hold runs until 14:35.
+    clock.advance(60 * 60_000);
+    expect(byName(await evaluate())).toMatchObject({
+      transition: "none",
+      held: true,
+      rule: { state: "firing", lastValue: null, lastTraces: 0 },
+    });
+    expect(received.map((n) => [n.type, n.rule.name])).toEqual([["alert.firing", "held failures"]]);
+
+    // Dropping the hold lets the next evaluation resolve the rule.
+    const patched = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/alerts/rules/${rule.id}`,
+      payload: { keepFiringMinutes: 0 },
+    });
+    expect(json<AlertRule>(patched).keepFiringMinutes).toBe(0);
+    expect(byName(await evaluate())).toMatchObject({
+      transition: "resolved",
+      held: false,
+      rule: { state: "ok" },
+    });
+    expect(received.map((n) => n.type)).toEqual(["alert.firing", "alert.resolved"]);
+    const tooLong = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/alerts/rules",
+      payload: { name: "x", metric: "tool_errors", threshold: 1, keepFiringMinutes: 10_081 },
+    });
+    expect(tooLong.statusCode).toBe(400);
+  });
+
   it("measures cost, tool errors and latency, and respects disabled rules", async () => {
     const cost = await createRule({
       name: "cost",

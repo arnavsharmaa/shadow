@@ -221,7 +221,7 @@ shadow batch --agent refund-agent --at refund_order --set refundLimit=100
 shadow batch --agent refund-agent --at refund_order --set refundLimit=100 --limit 300 --wait
 shadow jobs list
 shadow trend refund-agent --metric failed --from 14d
-shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h
+shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h --keep-firing 30m
 shadow alerts add "cost spike" --metric total_cost --threshold 3 --baseline --window 1d
 shadow alerts check
 shadow keys create ci-ingest --scope ingest

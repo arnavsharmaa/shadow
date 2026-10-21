@@ -27,6 +27,7 @@ function toAlertRule(row: AlertRuleRow): AlertRule {
     threshold: row.threshold,
     windowMinutes: row.windowMinutes,
     minTraces: row.minTraces,
+    keepFiringMinutes: row.keepFiringMinutes,
     enabled: row.enabled,
     state: row.state === "firing" ? "firing" : "ok",
     lastValue: row.lastValue,
@@ -103,6 +104,7 @@ export async function createAlertRule(
     threshold: body.threshold,
     windowMinutes: body.windowMinutes,
     minTraces: body.minTraces,
+    keepFiringMinutes: body.keepFiringMinutes,
     enabled: body.enabled,
     state: "ok",
     lastValue: null,
@@ -231,6 +233,8 @@ export interface AlertEvaluation {
   rule: AlertRule;
   /** `fired` and `resolved` are the state changes that send a notification. */
   transition: "fired" | "resolved" | "none";
+  /** True when the value is back under the limit but `keepFiringMinutes` keeps the rule firing. */
+  held: boolean;
 }
 
 /**
@@ -257,7 +261,9 @@ export async function baselineFor(
  * threshold; a baseline rule fires while its value is at or above `threshold` times a baseline
  * that is above zero (with no history there is nothing to compare against, so it stays ok).
  * Either way the window must hold at least `minTraces` traces. Only the change of state (ok to
- * firing, or back) notifies the webhook, so a rule that stays firing does not repeat itself.
+ * firing, or back) notifies the webhook, so a rule that stays firing does not repeat itself. A
+ * rule with `keepFiringMinutes` does not resolve until that long after it fired, so a value that
+ * dips under the limit and comes back raises one alert rather than a burst.
  */
 export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEvaluation[]> {
   const rows = await ctx.handle.db
@@ -276,7 +282,13 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
           ? baseline * rule.threshold
           : null
         : rule.threshold;
-    const firing = value !== null && limit !== null && count >= rule.minTraces && value >= limit;
+    const over = value !== null && limit !== null && count >= rule.minTraces && value >= limit;
+    const heldUntil =
+      rule.state === "firing" && rule.lastTriggeredAt !== null && rule.keepFiringMinutes > 0
+        ? Date.parse(rule.lastTriggeredAt) + rule.keepFiringMinutes * 60_000
+        : null;
+    const held = !over && heldUntil !== null && ctx.clock.now() < heldUntil;
+    const firing = over || held;
     const transition =
       firing && rule.state === "ok"
         ? "fired"
@@ -321,7 +333,7 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
         traces: count,
       });
     }
-    out.push({ rule: next, transition });
+    out.push({ rule: next, transition, held });
   }
   return out;
 }

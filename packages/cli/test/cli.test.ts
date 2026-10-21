@@ -1299,6 +1299,7 @@ describe("shadow cli", () => {
       threshold: 0.5,
       windowMinutes: 360,
       minTraces: 1,
+      keepFiringMinutes: 0,
       enabled: true,
       state,
       lastValue,
@@ -1339,6 +1340,8 @@ describe("shadow cli", () => {
         "refund-agent",
         "--window",
         "6h",
+        "--keep-firing",
+        "30m",
       ]),
     ).toBe(0);
     expect(api.captured.calls[0]?.body).toEqual({
@@ -1348,8 +1351,40 @@ describe("shadow cli", () => {
       agent: "refund-agent",
       windowMinutes: 360,
       minTraces: 1,
+      keepFiringMinutes: 30,
     });
-    expect(api.captured.out.join("\n")).toContain("fires when failure_rate >= 0.5 over 360m");
+    expect(api.captured.out.join("\n")).toContain(
+      "fires when failure_rate >= 0.5 over 360m, held for 30m",
+    );
+    // The hold is optional and bounded; a bare `0` switches it off.
+    expect(
+      await runWith(api, [
+        "alerts",
+        "add",
+        "x",
+        "--metric",
+        "tool_errors",
+        "--threshold",
+        "1",
+        "--keep-firing",
+        "8d",
+      ]),
+    ).toBe(2);
+    expect(api.captured.err.join("\n")).toContain("--keep-firing must be between 0m and 7d");
+    expect(
+      await runWith(api, [
+        "alerts",
+        "add",
+        "x",
+        "--metric",
+        "tool_errors",
+        "--threshold",
+        "1",
+        "--keep-firing",
+        "0",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toMatchObject({ keepFiringMinutes: 0 });
 
     expect(await runWith(api, ["alerts", "list"])).toBe(0);
     expect(api.captured.out.join("\n")).toMatch(

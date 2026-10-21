@@ -339,6 +339,8 @@ export const createAlertRuleBodySchema = z.object({
   /** 1 minute to 30 days (default 60 minutes). */
   windowMinutes: z.number().int().min(1).max(43_200).default(60),
   minTraces: z.number().int().min(1).max(100_000).default(1),
+  /** Minimum time a fired rule keeps firing, 0 to 7 days (default 0). */
+  keepFiringMinutes: z.number().int().min(0).max(10_080).default(0),
   enabled: z.boolean().default(true),
 });
 export type CreateAlertRuleBody = z.infer<typeof createAlertRuleBodySchema>;
@@ -350,6 +352,7 @@ export const updateAlertRuleBodySchema = z
     baselineWindows: z.number().int().min(1).max(90),
     windowMinutes: z.number().int().min(1).max(43_200),
     minTraces: z.number().int().min(1).max(100_000),
+    keepFiringMinutes: z.number().int().min(0).max(10_080),
     enabled: z.boolean(),
   })
   .partial()

@@ -338,6 +338,11 @@ export const alertRuleSchema = z.object({
   windowMinutes: z.number().int().positive(),
   /** Traces needed in the window before the rule can fire (guards small samples). */
   minTraces: z.number().int().positive(),
+  /**
+   * Once fired, the rule stays firing for at least this long even if the value drops back,
+   * so a metric hovering around the limit raises one alert instead of a burst (0 = none).
+   */
+  keepFiringMinutes: z.number().int().nonnegative(),
   enabled: z.boolean(),
   state: z.enum(["ok", "firing"]),
   lastValue: z.number().nullable(),

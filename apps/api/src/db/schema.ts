@@ -342,6 +342,7 @@ export const alertRules = pgTable(
     threshold: real("threshold").notNull(),
     windowMinutes: integer("window_minutes").notNull(),
     minTraces: integer("min_traces").notNull().default(1),
+    keepFiringMinutes: integer("keep_firing_minutes").notNull().default(0),
     enabled: boolean("enabled").notNull().default(true),
     state: text("state").notNull().default("ok"),
     lastValue: real("last_value"),
