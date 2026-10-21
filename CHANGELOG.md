@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The trace page's header has an "Events CSV" link that downloads the selected branch's events
+  through the events CSV export.
 - `runOpenAIResponsesLoop` runs the Responses API function-calling loop on a client wrapped
   with `traceOpenAI`: output items are appended to the item list, every `function_call` runs
   through `trace.tool` with an optional policy guard, and answers go back as

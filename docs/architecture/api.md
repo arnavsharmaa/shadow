@@ -365,7 +365,8 @@ their span (see [Events](../concepts/events.md#spans-and-hierarchy)).
 parentEventId, inputTokens, outputTokens, totalTokens, estimatedCost, tags, input, output, id`,
 with `input` and `output` as JSON), following the cursors server-side up to 100,000 rows;
 `x-shadow-truncated: true` says the cap was hit. CLI: `shadow inspect <traceId> --csv [--out
-<file>]` with the usual `--branch`, `--type`, `--grep` and `--severity` filters.
+<file>]` with the usual `--branch`, `--type`, `--grep` and `--severity` filters; the trace
+page's header links to the selected branch's document.
 
 ### `GET /api/v1/traces/:traceId/events/:eventId`
 

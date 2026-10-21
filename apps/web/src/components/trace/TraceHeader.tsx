@@ -184,6 +184,15 @@ export function TraceHeader({
         >
           Markdown report
         </a>
+        <a
+          href={api.eventsCsvUrl(trace.id, branch?.id)}
+          className="inline-flex h-6 items-center rounded border border-border px-2 text-[11px] text-fg-muted hover:bg-hover"
+          download
+          title="Download the selected branch's events as CSV for a spreadsheet"
+          data-testid="export-events-csv"
+        >
+          Events CSV
+        </a>
       </div>
     </div>
   );

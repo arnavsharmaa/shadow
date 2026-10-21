@@ -34,6 +34,13 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("trace-header")).toContainText(
       "Refund Agent".length > 0 ? "refund-agent" : "",
     );
+    // The header offers the selected branch's events as CSV, served by the API.
+    const csvLink = page.getByTestId("export-events-csv");
+    await expect(csvLink).toHaveAttribute("href", /\/events\?branchId=br_.*format=csv$/);
+    const csv = await request.get((await csvLink.getAttribute("href")) ?? "");
+    expect(csv.status()).toBe(200);
+    expect(csv.headers()["content-type"]).toContain("text/csv");
+    expect((await csv.text()).split("\r\n")[0]).toMatch(/^sequence,timestamp,eventType/);
 
     // 3. Select the refund step (the refund_order tool request) in the execution tree.
     const refundNode = page.locator(

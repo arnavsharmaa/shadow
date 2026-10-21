@@ -459,6 +459,9 @@ export const api = {
     ),
   exportUrl: (traceId: string) =>
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/export`,
+  /** The branch's events (the root branch when `branchId` is omitted) as one CSV document. */
+  eventsCsvUrl: (traceId: string, branchId?: string) =>
+    `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/events${query({ branchId, format: "csv" })}`,
   docsUrl: () => `${apiBaseUrl()}/docs`,
   health: () =>
     request<{
