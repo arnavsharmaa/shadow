@@ -27,6 +27,7 @@ import { loadConfig, type ApiConfig } from "../src/config.js";
 import { createDatabase, type DatabaseHandle } from "../src/db/client.js";
 import { buildApp, type ShadowApp } from "../src/http/app.js";
 import { createLogger } from "../src/logger.js";
+import { createOtlpBuffer } from "../src/otlp/buffer.js";
 import { createDefaultRegistry, type AgentRegistry } from "../src/replay/registry.js";
 import { seedDemoData, type SeedReport } from "../src/seed/seed.js";
 import { createServiceContext, type ServiceContext } from "../src/services/context.js";
@@ -55,20 +56,21 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   const handle = await createDatabase({ url: "memory://" });
   await handle.migrate();
   const logger = createLogger({ level: "silent" });
-  const services = createServiceContext({
-    handle,
-    logger,
-    registry: options.registry ?? createDefaultRegistry(),
-    redactor: createRedactor(),
-    ...(options.ids ? { ids: options.ids } : {}),
-    ...(options.clock ? { clock: options.clock } : {}),
-  });
   const config = loadConfig({
     ...process.env,
     SHADOW_MAX_BODY_BYTES: "1048576",
     SHADOW_AUTO_SEED: "false",
     SHADOW_LOG_LEVEL: "silent",
     ...options.env,
+  });
+  const services = createServiceContext({
+    handle,
+    logger,
+    registry: options.registry ?? createDefaultRegistry(),
+    redactor: createRedactor(),
+    otlpBuffer: createOtlpBuffer({ windowSeconds: config.SHADOW_OTLP_BUFFER_SECONDS }),
+    ...(options.ids ? { ids: options.ids } : {}),
+    ...(options.clock ? { clock: options.clock } : {}),
   });
   const app = await buildApp({ config, services, logger });
   await app.ready();

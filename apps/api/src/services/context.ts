@@ -13,6 +13,7 @@ import { ShadowMetrics } from "../metrics/registry.js";
 import { noopWebhook, type Webhook } from "../notify/webhook.js";
 import type { FileExporter } from "../export/file.js";
 import type { OtlpForwarder } from "../otlp/forwarder.js";
+import { createOtlpBuffer, type OtlpBuffer } from "../otlp/buffer.js";
 import { createJobRunner, type JobRunner } from "../jobs/runner.js";
 import type { AgentRegistry } from "../replay/registry.js";
 
@@ -30,6 +31,8 @@ export interface ServiceContext {
   webhook: Webhook;
   /** Forwarding of finished traces to an OTLP collector. */
   otlpForwarder: OtlpForwarder;
+  /** Spans of OTLP traces held until their root span ends (`SHADOW_OTLP_BUFFER_SECONDS`). */
+  otlpBuffer: OtlpBuffer;
   /** Writing of finished traces as bundles to a directory. */
   fileExporter: FileExporter;
   /** Background jobs (large batch counterfactuals), one at a time. */
@@ -44,6 +47,9 @@ export const noopOtlpForwarder: OtlpForwarder = {
   traceFinished: async () => undefined,
   settle: async () => undefined,
 };
+
+/** A buffer that holds nothing; used when no window is configured and in tests. */
+export const noopOtlpBuffer: OtlpBuffer = createOtlpBuffer({ windowSeconds: 0 });
 
 /** An exporter that does nothing; used when no directory is configured and in tests. */
 export const noopFileExporter: FileExporter = {
@@ -62,6 +68,7 @@ export function createServiceContext(
         | "metrics"
         | "webhook"
         | "otlpForwarder"
+        | "otlpBuffer"
         | "fileExporter"
         | "jobs"
         | "pricing"
@@ -75,6 +82,7 @@ export function createServiceContext(
     metrics: input.metrics ?? new ShadowMetrics(),
     webhook: input.webhook ?? noopWebhook,
     otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
+    otlpBuffer: input.otlpBuffer ?? noopOtlpBuffer,
     fileExporter: input.fileExporter ?? noopFileExporter,
     pricing: input.pricing ?? builtinPricingProvider,
     jobs:

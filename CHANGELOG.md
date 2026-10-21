@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OTLP buffering: `SHADOW_OTLP_BUFFER_SECONDS` holds the spans of an OpenTelemetry trace whose
+  root span has not ended yet and stores the trace in one ordered pass when the batch that ends
+  the root arrives, instead of a first batch plus late appends. Held traces are stored as they
+  are when the window passes, the buffer is full or the API shuts down; the import response
+  reports `buffered` spans, `/health` shows the window and
+  `shadow_otlp_buffer_flushes_total` counts stored traces by reason.
 - Alert rules take `keepFiringMinutes` (`shadow alerts add --keep-firing 30m`, a "Keep firing"
   field in the web dialog): once fired, the rule stays firing for at least that long even if the
   value drops back, so a metric hovering around its limit raises one alert and one resolution

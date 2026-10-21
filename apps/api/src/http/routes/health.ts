@@ -25,6 +25,8 @@ const healthSchema = z.object({
     otlp: z.object({
       path: z.string(),
       defaultProject: z.string(),
+      /** Seconds that spans of a running OTLP trace are held before they are stored. */
+      bufferSeconds: z.number().optional(),
       export: z.object({ enabled: z.boolean(), encoding: z.string().optional() }),
     }),
     webhook: z.object({
@@ -46,6 +48,7 @@ export interface HealthRouteOptions {
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_RETENTION_PROJECT_DAYS"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
+    | "SHADOW_OTLP_BUFFER_SECONDS"
     | "SHADOW_INGEST_SAMPLE_RATE"
     | "SHADOW_OTLP_EXPORT_URL"
     | "SHADOW_OTLP_EXPORT_ENCODING"
@@ -102,6 +105,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
           otlp: {
             path: "/api/v1/otlp/v1/traces",
             defaultProject: config.SHADOW_OTLP_DEFAULT_PROJECT,
+            ...(config.SHADOW_OTLP_BUFFER_SECONDS > 0
+              ? { bufferSeconds: config.SHADOW_OTLP_BUFFER_SECONDS }
+              : {}),
             export: config.SHADOW_OTLP_EXPORT_URL
               ? { enabled: true, encoding: config.SHADOW_OTLP_EXPORT_ENCODING }
               : { enabled: false },

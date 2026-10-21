@@ -110,7 +110,8 @@ Prometheus text exposition (`text/plain; version=0.0.4`). Counters: `shadow_http
 (`method`, `route`, `status`) with the `shadow_http_request_duration_ms` histogram,
 `shadow_traces_created_total` (`source`), `shadow_events_ingested_total` (`source`),
 `shadow_forks_total`, `shadow_replays_total` (`status`), `shadow_comparisons_total` (`kind`),
-`shadow_otlp_requests_total` and `shadow_traces_pruned_total`. Gauges sampled at scrape time:
+`shadow_otlp_requests_total`, `shadow_otlp_buffer_flushes_total` (`reason`) and
+`shadow_traces_pruned_total`. Gauges sampled at scrape time:
 `shadow_traces`, `shadow_branches`, `shadow_events`, `shadow_replayable_agents`, plus
 `process_uptime_seconds`, `process_resident_memory_bytes` and `nodejs_heap_used_bytes`. Counters
 reset when the process restarts. When `SHADOW_API_TOKEN` is set the scrape must carry the bearer
@@ -895,14 +896,26 @@ described in [docs/integrations/opentelemetry.md](../integrations/opentelemetry.
   "partialSuccess": {},
   "shadow": {
     "traces": [
-      { "traceId": "trc_otel_…", "otelTraceId": "…", "created": true, "accepted": 14, "skipped": 0 }
+      {
+        "traceId": "trc_otel_…",
+        "otelTraceId": "…",
+        "created": true,
+        "accepted": 14,
+        "skipped": 0,
+        "buffered": 0
+      }
     ]
   }
 }
 ```
 
-`skipped` counts spans already stored (retried exports). Requires the bearer token when
-`SHADOW_API_TOKEN` is set.
+`skipped` counts spans already stored (retried exports). With `SHADOW_OTLP_BUFFER_SECONDS` set,
+the spans of a trace whose root span has not ended yet are held in memory instead of being
+stored: `buffered` is then how many spans are waiting and nothing of the trace exists yet. The
+batch that ends the root span stores the whole trace in one ordered pass; a trace whose root
+never arrives is stored as it is once the window has passed (also when the buffer is full,
+1,000 traces or 5,000 spans per trace, and at shutdown). Spans for a trace that is already
+stored are never held. Requires the bearer token when `SHADOW_API_TOKEN` is set.
 
 ## Comparisons
 
@@ -953,6 +966,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_REDACT_PATTERNS`            | empty                                         | comma-separated extra key regexes for redaction           |
 | `SHADOW_CORS_ORIGINS`               | `http://localhost:3000,http://127.0.0.1:3000` |                                                           |
 | `SHADOW_OTLP_DEFAULT_PROJECT`       | `otel`                                        | project for OTLP traces without `service.namespace`       |
+| `SHADOW_OTLP_BUFFER_SECONDS`        | `0` (off)                                     | hold spans of running OTLP traces this long (see above)   |
 | `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to  |
 | `SHADOW_EXPORT_DIR`                 | unset                                         | directory that finished traces are written to as bundles  |
 | `SHADOW_WEBHOOK_FORMAT`             | `json`                                        | `json` notification or a `slack` chat message             |

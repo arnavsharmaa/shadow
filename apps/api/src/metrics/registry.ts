@@ -148,6 +148,11 @@ export class ShadowMetrics {
     "shadow_otlp_requests_total",
     "OTLP export requests accepted.",
   );
+  readonly otlpBufferFlushes = new Counter(
+    "shadow_otlp_buffer_flushes_total",
+    "Held OTLP traces stored, by reason (complete, expired, full, shutdown).",
+    ["reason"],
+  );
   readonly otlpExports = new Counter(
     "shadow_otlp_exports_total",
     "Finished traces forwarded to the OTLP collector, by result.",
@@ -182,6 +187,7 @@ export class ShadowMetrics {
       this.replays,
       this.comparisons,
       this.otlpRequests,
+      this.otlpBufferFlushes,
       this.otlpExports,
       this.fileExports,
       this.alertTransitions,

@@ -60,6 +60,7 @@ describe("health and error envelope", () => {
         SHADOW_RETENTION_PROJECT_DAYS: "ci=7",
 
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
+        SHADOW_OTLP_BUFFER_SECONDS: "30",
         SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
         SHADOW_WEBHOOK_EVENTS: "all",
         SHADOW_WEBHOOK_FORMAT: "slack",
@@ -86,6 +87,7 @@ describe("health and error envelope", () => {
         otlp: {
           path: "/api/v1/otlp/v1/traces",
           defaultProject: "ingest",
+          bufferSeconds: 30,
           export: { enabled: true, encoding: "json" },
         },
         webhook: { enabled: true, events: "all", format: "slack" },

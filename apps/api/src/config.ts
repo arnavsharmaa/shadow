@@ -65,6 +65,11 @@ const configSchema = z.object({
   SHADOW_WEB_URL: optionalHttpUrl,
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */
   SHADOW_OTLP_DEFAULT_PROJECT: z.string().min(1).max(64).default("otel"),
+  /**
+   * How long the spans of an OTLP trace whose root span has not ended are held before they
+   * are stored, so a trace exported across batches gets one ordering (0 = store at once).
+   */
+  SHADOW_OTLP_BUFFER_SECONDS: z.coerce.number().int().min(0).max(3600).default(0),
   /** OTLP/HTTP traces endpoint that finished traces are forwarded to (unset disables). */
   SHADOW_OTLP_EXPORT_URL: optionalHttpUrl,
   /** Extra request headers for the collector: `name=value` pairs separated by commas. */

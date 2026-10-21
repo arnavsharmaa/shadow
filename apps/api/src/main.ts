@@ -7,6 +7,8 @@ import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./rep
 import { createWebhook } from "./notify/webhook.js";
 import { createFileExporter } from "./export/file.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
+import { createOtlpBuffer } from "./otlp/buffer.js";
+import { createOtlpBufferFlusher } from "./otlp/import.js";
 import { loadPricing } from "./pricing.js";
 import { failInterruptedJobs } from "./services/batch.js";
 import { createRetention } from "./retention.js";
@@ -67,6 +69,7 @@ async function main(): Promise<void> {
       "otlp forwarding enabled",
     );
   }
+  const otlpBuffer = createOtlpBuffer({ windowSeconds: config.SHADOW_OTLP_BUFFER_SECONDS });
   const fileExporter = createFileExporter({ config, logger });
   if (fileExporter.enabled) {
     logger.info({ dir: config.SHADOW_EXPORT_DIR }, "file export enabled");
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
     }),
     webhook,
     otlpForwarder,
+    otlpBuffer,
     fileExporter,
     pricing,
   });
@@ -96,6 +100,7 @@ async function main(): Promise<void> {
   const app = await buildApp({ config, services, logger });
   const retention = createRetention({ services, config, logger });
   const alertEvaluator = createAlertEvaluator({ services, config, logger });
+  const otlpFlusher = createOtlpBufferFlusher({ services, logger });
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -111,6 +116,8 @@ async function main(): Promise<void> {
       retention.stop();
       alertEvaluator.stop();
       await app.close();
+      // Held OTLP spans are stored before the database goes away.
+      await otlpFlusher.stop();
       await webhook.settle();
       await otlpForwarder.settle();
       await fileExporter.settle();
@@ -132,6 +139,7 @@ async function main(): Promise<void> {
   await app.listen({ host: config.SHADOW_API_HOST, port: config.SHADOW_API_PORT });
   retention.start();
   alertEvaluator.start();
+  otlpFlusher.start();
   logger.info(
     {
       url: `http://${config.SHADOW_API_HOST}:${config.SHADOW_API_PORT}`,

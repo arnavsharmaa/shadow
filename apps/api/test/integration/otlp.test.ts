@@ -33,6 +33,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
             created: true,
             accepted: 16,
             skipped: 0,
+            buffered: 0,
           },
         ],
       },

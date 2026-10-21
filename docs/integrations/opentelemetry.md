@@ -147,8 +147,17 @@ OTel trace's events by (start time for openers, end time for closers, span id fo
 stores them in one ingestion call; the root span's end closes the trace
 (`trace.completed`, or `trace.failed` when its status is `ERROR`). Spans from later requests are
 appended with fresh sequences and flagged `metadata.otel.late = true`; the lifecycle events are
-not emitted twice. Buffering until the root span ends, so that a trace exported across several
-batches gets one consistent ordering, is not implemented yet.
+not emitted twice.
+
+Set `SHADOW_OTLP_BUFFER_SECONDS` (for example `30`) to hold the spans of a trace whose root
+span (a span without a parent) has not ended yet, so that a trace exported across several
+batches, as batch span processors do for long-running agents, is stored in one pass with one
+consistent ordering and no late spans. The batch that ends the root span releases the trace;
+a trace whose root never arrives is stored as it is once the window has passed, as is
+everything held when the buffer is full (1,000 traces, 5,000 spans per trace) or the API shuts
+down. The buffer is in memory and per process, so keep the window short and expect spans held
+at a crash to be lost. The import response reports held spans as `buffered`, and
+`shadow_otlp_buffer_flushes_total` counts stored traces by reason.
 
 ## Export (Shadow to OTLP)
 
