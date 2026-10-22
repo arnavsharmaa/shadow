@@ -117,17 +117,59 @@ export const ANTHROPIC_MODEL_PRICING: ModelPricing[] = [
   anthropic("claude-haiku-4-5", 1, 5),
 ];
 
+const OPENAI_PRICING_VERSION = "openai-2026-10-22";
+
+function openai(
+  model: string,
+  inputPerMillion: number,
+  outputPerMillion: number,
+  cachedInputPerMillion: number,
+): ModelPricing {
+  return {
+    provider: "openai",
+    model,
+    inputPerMillion,
+    outputPerMillion,
+    cachedInputPerMillion,
+    currency: "USD",
+    version: OPENAI_PRICING_VERSION,
+  };
+}
+
+/**
+ * OpenAI API list prices in USD per million tokens (standard tier) as published on
+ * 2026-10-22, with the published cached-input rate. Snapshot ids (`gpt-4o-2024-08-06`) resolve
+ * to these entries. Batch and flex tiers, priority processing and Azure OpenAI price
+ * separately, so costs stay estimates; override entries with `SHADOW_PRICING_FILE`.
+ */
+export const OPENAI_MODEL_PRICING: ModelPricing[] = [
+  openai("gpt-5", 1.25, 10, 0.125),
+  openai("gpt-5-mini", 0.25, 2, 0.025),
+  openai("gpt-5-nano", 0.05, 0.4, 0.005),
+  openai("gpt-4.1", 2, 8, 0.5),
+  openai("gpt-4.1-mini", 0.4, 1.6, 0.1),
+  openai("gpt-4.1-nano", 0.1, 0.4, 0.025),
+  openai("gpt-4o", 2.5, 10, 1.25),
+  openai("gpt-4o-mini", 0.15, 0.6, 0.075),
+  openai("o3", 2, 8, 0.5),
+  openai("o3-mini", 1.1, 4.4, 0.55),
+  openai("o4-mini", 1.1, 4.4, 0.275),
+];
+
 /**
  * Canonical form of a model id for price lookups: lower case, without a platform prefix
- * (`anthropic.claude-…` on Bedrock) and without a dated snapshot suffix (`-20251101`,
- * `@20251101`).
+ * (`anthropic.claude-…` on Bedrock, `openai/gpt-…` on gateways) and without a dated snapshot
+ * suffix (`-20251101`, `@20251101`, `-2024-08-06`).
  */
 export function normalizeModelId(model: string): string {
+  // A dot only separates a platform prefix when a name follows it; `gpt-4.1` keeps its dot.
   return model
     .trim()
     .toLowerCase()
-    .replace(/^[a-z0-9-]+\./, "")
-    .replace(/[-@]\d{8}$/, "");
+    .replace(/^[a-z0-9-]+\//, "")
+    .replace(/^[a-z0-9-]+\.(?=[a-z])/, "")
+    .replace(/[-@]\d{8}$/, "")
+    .replace(/-\d{4}-\d{2}-\d{2}$/, "");
 }
 
 /**
@@ -169,13 +211,17 @@ export class CatalogPricingProvider implements PricingProvider {
   }
 }
 
-/** The simulator's fictional prices plus the Anthropic list prices. */
+/** The simulator's fictional prices plus the Anthropic and OpenAI list prices. */
 export const BUILTIN_MODEL_PRICING: ModelPricing[] = [
   ...SIMULATED_MODEL_PRICING,
   ...ANTHROPIC_MODEL_PRICING,
+  ...OPENAI_MODEL_PRICING,
 ];
+
+/** Dated after the newest vendor table it bundles. */
+export const BUILTIN_PRICING_VERSION = "builtin-2026-10-22";
 
 export const builtinPricingProvider = new CatalogPricingProvider(
   BUILTIN_MODEL_PRICING,
-  `builtin-${ANTHROPIC_PRICING_VERSION}`,
+  BUILTIN_PRICING_VERSION,
 );

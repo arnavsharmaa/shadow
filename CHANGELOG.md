@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- OpenAI list prices are built into the pricing catalog (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`,
+  `gpt-4.1` and its mini and nano variants, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-mini`, `o4-mini`,
+  with cached-input rates), so traces recorded with `traceOpenAI` or imported from Chat
+  Completions histories are priced at ingestion. Lookups also strip dated snapshot suffixes
+  such as `gpt-4o-2024-08-06` and gateway prefixes such as `openai/gpt-4o`. The catalog version
+  is now `builtin-2026-10-22`.
 - Share links from the web app: a Share button on the trace page opens a dialog that creates a
   read-only link with a lifetime and a note, shows the viewer and bundle URLs once with copy
   buttons, lists the trace's links with their state and opens, and revokes them.

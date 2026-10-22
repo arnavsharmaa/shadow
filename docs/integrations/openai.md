@@ -106,9 +106,11 @@ other; replay needs a registered program.
 
 ## Costs
 
-Shadow's built-in price table covers Anthropic models. OpenAI calls record token usage, and
-costs are estimated when the deployment supplies prices for the models in use through
-`SHADOW_PRICING_FILE` (see [cost tracking](../concepts/cost-tracking.md)).
+Shadow's built-in price table covers current OpenAI models (`gpt-5` and its mini and nano
+variants, `gpt-4.1` and variants, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-mini`, `o4-mini`, with
+cached-input rates; snapshot ids such as `gpt-4o-2024-08-06` resolve to them), so recorded
+calls are priced at ingestion. Other models are estimated once the deployment supplies their
+prices through `SHADOW_PRICING_FILE` (see [cost tracking](../concepts/cost-tracking.md)).
 
 ## Limitations
 

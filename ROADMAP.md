@@ -143,7 +143,7 @@ replay`, `shadow matrix` and `shadow batch`).
   planned yet).
 - Server-side sampling on ingestion (done: `SHADOW_INGEST_SAMPLE_RATE`, aligned with the SDK's
   `sampleRate`; a per-client API rate limit exists via `SHADOW_RATE_LIMIT_PER_MINUTE`).
-- Real pricing tables and per-provider cost providers (Anthropic list prices are built in and
+- Real pricing tables and per-provider cost providers (Anthropic and OpenAI list prices are built in and
   applied at ingestion, and `SHADOW_PRICING_FILE` adds other providers; bundled tables for more
   vendors remain). The `shadow-sim` pricing stays for demos.
 

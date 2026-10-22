@@ -50,7 +50,9 @@ describe("POST /api/v1/import/openai", () => {
       outputTokens: 103,
       totalTokens: 1248,
     });
-    expect(detail.trace.metrics.totalEstimatedCost).toBe(0);
+    // gpt-5 is in the built-in catalog: 1145 input tokens at $1.25/M, of which 256 cached at
+    // $0.125/M, plus 103 output tokens at $10/M.
+    expect(detail.trace.metrics.totalEstimatedCost).toBeCloseTo(0.00217325, 8);
     const events = await listAllEvents(t, "trc_openai_refund");
     expect(events).toHaveLength(24);
     expect(events.every((e: ShadowEvent) => e.source === "openai")).toBe(true);

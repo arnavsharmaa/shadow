@@ -103,7 +103,7 @@ describe("cost estimation on ingestion", () => {
     const response = await t.app.inject({ url: "/api/v1/pricing" });
     expect(response.statusCode).toBe(200);
     const body = json<{ version: string; items: ModelPricing[] }>(response);
-    expect(body.version).toBe("builtin-anthropic-2026-09-25");
+    expect(body.version).toBe("builtin-2026-10-22");
     expect(body.items.find((p) => p.model === "claude-opus-5-5")).toMatchObject({
       provider: "anthropic",
       inputPerMillion: 4,

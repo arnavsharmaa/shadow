@@ -88,8 +88,9 @@ opened the response's span, in the same batch or already stored, and looks its `
 `model` up in a `CatalogPricingProvider`. A cost supplied by the caller is never replaced, and
 an unknown model stays unpriced (`estimatedCost: null`).
 
-The built-in catalog (`builtinPricingProvider`) holds the simulator's prices and **Anthropic's
-first-party API list prices as published on 2026-09-25**, in USD per million tokens:
+The built-in catalog (`builtinPricingProvider`, version `builtin-2026-10-22`) holds the
+simulator's prices, **Anthropic's first-party API list prices as published on 2026-09-25** and
+**OpenAI's API list prices as published on 2026-10-22**, in USD per million tokens:
 
 | Model               | Input | Output | Cache read |
 | ------------------- | ----- | ------ | ---------- |
@@ -106,9 +107,28 @@ first-party API list prices as published on 2026-09-25**, in USD per million tok
 | `claude-haiku-4-5`  | 1.00  | 5.00   | 0.10       |
 
 Cache reads use the published rate where one is listed and a tenth of the input price
-otherwise. Lookups ignore case, a platform prefix (`anthropic.claude-opus-5-5`) and a dated
-snapshot suffix (`claude-haiku-4-5-20251001`); when the event's provider is not in the catalog
-at all (`unknown`, `aws.bedrock`), the model id alone is used if only one provider lists it.
+otherwise.
+
+| Model          | Input | Output | Cached input |
+| -------------- | ----- | ------ | ------------ |
+| `gpt-5`        | 1.25  | 10.00  | 0.125        |
+| `gpt-5-mini`   | 0.25  | 2.00   | 0.025        |
+| `gpt-5-nano`   | 0.05  | 0.40   | 0.005        |
+| `gpt-4.1`      | 2.00  | 8.00   | 0.50         |
+| `gpt-4.1-mini` | 0.40  | 1.60   | 0.10         |
+| `gpt-4.1-nano` | 0.10  | 0.40   | 0.025        |
+| `gpt-4o`       | 2.50  | 10.00  | 1.25         |
+| `gpt-4o-mini`  | 0.15  | 0.60   | 0.075        |
+| `o3`           | 2.00  | 8.00   | 0.50         |
+| `o3-mini`      | 1.10  | 4.40   | 0.55         |
+| `o4-mini`      | 1.10  | 4.40   | 0.275        |
+
+OpenAI prices are the standard tier; batch and flex tiers, priority processing and Azure OpenAI
+price separately. Lookups ignore case, a platform or gateway prefix
+(`anthropic.claude-opus-5-5`, `openai/gpt-4o`) and a dated snapshot suffix
+(`claude-haiku-4-5-20251001`, `gpt-4o-2024-08-06`); when the event's provider is not in the
+catalog at all (`unknown`, `aws.bedrock`, `openrouter`), the model id alone is used if only one
+provider lists it.
 
 These are list prices at one point in time. Batch discounts, cache writes (billed above the
 input rate, counted here at the input rate), long-context or fast-mode premiums and partner

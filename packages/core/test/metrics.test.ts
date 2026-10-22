@@ -74,7 +74,46 @@ describe("CatalogPricingProvider", () => {
       cachedInputPerMillion: 0.1,
     });
     expect(builtinPricingProvider.lookup("anthropic", "claude-unknown-9")).toBeUndefined();
-    expect(builtinPricingProvider.version).toBe("builtin-anthropic-2026-09-25");
+    expect(builtinPricingProvider.version).toBe("builtin-2026-10-22");
+  });
+
+  it("finds OpenAI prices by id, snapshot id and gateway id", () => {
+    const gpt4o = builtinPricingProvider.lookup("openai", "gpt-4o");
+    expect(gpt4o).toMatchObject({
+      inputPerMillion: 2.5,
+      outputPerMillion: 10,
+      cachedInputPerMillion: 1.25,
+      currency: "USD",
+      version: "openai-2026-10-22",
+    });
+    expect(builtinPricingProvider.lookup("openai", "gpt-4o-2024-08-06")).toBe(gpt4o);
+    expect(builtinPricingProvider.lookup("OpenAI", "openai/gpt-4o")).toBe(gpt4o);
+    expect(builtinPricingProvider.lookup("openai", "gpt-4.1-mini-2025-04-14")).toMatchObject({
+      model: "gpt-4.1-mini",
+      inputPerMillion: 0.4,
+    });
+    // A gateway that reports no known provider still resolves an unambiguous model id.
+    expect(builtinPricingProvider.lookup("openrouter", "openai/gpt-5-mini")).toMatchObject({
+      provider: "openai",
+      model: "gpt-5-mini",
+    });
+    expect(builtinPricingProvider.lookup("openai", "gpt-3.5-turbo")).toBeUndefined();
+    expect(normalizeModelId("gpt-4o-2024-08-06")).toBe("gpt-4o");
+    expect(normalizeModelId("openai/gpt-4.1")).toBe("gpt-4.1");
+    expect(normalizeModelId("gpt-4.1-mini-2025-04-14")).toBe("gpt-4.1-mini");
+    expect(normalizeModelId("azure.gpt-4o")).toBe("gpt-4o");
+    // Cached input is billed at the published rate.
+    expect(
+      estimateModelCost(
+        {
+          inputTokens: 1_000_000,
+          outputTokens: 100_000,
+          totalTokens: 1_100_000,
+          cachedInputTokens: 500_000,
+        },
+        gpt4o,
+      ),
+    ).toMatchObject({ amount: 0.5 * 2.5 + 0.5 * 1.25 + 0.1 * 10, currency: "USD" });
   });
 
   it("falls back to the model id only when the provider is unknown to the table", () => {
