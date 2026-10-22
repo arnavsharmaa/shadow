@@ -240,13 +240,27 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     );
   });
 
-  test("a share link opens a read-only view of the trace", async ({ page, request }) => {
+  test("a share link opens a read-only view of the trace", async ({ page }) => {
     const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
-    const created = await request.post(`${apiUrl}/api/v1/traces/trc_demo_refund_violation/shares`, {
-      data: { expiresInHours: 1, note: "e2e" },
-    });
-    expect(created.status()).toBe(201);
-    const { token, share } = (await created.json()) as { token: string; share: { id: string } };
+    // Create the link from the trace page's share dialog.
+    await page.goto("/traces/trc_demo_refund_violation");
+    await page.getByTestId("share-trace").click();
+    const dialog = page.getByTestId("share-dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId("share-expires").selectOption("1");
+    await dialog.getByTestId("share-note").fill("e2e");
+    await dialog.getByTestId("create-share").click();
+    const viewer = await dialog.getByTestId("share-viewer-link").textContent();
+    const token = (viewer ?? "").split("/shared/")[1] ?? "";
+    expect(token).toMatch(/^shs_/);
+    await expect(dialog.getByTestId("share-bundle-link")).toHaveText(
+      `${apiUrl}/api/v1/shared/${token}`,
+    );
+    const row = dialog.locator('[data-testid="share-row"]').first();
+    await expect(row).toContainText("e2e");
+    await expect(row.getByTestId("share-state")).toHaveText("active");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
 
     await page.goto(`/shared/${token}`);
     await expect(page.getByTestId("shared-trace-name")).toHaveText(
@@ -268,8 +282,16 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.locator('[data-testid="shared-event"]').first()).toBeVisible();
     await expect(page.getByRole("button", { name: /fork/i })).toHaveCount(0);
 
-    await request.delete(`${apiUrl}/api/v1/traces/trc_demo_refund_violation/shares/${share.id}`);
-    await page.reload();
+    // Revoking from the dialog makes the link unavailable.
+    await page.goto("/traces/trc_demo_refund_violation");
+    await page.getByTestId("share-trace").click();
+    const active = page
+      .getByTestId("share-dialog")
+      .locator('[data-testid="share-row"]', { hasText: "e2e" })
+      .first();
+    await active.getByTestId("revoke-share").click();
+    await expect(active.getByTestId("share-state")).toHaveText("revoked");
+    await page.goto(`/shared/${token}`);
     await expect(page.getByTestId("shared-unavailable")).toBeVisible();
   });
 

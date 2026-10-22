@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Share links from the web app: a Share button on the trace page opens a dialog that creates a
+  read-only link with a lifetime and a note, shows the viewer and bundle URLs once with copy
+  buttons, lists the trace's links with their state and opens, and revokes them.
 - OTLP buffering: `SHADOW_OTLP_BUFFER_SECONDS` holds the spans of an OpenTelemetry trace whose
   root span has not ended yet and stores the trace in one ordered pass when the batch that ends
   the root arrives, instead of a first batch plus late appends. Held traces are stored as they

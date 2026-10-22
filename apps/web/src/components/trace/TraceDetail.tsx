@@ -15,6 +15,7 @@ import { EventDetail } from "./EventDetail";
 import { EventTree } from "./EventTree";
 import { ForkDialog } from "./ForkDialog";
 import { MatrixDialog } from "./MatrixDialog";
+import { ShareDialog } from "./ShareDialog";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { StateInspector } from "./StateInspector";
 import { Timeline } from "./Timeline";
@@ -102,6 +103,7 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     "events",
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [matrixOpen, setMatrixOpen] = useState(false);
   const comparisons = useQuery({
     queryKey: ["comparisons", traceId],
@@ -220,8 +222,14 @@ export function TraceDetail({ traceId }: { traceId: string }) {
         onUpdateTags={updateTags}
         replayable={replayable}
         onShowShortcuts={() => setShortcutsOpen(true)}
+        onShare={() => setShareOpen(true)}
       />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ShareDialog
+        traceId={detail.data.trace.id}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,22%)_minmax(360px,1fr)_minmax(300px,28%)] gap-px bg-border">
         <Panel
           title={

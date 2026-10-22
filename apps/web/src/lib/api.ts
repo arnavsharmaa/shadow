@@ -15,6 +15,7 @@ import type {
   SavedView as SharedView,
   ShadowEvent,
   TraceExport,
+  TraceShare,
   TraceSummary,
   DiffEntry,
   TraceListQuery,
@@ -457,6 +458,20 @@ export const api = {
     request<{ items: Artifact[] }>(
       "GET",
       `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts${query({ ...filter, limit: 100 })}`,
+    ),
+  shares: (traceId: string) =>
+    request<{ items: TraceShare[] }>("GET", `/api/v1/traces/${encodeURIComponent(traceId)}/shares`),
+  /** Creates a read-only link; the token comes back once and is never stored in clear. */
+  createShare: (traceId: string, body: { expiresInHours: number; note?: string }) =>
+    request<{ share: TraceShare; token: string; path: string }>(
+      "POST",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/shares`,
+      body,
+    ),
+  revokeShare: (traceId: string, shareId: string) =>
+    request<TraceShare>(
+      "DELETE",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
     ),
   exportUrl: (traceId: string) =>
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/export`,

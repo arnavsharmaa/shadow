@@ -21,6 +21,8 @@ interface Props {
   /** Whether the trace's agent has a registered program (forks can be replayed). */
   replayable?: boolean;
   onShowShortcuts?: () => void;
+  /** Opens the share-link dialog. */
+  onShare?: () => void;
 }
 
 export function TraceHeader({
@@ -36,6 +38,7 @@ export function TraceHeader({
   onUpdateTags,
   replayable = true,
   onShowShortcuts,
+  onShare,
 }: Props) {
   const metrics = branch?.metrics ?? trace.metrics;
   const outcome = branch?.outcome ?? trace.outcome;
@@ -193,6 +196,16 @@ export function TraceHeader({
         >
           Events CSV
         </a>
+        {onShare && (
+          <Button
+            size="xs"
+            onClick={onShare}
+            title="Create a read-only link to this trace"
+            data-testid="share-trace"
+          >
+            Share
+          </Button>
+        )}
       </div>
     </div>
   );

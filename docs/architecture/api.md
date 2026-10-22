@@ -769,6 +769,7 @@ to hold a fired rule), `shadow alerts remove
 Read-only links that hand one trace to someone who has no API token, for example a vendor or a
 teammate running their own Shadow. The link serves the same `shadow.trace` bundle as `GET
 /traces/:traceId/export`, which `shadow traces import <url>` (or `POST /traces/import`) loads.
+The trace page's Share button creates, lists and revokes them from the web app.
 
 ### `POST /api/v1/traces/:traceId/shares`
 
