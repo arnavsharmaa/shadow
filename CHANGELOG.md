@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces tail <traceId>` follows a running trace: it prints the events recorded so far
+  (or only new ones with `--new`), polls for more with a cursor after the last sequence seen
+  (`--interval`, default 2 s), and stops when the trace is no longer running; `--json` prints
+  one JSON line per event.
 - OpenAI list prices are built into the pricing catalog (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`,
   `gpt-4.1` and its mini and nano variants, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-mini`, `o4-mini`,
   with cached-input rates), so traces recorded with `traceOpenAI` or imported from Chat

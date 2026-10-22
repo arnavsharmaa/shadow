@@ -380,6 +380,54 @@ describe("shadow cli", () => {
     expect(text).toMatch(/^ {3}4 {2}tool\.response/m);
   });
 
+  it("tails a running trace until it finishes, reading only what is new", async () => {
+    let polls = 0;
+    const api = fakeApi({
+      "GET /api/v1/traces/trc_1": () => {
+        polls++;
+        return {
+          body: {
+            trace: { ...trace, status: polls < 3 ? "running" : "completed", outcome: null },
+            branches: [branch],
+          },
+        };
+      },
+      "GET /api/v1/traces/trc_1/events": () => ({
+        body: {
+          // Each poll sees one more event; earlier events are repeated and must not reprint.
+          items: [
+            ev(0, "trace.started", "refund-request"),
+            ev(1, "tool.request", "read_customer", { spanId: "spn_1" }),
+            ...(polls >= 2 ? [ev(2, "tool.response", "read_customer", { durationMs: 120 })] : []),
+          ].slice(0, polls + 1),
+          nextCursor: null,
+        },
+      }),
+    });
+    expect(await runWith(api, ["traces", "tail", "trc_1", "--interval", "1"])).toBe(0);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("following trc_1 (refund-request) on branch br_main; status running");
+    expect(text.match(/trace\.started/g)).toHaveLength(1);
+    expect(text.match(/tool\.request/g)).toHaveLength(1);
+    expect(text).toMatch(/2 {2}tool\.response {14}read_customer {2}120ms/);
+    expect(text).toContain("trace completed after 4.71s; 3 events on br_main");
+    // Two polls (the trace finished on the third status check); the second continues from
+    // the last sequence seen.
+    const eventCalls = api.captured.calls.filter((c) => c.url.includes("/events"));
+    expect(eventCalls).toHaveLength(2);
+    const cursor = new URL(eventCalls[1]?.url ?? "").searchParams.get("cursor") ?? "";
+    expect(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))).toEqual({ s: 1 });
+
+    // --new skips what was already recorded; --json prints one line per event.
+    polls = 0;
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, ["traces", "tail", "trc_1", "--interval", "1", "--new", "--json"]),
+    ).toBe(0);
+    const lines = api.captured.out.map((l) => JSON.parse(l) as { sequence: number });
+    expect(lines.map((l) => l.sequence)).toEqual([2]);
+  });
+
   it("maps 404 responses to exit code 4 and connection failures to 3", async () => {
     const api = fakeApi({});
     expect(await runWith(api, ["traces", "inspect", "trc_missing"])).toBe(4);

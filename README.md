@@ -201,6 +201,7 @@ shadow import openai examples/openai-chat/refund-conversation.json
 shadow otlp export trc_demo_refund_violation --collector http://localhost:4318/v1/traces
 shadow traces inspect trc_demo_refund_violation
 shadow traces inspect trc_demo_refund_violation --grep refund_order
+shadow traces tail trc_live_123            # follow a running trace until it finishes
 shadow events show trc_demo_refund_violation <eventId>
 shadow traces update trc_demo_refund_violation --tag triaged --meta owner=jordan
 shadow artifacts list trc_demo_refund_violation

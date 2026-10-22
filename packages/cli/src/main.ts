@@ -467,6 +467,67 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   traces
+    .command("tail")
+    .description("follow a trace while it runs, printing events as they are recorded")
+    .argument("<traceId>", "trace id")
+    .option("--branch <branchId>", "branch to follow (default: main)")
+    .option("--interval <ms>", "how often to poll, in milliseconds", positiveInt, 2000)
+    .option("--new", "skip the events recorded so far and print only new ones")
+    .option("--json", "print each event as one JSON line")
+    .action(
+      async (
+        traceId: string,
+        opts: { branch?: string; interval: number; new?: boolean; json?: boolean },
+      ) => {
+        const api = client();
+        const traceUrl = `/api/v1/traces/${encodeURIComponent(traceId)}`;
+        let detail = await api.get<{ trace: TraceSummary; branches: Branch[] }>(traceUrl);
+        const branchId = opts.branch ?? detail.trace.rootBranchId;
+        let last = -1;
+        let quiet = Boolean(opts.new);
+        if (!opts.json) {
+          out(
+            `following ${detail.trace.id} (${detail.trace.name}) on branch ${branchId}; status ${detail.trace.status}`,
+          );
+        }
+        for (;;) {
+          // Pages start after the last sequence seen, so each poll reads only what is new.
+          let cursor: string | undefined = last >= 0 ? cursorAfter(last) : undefined;
+          do {
+            const page: Page<ShadowEvent> = await api.get<Page<ShadowEvent>>(`${traceUrl}/events`, {
+              branchId,
+              cursor,
+              limit: 1000,
+            });
+            for (const e of page.items) {
+              if (e.sequence <= last) continue;
+              last = e.sequence;
+              if (quiet) continue;
+              if (opts.json) out(JSON.stringify(e));
+              else {
+                const extra = describeEvent(e);
+                out(
+                  `${String(e.sequence).padStart(4)}  ${e.eventType.padEnd(26)} ${e.name}${extra ? `  ${extra}` : ""}`,
+                );
+              }
+            }
+            cursor = page.nextCursor ?? undefined;
+          } while (cursor);
+          quiet = false;
+          detail = await api.get<{ trace: TraceSummary; branches: Branch[] }>(traceUrl);
+          if (detail.trace.status !== "running") break;
+          await new Promise((resolve) => setTimeout(resolve, opts.interval));
+        }
+        if (!opts.json) {
+          const t = detail.trace;
+          out(
+            `trace ${t.status}${t.outcome ? ` (${t.outcome.label})` : ""} after ${duration(t.durationMs)}; ${last + 1} event${last === 0 ? "" : "s"} on ${branchId}`,
+          );
+        }
+      },
+    );
+
+  traces
     .command("update")
     .description("rename a trace or edit its tags and metadata")
     .argument("<traceId>", "trace id")
@@ -2646,6 +2707,11 @@ async function allEvents(
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   return events;
+}
+
+/** The events cursor that continues after `sequence`; the same encoding the API hands out. */
+function cursorAfter(sequence: number): string {
+  return Buffer.from(JSON.stringify({ s: sequence }), "utf8").toString("base64url");
 }
 
 /** Text form of an artifact: strings verbatim, everything else pretty-printed JSON. */
