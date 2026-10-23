@@ -7,7 +7,20 @@ import {
   type TraceSummary,
   type UpdateTraceBody,
 } from "@shadow/schemas";
-import { and, asc, desc, eq, gte, inArray, lt, lte, notInArray, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lt,
+  lte,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { agents, branches, collectionTraces, collections, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -124,6 +137,28 @@ function decodeOffset(cursor: string | undefined): number {
   return n;
 }
 
+/**
+ * `key=value` matches the metadata entry `key` whose value is the string `value` or, when
+ * `value` parses as JSON (a number, boolean, null, array or object), that value; `key` on its
+ * own matches any trace that has the key. Only top-level keys are addressed.
+ */
+export function metadataFilter(spec: string): SQL {
+  const index = spec.indexOf("=");
+  const key = (index < 0 ? spec : spec.slice(0, index)).trim();
+  if (index < 0) return sql`${traces.metadata} ? ${key}`;
+  const raw = spec.slice(index + 1);
+  const alternatives: SQL[] = [sql`${traces.metadata} @> ${JSON.stringify({ [key]: raw })}::jsonb`];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "string") {
+      alternatives.push(sql`${traces.metadata} @> ${JSON.stringify({ [key]: parsed })}::jsonb`);
+    }
+  } catch {
+    // Not JSON: the string form is the only reading.
+  }
+  return alternatives.length === 1 ? (alternatives[0] as SQL) : sql`(${or(...alternatives)})`;
+}
+
 export async function listTraces(
   ctx: ServiceContext,
   query: TraceListQuery,
@@ -144,6 +179,7 @@ export async function listTraces(
   }
   if (query.minDurationMs !== undefined)
     filters.push(sql`coalesce(${traces.durationMs}, 0) >= ${query.minDurationMs}`);
+  if (query.meta) filters.push(metadataFilter(query.meta));
   if (query.collection) {
     // An unknown collection simply matches nothing, like any other filter value.
     filters.push(

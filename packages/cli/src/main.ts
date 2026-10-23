@@ -273,11 +273,16 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--limit <n>", "maximum rows", positiveInt, 25)
     .option("--view <name>", "start from a shared saved view; explicit options override it")
     .option("--collection <name>", "only traces in this collection")
+    .option(
+      "--meta <key=value>",
+      "metadata entry to match exactly (JSON values such as 3 or true are understood); a bare key matches its presence",
+    )
     .option("--json", "print JSON instead of a table")
     .action(
       async (opts: {
         view?: string;
         collection?: string;
+        meta?: string;
         project?: string;
         agent?: string;
         status?: string;
@@ -315,6 +320,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minCost: opts.minCost,
           minDurationMs: opts.minDuration,
           collection: opts.collection,
+          meta: opts.meta,
           sort: opts.sort,
           order: opts.order,
         };

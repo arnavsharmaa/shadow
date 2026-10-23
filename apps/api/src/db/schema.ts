@@ -74,6 +74,7 @@ export const traces = pgTable(
     index("traces_status_idx").on(t.status),
     index("traces_started_at_idx").on(t.startedAt),
     index("traces_tags_idx").using("gin", t.tags),
+    index("traces_metadata_idx").using("gin", t.metadata),
   ],
 );
 

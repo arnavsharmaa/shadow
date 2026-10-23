@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Metadata filter: `GET /api/v1/traces?meta=key=value` matches a top-level metadata entry
+  exactly (`attempt=3` matches the number 3 as well as the string), and `meta=key` matches its
+  presence; `shadow traces list --meta`, a Metadata field in the explorer and saved views carry
+  it. A GIN index on trace metadata backs the lookup.
 - Object storage export: with `SHADOW_EXPORT_S3_BUCKET`, `SHADOW_EXPORT_S3_ACCESS_KEY_ID` and
   `SHADOW_EXPORT_S3_SECRET_ACCESS_KEY` set (plus optional endpoint, region, prefix and session
   token), every finished trace is uploaded as its bundle to

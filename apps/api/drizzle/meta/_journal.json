@@ -92,6 +92,13 @@
       "when": 1792571923584,
       "tag": "0012_alert_keep_firing",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792754270152,
+      "tag": "0013_trace_metadata_index",
+      "breakpoints": true
     }
   ]
 }

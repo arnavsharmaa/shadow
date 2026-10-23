@@ -71,6 +71,11 @@ export const traceListQuerySchema = z.object({
   minDurationMs: z.coerce.number().nonnegative().optional(),
   /** Only traces in the collection with this name. */
   collection: z.string().max(64).optional(),
+  /**
+   * `key=value` matches a top-level metadata entry exactly (`value` as a string, or as JSON
+   * when it parses, so `attempt=3` matches the number 3); `key` alone matches its presence.
+   */
+  meta: z.string().min(1).max(256).optional(),
   sort: z
     .enum(["startedAt", "durationMs", "totalEstimatedCost", "totalTokens", "name"])
     .default("startedAt"),
@@ -91,6 +96,7 @@ export const SAVED_VIEW_KEYS = [
   "minCost",
   "minDurationMs",
   "collection",
+  "meta",
   "sort",
   "order",
 ] as const;
@@ -108,6 +114,7 @@ const savedViewFiltersSchema = traceListQuerySchema
     minCost: true,
     minDurationMs: true,
     collection: true,
+    meta: true,
     sort: true,
     order: true,
   })

@@ -99,6 +99,54 @@ describe("trace listing", () => {
     expect((await list("tag=nope")).total).toBe(0);
   });
 
+  it("filters by metadata key and value", async () => {
+    const withTicket = demoTraces.filter((d) => "ticketId" in d.metadata).map((d) => d.traceId);
+    expect(ids(await list("meta=ticketId")).sort()).toEqual([...withTicket].sort());
+    expect(ids(await list("meta=customerId%3Dcus_4410")).sort()).toEqual(
+      [DEMO_TRACE_IDS.faqSecond, DEMO_TRACE_IDS.faqSuccess].sort(),
+    );
+    expect(ids(await list("meta=channel%3Demail"))).toEqual([DEMO_TRACE_IDS.refundViolation]);
+    expect((await list("meta=channel%3DEMAIL")).total).toBe(0);
+    expect((await list("meta=nope")).total).toBe(0);
+
+    // JSON values match by value: `attempt=3` finds the number 3, and the string "3" as well.
+    const numbered = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      payload: {
+        project: "support-agent",
+        agent: "refund-agent",
+        name: "numbered",
+        metadata: { attempt: 3, ok: true },
+      },
+    });
+    expect(numbered.statusCode).toBe(201);
+    const stringy = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces",
+      payload: {
+        project: "support-agent",
+        agent: "refund-agent",
+        name: "stringy",
+        metadata: { attempt: "3" },
+      },
+    });
+    expect(stringy.statusCode).toBe(201);
+    try {
+      const n = json<{ id: string }>(numbered).id;
+      const s = json<{ id: string }>(stringy).id;
+      expect(ids(await list("meta=attempt%3D3")).sort()).toEqual([n, s].sort());
+      expect(ids(await list("meta=ok%3Dtrue"))).toEqual([n]);
+      expect((await list("meta=attempt%3D4")).total).toBe(0);
+      const invalid = await t.app.inject({ url: "/api/v1/traces?meta=" });
+      expect(invalid.statusCode).toBe(400);
+    } finally {
+      for (const id of [json<{ id: string }>(numbered).id, json<{ id: string }>(stringy).id]) {
+        await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${id}` });
+      }
+    }
+  });
+
   it("filters by tool", async () => {
     const refunded = await list("tool=refund_order");
     expect(ids(refunded).sort()).toEqual(

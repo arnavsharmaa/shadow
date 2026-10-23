@@ -34,6 +34,7 @@ function readFilters(params: URLSearchParams): TraceFilters {
     minCost: get("minCost") ? Number(get("minCost")) : undefined,
     minDurationMs: get("minDurationMs") ? Number(get("minDurationMs")) : undefined,
     collection: get("collection"),
+    meta: get("meta"),
     sort: (get("sort") as TraceFilters["sort"]) ?? "startedAt",
     order: (get("order") as TraceFilters["order"]) ?? "desc",
     cursor: get("cursor"),
@@ -101,6 +102,7 @@ export function TraceExplorer() {
     "minCost",
     "minDurationMs",
     "collection",
+    "meta",
   ].filter((k) => params.get(k)).length;
 
   return (
@@ -172,6 +174,13 @@ export function TraceExplorer() {
           value={filters.tool}
           onChange={(v) => setFilter({ tool: v })}
           options={(facets.data?.tools ?? []).map((t) => ({ value: t, label: t }))}
+        />
+        <TextInput
+          label="Metadata"
+          value={filters.meta}
+          placeholder="key=value"
+          title="Match a metadata entry exactly (key=value), or a bare key for its presence"
+          onChange={(v) => setFilter({ meta: v })}
         />
         <NumberInput
           label="Min cost ($)"
@@ -540,6 +549,39 @@ function Select({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function TextInput({
+  label,
+  value,
+  placeholder,
+  title,
+  onChange,
+}: {
+  label: string;
+  value: string | undefined;
+  placeholder: string;
+  title?: string;
+  onChange: (v: string | undefined) => void;
+}) {
+  const id = `filter-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  return (
+    <label htmlFor={id} className="flex items-center gap-1 text-[11px] text-fg-muted">
+      {label}
+      <input
+        id={id}
+        type="text"
+        defaultValue={value ?? ""}
+        placeholder={placeholder}
+        title={title}
+        onBlur={(e) => onChange(e.target.value.trim() || undefined)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onChange(e.currentTarget.value.trim() || undefined);
+        }}
+        className="h-7 w-36 rounded border border-border bg-bg px-1 text-[12px] text-fg"
+      />
     </label>
   );
 }

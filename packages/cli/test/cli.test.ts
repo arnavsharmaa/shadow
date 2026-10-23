@@ -310,9 +310,12 @@ describe("shadow cli", () => {
         "totalEstimatedCost",
         "--order",
         "asc",
+        "--meta",
+        "customerId=cus_1001",
       ]),
     ).toBe(0);
     const params = new URL(ranged.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("meta")).toBe("customerId=cus_1001");
     expect(params.get("from")).toBe("2026-09-01T00:00:00.000Z");
     expect(params.get("to")).toBe("2026-09-02T00:00:00.000Z");
     expect(params.get("minCost")).toBe("0.5");

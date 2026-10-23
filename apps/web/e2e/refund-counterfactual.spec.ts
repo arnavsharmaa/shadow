@@ -966,6 +966,14 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await page.goto("/?tool=inventory.lookup");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="trace-row"]').first()).toContainText("reserve-stock");
+    // A metadata filter typed into the bar lands in the URL and narrows the list.
+    await page.goto("/");
+    await page.locator("#filter-metadata").fill("customerId=cus_4410");
+    await page.locator("#filter-metadata").press("Enter");
+    await expect(page).toHaveURL(/meta=customerId%3Dcus_4410/);
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(2);
+    await page.goto("/?meta=ticketId");
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(4);
 
     await openRefundTrace(page);
     // Default selection is the first error; "e" and "p" jump, j/k move.

@@ -1,0 +1,1 @@
+CREATE INDEX "traces_metadata_idx" ON "traces" USING gin ("metadata");
