@@ -64,6 +64,13 @@ function describeFeatures(f: HealthFeatures): { key: string; label: string; valu
       label: "File export",
       value: f.fileExport?.enabled ? `bundles written to ${f.fileExport.dir ?? "?"}` : "off",
     },
+    {
+      key: "s3-export",
+      label: "Object storage export",
+      value: f.s3Export?.enabled
+        ? `bundles uploaded to ${f.s3Export.bucket ?? "?"}${f.s3Export.prefix ? `/${f.s3Export.prefix}` : ""} at ${f.s3Export.endpoint ?? "?"}`
+        : "off",
+    },
   ];
 }
 

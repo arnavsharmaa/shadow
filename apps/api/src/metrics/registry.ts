@@ -163,6 +163,11 @@ export class ShadowMetrics {
     "Finished traces written to the export directory, by result.",
     ["result"],
   );
+  readonly s3Exports = new Counter(
+    "shadow_s3_exports_total",
+    "Finished traces uploaded to object storage, by result.",
+    ["result"],
+  );
   readonly alertTransitions = new Counter(
     "shadow_alert_transitions_total",
     "Alert rules that started firing or resolved.",
@@ -190,6 +195,7 @@ export class ShadowMetrics {
       this.otlpBufferFlushes,
       this.otlpExports,
       this.fileExports,
+      this.s3Exports,
       this.alertTransitions,
       this.pruned,
     ]) {

@@ -12,6 +12,7 @@ import type { DatabaseHandle } from "../db/client.js";
 import { ShadowMetrics } from "../metrics/registry.js";
 import { noopWebhook, type Webhook } from "../notify/webhook.js";
 import type { FileExporter } from "../export/file.js";
+import type { S3Exporter } from "../export/s3.js";
 import type { OtlpForwarder } from "../otlp/forwarder.js";
 import { createOtlpBuffer, type OtlpBuffer } from "../otlp/buffer.js";
 import { createJobRunner, type JobRunner } from "../jobs/runner.js";
@@ -35,6 +36,8 @@ export interface ServiceContext {
   otlpBuffer: OtlpBuffer;
   /** Writing of finished traces as bundles to a directory. */
   fileExporter: FileExporter;
+  /** Uploading of finished traces as bundles to an S3-compatible bucket. */
+  s3Exporter: S3Exporter;
   /** Background jobs (large batch counterfactuals), one at a time. */
   jobs: JobRunner;
   /** Price table used to estimate costs for events that arrive without one. */
@@ -58,6 +61,13 @@ export const noopFileExporter: FileExporter = {
   settle: async () => undefined,
 };
 
+/** An uploader that does nothing; used when no bucket is configured and in tests. */
+export const noopS3Exporter: S3Exporter = {
+  enabled: false,
+  traceFinished: async () => undefined,
+  settle: async () => undefined,
+};
+
 export function createServiceContext(
   input: Pick<ServiceContext, "handle" | "logger" | "registry" | "redactor"> &
     Partial<
@@ -70,6 +80,7 @@ export function createServiceContext(
         | "otlpForwarder"
         | "otlpBuffer"
         | "fileExporter"
+        | "s3Exporter"
         | "jobs"
         | "pricing"
       >
@@ -84,6 +95,7 @@ export function createServiceContext(
     otlpForwarder: input.otlpForwarder ?? noopOtlpForwarder,
     otlpBuffer: input.otlpBuffer ?? noopOtlpBuffer,
     fileExporter: input.fileExporter ?? noopFileExporter,
+    s3Exporter: input.s3Exporter ?? noopS3Exporter,
     pricing: input.pricing ?? builtinPricingProvider,
     jobs:
       input.jobs ??

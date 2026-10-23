@@ -9,6 +9,12 @@ const boolish = z
   );
 
 /** An optional `http(s)` URL; blank values count as unset. */
+/** An optional string; blank counts as unset. */
+const optionalText = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined));
+
 const optionalHttpUrl = z
   .string()
   .optional()
@@ -84,6 +90,20 @@ const configSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  /** Bucket that finished traces are uploaded to as bundles (unset disables S3 export). */
+  SHADOW_EXPORT_S3_BUCKET: optionalText,
+  /** S3-compatible endpoint; defaults to the regional AWS endpoint. */
+  SHADOW_EXPORT_S3_ENDPOINT: optionalHttpUrl,
+  SHADOW_EXPORT_S3_REGION: z.string().trim().min(1).max(64).default("us-east-1"),
+  /** Key prefix (folder) inside the bucket, without leading or trailing slashes. */
+  SHADOW_EXPORT_S3_PREFIX: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim().replace(/^\/+|\/+$/g, "") || undefined),
+  SHADOW_EXPORT_S3_ACCESS_KEY_ID: optionalText,
+  SHADOW_EXPORT_S3_SECRET_ACCESS_KEY: optionalText,
+  /** Temporary credentials (STS) carry a session token as well. */
+  SHADOW_EXPORT_S3_SESSION_TOKEN: optionalText,
   /** Delete traces older than this many days (unset disables retention). */
   SHADOW_RETENTION_DAYS: z
     .union([z.string(), z.number()])

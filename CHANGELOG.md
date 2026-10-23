@@ -11,6 +11,12 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Object storage export: with `SHADOW_EXPORT_S3_BUCKET`, `SHADOW_EXPORT_S3_ACCESS_KEY_ID` and
+  `SHADOW_EXPORT_S3_SECRET_ACCESS_KEY` set (plus optional endpoint, region, prefix and session
+  token), every finished trace is uploaded as its bundle to
+  `<bucket>/<prefix>/<project>/<traceId>.json` on AWS S3 or any S3-compatible service,
+  signed with Signature Version 4 and without an AWS SDK. Uploads retry on server errors,
+  `shadow_s3_exports_total` counts results and `/health` reports `features.s3Export`.
 - `shadow traces tail <traceId>` follows a running trace: it prints the events recorded so far
   (or only new ones with `--new`), polls for more with a cursor after the last sequence seen
   (`--interval`, default 2 s), and stops when the trace is no longer running; `--json` prints

@@ -6,6 +6,7 @@ import { createLogger } from "./logger.js";
 import { createDefaultRegistry, loadReplayModules, parseModuleList } from "./replay/registry.js";
 import { createWebhook } from "./notify/webhook.js";
 import { createFileExporter } from "./export/file.js";
+import { createS3Exporter, s3Endpoint } from "./export/s3.js";
 import { createOtlpForwarder } from "./otlp/forwarder.js";
 import { createOtlpBuffer } from "./otlp/buffer.js";
 import { createOtlpBufferFlusher } from "./otlp/import.js";
@@ -74,6 +75,21 @@ async function main(): Promise<void> {
   if (fileExporter.enabled) {
     logger.info({ dir: config.SHADOW_EXPORT_DIR }, "file export enabled");
   }
+  const s3Exporter = createS3Exporter({ config, logger });
+  if (s3Exporter.enabled) {
+    logger.info(
+      {
+        bucket: config.SHADOW_EXPORT_S3_BUCKET,
+        endpoint: s3Endpoint(config),
+        prefix: config.SHADOW_EXPORT_S3_PREFIX,
+      },
+      "s3 export enabled",
+    );
+  } else if (config.SHADOW_EXPORT_S3_BUCKET) {
+    logger.warn(
+      "SHADOW_EXPORT_S3_BUCKET is set but SHADOW_EXPORT_S3_ACCESS_KEY_ID or SHADOW_EXPORT_S3_SECRET_ACCESS_KEY is missing; s3 export stays off",
+    );
+  }
   const services = createServiceContext({
     handle,
     logger,
@@ -85,6 +101,7 @@ async function main(): Promise<void> {
     otlpForwarder,
     otlpBuffer,
     fileExporter,
+    s3Exporter,
     pricing,
   });
 
@@ -121,6 +138,7 @@ async function main(): Promise<void> {
       await webhook.settle();
       await otlpForwarder.settle();
       await fileExporter.settle();
+      await s3Exporter.settle();
       await services.jobs.stop();
       await handle.close();
       logger.info("shutdown complete");

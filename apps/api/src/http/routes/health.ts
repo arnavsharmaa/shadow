@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { ApiConfig } from "../../config.js";
+import { s3Endpoint } from "../../export/s3.js";
 import { API_VERSION } from "../app.js";
 
 const healthSchema = z.object({
@@ -36,6 +37,13 @@ const healthSchema = z.object({
     }),
     /** Whether finished traces are written to a directory as bundles. */
     fileExport: z.object({ enabled: z.boolean(), dir: z.string().optional() }),
+    /** Whether finished traces are uploaded to an S3-compatible bucket as bundles. */
+    s3Export: z.object({
+      enabled: z.boolean(),
+      bucket: z.string().optional(),
+      endpoint: z.string().optional(),
+      prefix: z.string().optional(),
+    }),
   }),
 });
 
@@ -56,6 +64,10 @@ export interface HealthRouteOptions {
     | "SHADOW_WEBHOOK_EVENTS"
     | "SHADOW_WEBHOOK_FORMAT"
     | "SHADOW_EXPORT_DIR"
+    | "SHADOW_EXPORT_S3_BUCKET"
+    | "SHADOW_EXPORT_S3_ENDPOINT"
+    | "SHADOW_EXPORT_S3_REGION"
+    | "SHADOW_EXPORT_S3_PREFIX"
   >;
 }
 
@@ -121,6 +133,16 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
             : { enabled: false },
           fileExport: config.SHADOW_EXPORT_DIR
             ? { enabled: true, dir: config.SHADOW_EXPORT_DIR }
+            : { enabled: false },
+          s3Export: app.services.s3Exporter.enabled
+            ? {
+                enabled: true,
+                bucket: config.SHADOW_EXPORT_S3_BUCKET,
+                endpoint: s3Endpoint(config),
+                ...(config.SHADOW_EXPORT_S3_PREFIX
+                  ? { prefix: config.SHADOW_EXPORT_S3_PREFIX }
+                  : {}),
+              }
             : { enabled: false },
         },
       };

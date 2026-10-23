@@ -50,6 +50,7 @@ describe("health and error envelope", () => {
       },
       webhook: { enabled: false },
       fileExport: { enabled: false },
+      s3Export: { enabled: false },
     });
 
     const configured = await createTestApp({
@@ -92,6 +93,7 @@ describe("health and error envelope", () => {
         },
         webhook: { enabled: true, events: "all", format: "slack" },
         fileExport: { enabled: true, dir: "/var/lib/shadow/export" },
+        s3Export: { enabled: false },
       });
     } finally {
       await configured.close();

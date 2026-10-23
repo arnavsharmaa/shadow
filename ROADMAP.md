@@ -68,7 +68,8 @@ is welcome through GitHub issues; integration proposals have their own
 - **Exporters**: push traces to external destinations in addition to the existing bundle export
   (OTLP is done: `GET /traces/:id/export?format=otlp`, `shadow otlp export --collector <url>`
   and automatic forwarding of finished traces with `SHADOW_OTLP_EXPORT_URL`; files are done
-  with `SHADOW_EXPORT_DIR`; object storage and other destinations remain).
+  with `SHADOW_EXPORT_DIR`; S3-compatible object storage is done with `SHADOW_EXPORT_S3_*`;
+  other destinations remain).
 - A published integration guide for custom runtimes with conformance tests for adapters.
 
 ### Ideas / under consideration

@@ -110,8 +110,9 @@ Prometheus text exposition (`text/plain; version=0.0.4`). Counters: `shadow_http
 (`method`, `route`, `status`) with the `shadow_http_request_duration_ms` histogram,
 `shadow_traces_created_total` (`source`), `shadow_events_ingested_total` (`source`),
 `shadow_forks_total`, `shadow_replays_total` (`status`), `shadow_comparisons_total` (`kind`),
-`shadow_otlp_requests_total`, `shadow_otlp_buffer_flushes_total` (`reason`) and
-`shadow_traces_pruned_total`. Gauges sampled at scrape time:
+`shadow_otlp_requests_total`, `shadow_otlp_buffer_flushes_total` (`reason`),
+`shadow_s3_exports_total` (`result`) and `shadow_traces_pruned_total`. Gauges sampled at scrape
+time:
 `shadow_traces`, `shadow_branches`, `shadow_events`, `shadow_replayable_agents`, plus
 `process_uptime_seconds`, `process_resident_memory_bytes` and `nodejs_heap_used_bytes`. Counters
 reset when the process restarts. When `SHADOW_API_TOKEN` is set the scrape must carry the bearer
@@ -970,6 +971,12 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_OTLP_BUFFER_SECONDS`        | `0` (off)                                     | hold spans of running OTLP traces this long (see above)   |
 | `SHADOW_OTLP_EXPORT_URL`            | unset                                         | OTLP/HTTP endpoint that finished traces are forwarded to  |
 | `SHADOW_EXPORT_DIR`                 | unset                                         | directory that finished traces are written to as bundles  |
+| `SHADOW_EXPORT_S3_BUCKET`           | unset                                         | bucket that finished traces are uploaded to (see below)   |
+| `SHADOW_EXPORT_S3_ENDPOINT`         | regional AWS endpoint                         | S3-compatible endpoint (MinIO, R2, Ceph…)                 |
+| `SHADOW_EXPORT_S3_REGION`           | `us-east-1`                                   | signing region                                            |
+| `SHADOW_EXPORT_S3_PREFIX`           | unset                                         | key prefix inside the bucket                              |
+| `SHADOW_EXPORT_S3_ACCESS_KEY_ID`    | unset                                         | credentials for the bucket (plus `_SECRET_ACCESS_KEY`,    |
+| `SHADOW_EXPORT_S3_SESSION_TOKEN`    | unset                                         | optional STS session token)                               |
 | `SHADOW_WEBHOOK_FORMAT`             | `json`                                        | `json` notification or a `slack` chat message             |
 | `SHADOW_WEB_URL`                    | unset                                         | public web app URL used for links in chat notifications   |
 | `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated   |
@@ -1012,6 +1019,21 @@ and renamed into place, so a reader never sees a partial file. Imported bundles 
 written out again. Writing runs off the ingestion path and
 failures are logged. `shadow_file_exports_total{result}` on `/metrics` counts `written` and
 `failed`; `/health` reports `features.fileExport`.
+
+### Object storage export
+
+With `SHADOW_EXPORT_S3_BUCKET`, `SHADOW_EXPORT_S3_ACCESS_KEY_ID` and
+`SHADOW_EXPORT_S3_SECRET_ACCESS_KEY` set, the API uploads the same bundle as the file export to
+`<bucket>/<SHADOW_EXPORT_S3_PREFIX>/<project slug>/<traceId>.json` with a `PUT Object`
+request signed with AWS Signature Version 4 (header-based, path-style addressing), so no AWS
+SDK is needed and any S3-compatible service works: AWS S3 (`SHADOW_EXPORT_S3_REGION`, default
+`us-east-1`, picks the endpoint), or MinIO, Cloudflare R2, Ceph and others through
+`SHADOW_EXPORT_S3_ENDPOINT`. Temporary credentials pass their `SHADOW_EXPORT_S3_SESSION_TOKEN`.
+Uploads run off the ingestion path; a `5xx` or network failure is retried three times with
+backoff, a `4xx` (wrong credentials, missing bucket) is logged and not retried.
+`shadow_s3_exports_total{result}` counts `written`, `rejected`, `failed` and `export_failed`;
+`/health` reports `features.s3Export` with the bucket, endpoint and prefix. The bucket's own
+lifecycle rules give the archive its retention.
 
 ### Webhooks
 

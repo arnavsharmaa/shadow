@@ -248,6 +248,7 @@ export interface HealthFeatures {
   };
   webhook?: { enabled: boolean; events?: string; format?: string };
   fileExport?: { enabled: boolean; dir?: string };
+  s3Export?: { enabled: boolean; bucket?: string; endpoint?: string; prefix?: string };
 }
 
 /** What the web app sends to create an alert rule; the API fills in the defaults. */

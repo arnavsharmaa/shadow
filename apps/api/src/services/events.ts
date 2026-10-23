@@ -300,7 +300,10 @@ export async function ingestEvents(
   });
   if (
     branchId === trace.rootBranchId &&
-    (ctx.webhook.enabled || ctx.otlpForwarder.enabled || ctx.fileExporter.enabled)
+    (ctx.webhook.enabled ||
+      ctx.otlpForwarder.enabled ||
+      ctx.fileExporter.enabled ||
+      ctx.s3Exporter.enabled)
   ) {
     const end = [...inserted]
       .reverse()
@@ -315,6 +318,7 @@ export async function ingestEvents(
       // Bundles include traces that came in through OTLP: a file cannot loop back.
       void ctx.fileExporter.traceFinished(ctx, traceId);
     }
+    if (end && ctx.s3Exporter.enabled) void ctx.s3Exporter.traceFinished(ctx, traceId);
     if (end && ctx.webhook.enabled) {
       const summary = await getTraceSummary(ctx, traceId);
       // Delivery happens off the ingestion path; the client never waits for it.
