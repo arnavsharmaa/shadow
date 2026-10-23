@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Settings page shows the model price table the API applies at ingestion (catalog
+  version, every provider and model with input, output and cached-input prices), searchable
+  by provider and model.
 - Metadata filter: `GET /api/v1/traces?meta=key=value` matches a top-level metadata entry
   exactly (`attempt=3` matches the number 3 as well as the string), and `meta=key` matches its
   presence; `shadow traces list --meta`, a Metadata field in the explorer and saved views carry

@@ -676,6 +676,19 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("feature-auth")).toContainText("off");
     await expect(page.getByTestId("feature-webhook")).toHaveText("off");
     await expect(page.getByTestId("feature-otlp")).toContainText("/api/v1/otlp/v1/traces");
+    // The price table lists the catalog and narrows by provider and model.
+    await expect(page.getByTestId("pricing-version")).toContainText("catalog builtin");
+    const prices = page.locator('[data-testid="pricing-row"]');
+    await expect(prices.first()).toBeVisible();
+    await page.getByTestId("pricing-search").fill("gpt-4o");
+    await expect(prices).toHaveCount(2);
+    await page.getByTestId("pricing-provider").selectOption("anthropic");
+    await expect(page.getByText("No prices match")).toBeVisible();
+    await page.getByTestId("pricing-search").fill("");
+    await expect(prices.first()).toContainText("anthropic");
+    await expect(
+      page.locator('[data-testid="pricing-row"][data-model="claude-opus-5-5"]'),
+    ).toContainText("$4.00");
   });
 
   test("firing alert rules are shown on the agents page", async ({ page, request }) => {

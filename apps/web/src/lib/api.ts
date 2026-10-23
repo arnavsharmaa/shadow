@@ -9,6 +9,7 @@ import type {
   Collection,
   Comparison,
   Fork,
+  ModelPricing,
   Override,
   ReconstructedState,
   Replay,
@@ -480,6 +481,8 @@ export const api = {
   eventsCsvUrl: (traceId: string, branchId?: string) =>
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/events${query({ branchId, format: "csv" })}`,
   docsUrl: () => `${apiBaseUrl()}/docs`,
+  /** The price table applied at ingestion: built-in list prices plus `SHADOW_PRICING_FILE`. */
+  pricing: () => request<{ version: string; items: ModelPricing[] }>("GET", "/api/v1/pricing"),
   health: () =>
     request<{
       status: string;

@@ -7,6 +7,7 @@ import type { ApiKey, ApiKeyScope } from "@shadow/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../ui/primitives";
+import { PricingTable } from "./PricingTable";
 
 const SCOPES: { value: ApiKeyScope; label: string; help: string }[] = [
   {
@@ -176,6 +177,7 @@ export function Settings() {
             </div>
           )}
         </section>
+        <PricingTable />
         <section className="max-w-4xl rounded border border-border bg-panel">
           <header className="flex items-center justify-between border-b border-border px-3 py-2">
             <h2 className="text-[12px] font-semibold">API keys</h2>
