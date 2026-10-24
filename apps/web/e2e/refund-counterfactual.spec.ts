@@ -548,6 +548,15 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await page.reload();
     await node.click();
     await expect(page.locator('[data-testid="event-note"]')).toHaveCount(before + 1);
+
+    // Notes carry their author (the web app's actor) and can be deleted again.
+    const last = page.locator('[data-testid="event-note"]').last();
+    await expect(last.getByTestId("note-author")).toHaveText("web");
+    await last.getByTestId("delete-note").click();
+    await expect(page.locator('[data-testid="event-note"]')).toHaveCount(before);
+    await page.reload();
+    await node.click();
+    await expect(page.locator('[data-testid="event-note"]')).toHaveCount(before);
   });
 
   test("the agents page summarises traces per agent", async ({ page }) => {

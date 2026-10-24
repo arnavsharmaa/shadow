@@ -641,7 +641,15 @@ stored `Artifact`.
 
 ### `GET /api/v1/traces/:traceId/artifacts/:artifactId`
 
-Returns one `Artifact` or `404`.
+Returns one `Artifact` or `404`. An `Artifact` is `{ id, traceId, branchId, eventId, kind, name,
+contentType, content, createdBy, createdAt }`; `createdBy` is the request's actor at creation
+(`x-shadow-actor`, `key:<name>` for an API key, else `anonymous`), so notes show who wrote them.
+
+### `DELETE /api/v1/traces/:traceId/artifacts/:artifactId`
+
+Removes the artifact (a note that is no longer right, a document attached by mistake) and
+answers `204`; audited as `artifact.deleted` with the kind, name, event and original author.
+CLI: `shadow artifacts remove <traceId> <artifactId>`; the web app's notes have a Delete button.
 
 ## Collections
 

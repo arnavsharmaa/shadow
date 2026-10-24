@@ -750,6 +750,14 @@ describe("shadow cli", () => {
     expect(JSON.parse(api.captured.out.at(-1) ?? "{}").id).toBe("art_9");
 
     expect(await runWith(fakeApi({}), ["artifacts", "add", "trc_1", "--kind", "note"])).toBe(2);
+
+    const removal = fakeApi({
+      "DELETE /api/v1/traces/trc_1/artifacts/art_1": () => ({ status: 204, body: null }),
+    });
+    expect(await runWith(removal, ["artifacts", "remove", "trc_1", "art_1"])).toBe(0);
+    expect(removal.captured.calls[0]?.method).toBe("DELETE");
+    expect(removal.captured.out.join("\n")).toContain("deleted artifact art_1");
+    expect(await runWith(fakeApi({}), ["artifacts", "remove", "trc_1", "art_gone"])).toBe(4);
     expect(
       await runWith(fakeApi({}), [
         "artifacts",

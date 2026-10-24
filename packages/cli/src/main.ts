@@ -2031,7 +2031,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (page.items.length === 0) return out("no artifacts found");
         out(
           table(
-            ["ARTIFACT", "KIND", "NAME", "CONTENT TYPE", "EVENT", "BRANCH", "CREATED"],
+            ["ARTIFACT", "KIND", "NAME", "CONTENT TYPE", "EVENT", "BRANCH", "BY", "CREATED"],
             page.items.map((a) => [
               a.id,
               a.kind,
@@ -2039,6 +2039,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
               a.contentType,
               a.eventId ?? "-",
               a.branchId,
+              a.createdBy ?? "-",
               a.createdAt,
             ]),
           ),
@@ -2046,6 +2047,18 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         out(`${page.items.length} artifact(s)`);
       },
     );
+
+  artifacts
+    .command("remove")
+    .description("delete an artifact or note from a trace")
+    .argument("<traceId>", "trace id")
+    .argument("<artifactId>", "artifact id from `shadow artifacts list`")
+    .action(async (traceId: string, artifactId: string) => {
+      await client().delete(
+        `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts/${encodeURIComponent(artifactId)}`,
+      );
+      out(`deleted artifact ${artifactId}`);
+    });
 
   artifacts
     .command("add")

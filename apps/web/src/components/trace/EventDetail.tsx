@@ -25,6 +25,20 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const removeArtifact = async (artifactId: string) => {
+    setDeleting(artifactId);
+    setNoteError(null);
+    try {
+      await api.deleteArtifact(event.traceId, artifactId);
+      await queryClient.invalidateQueries({ queryKey: ["artifacts", event.traceId, event.id] });
+    } catch (e) {
+      setNoteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const addNote = async () => {
     const text = note.trim();
@@ -211,7 +225,21 @@ export function EventDetail({ event, events, eventsById, onSelect }: Props) {
                 >
                   <div className="mb-1 flex items-center gap-2 text-[11px] text-fg-muted">
                     <Badge tone="info">note</Badge>
+                    {artifact.createdBy && (
+                      <span data-testid="note-author">{artifact.createdBy}</span>
+                    )}
                     <span title={artifact.createdAt}>{dateTime(artifact.createdAt)}</span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      className="ml-auto"
+                      disabled={deleting === artifact.id}
+                      onClick={() => void removeArtifact(artifact.id)}
+                      title="Delete this note"
+                      data-testid="delete-note"
+                    >
+                      Delete
+                    </Button>
                   </div>
                   <p className="whitespace-pre-wrap">{artifact.content}</p>
                 </div>

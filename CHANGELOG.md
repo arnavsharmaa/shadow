@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Artifacts record who attached them (`createdBy`: the `x-shadow-actor` header or the API
+  key's name) and can be deleted: `DELETE /api/v1/traces/:id/artifacts/:artifactId`
+  (audited as `artifact.deleted`), `shadow artifacts remove`, and a Delete button on notes in
+  the event inspector, which now also shows the note's author.
 - The Settings page shows the model price table the API applies at ingestion (catalog
   version, every provider and model with input, output and cached-input prices), searchable
   by provider and model.

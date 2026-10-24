@@ -456,6 +456,11 @@ export const api = {
       content: unknown;
     },
   ) => request<Artifact>("POST", `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts`, body),
+  deleteArtifact: (traceId: string, artifactId: string) =>
+    request<void>(
+      "DELETE",
+      `/api/v1/traces/${encodeURIComponent(traceId)}/artifacts/${encodeURIComponent(artifactId)}`,
+    ),
   artifacts: (traceId: string, filter: { branchId?: string; eventId?: string } = {}) =>
     request<{ items: Artifact[] }>(
       "GET",

@@ -15,7 +15,12 @@ import {
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { createArtifact, getArtifact, listArtifacts } from "../../services/artifacts.js";
+import {
+  createArtifact,
+  deleteArtifact,
+  getArtifact,
+  listArtifacts,
+} from "../../services/artifacts.js";
 import { createForkForTrace, listForks, listReplays } from "../../services/branches.js";
 import { runForkMatrix } from "../../services/matrix.js";
 import {
@@ -36,7 +41,7 @@ import {
   updateTrace,
 } from "../../services/traces.js";
 import { exportTrace, importTrace } from "../../services/transfer.js";
-import { audit } from "../audit.js";
+import { audit, requestActor } from "../audit.js";
 import { csvLine } from "../csv.js";
 import { forcedKeep, unlessSampledOut } from "../../sampling.js";
 import { exportTraceToOtlp } from "../../otlp/export.js";
@@ -400,7 +405,10 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ["artifacts"], params: traceParams, body: createArtifactBodySchema } },
     async (request, reply) => {
       const outcome = await unlessSampledOut(app.sampler, request, request.params.traceId, () =>
-        createArtifact(app.services, request.params.traceId, request.body),
+        createArtifact(app.services, request.params.traceId, {
+          ...request.body,
+          createdBy: requestActor(request),
+        }),
       );
       if (!outcome.sampled) return reply.status(202).send({ sampled: false });
       const artifact = outcome.value;
@@ -424,6 +432,36 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => getArtifact(app.services, request.params.traceId, request.params.artifactId),
+  );
+
+  app.delete(
+    "/traces/:traceId/artifacts/:artifactId",
+    {
+      schema: {
+        tags: ["artifacts"],
+        params: z.object({ traceId: idSchema, artifactId: idSchema }),
+      },
+    },
+    async (request, reply) => {
+      const artifact = await deleteArtifact(
+        app.services,
+        request.params.traceId,
+        request.params.artifactId,
+      );
+      await audit(app, request, {
+        action: "artifact.deleted",
+        targetType: "artifact",
+        targetId: artifact.id,
+        traceId: artifact.traceId,
+        details: {
+          kind: artifact.kind,
+          name: artifact.name,
+          eventId: artifact.eventId,
+          createdBy: artifact.createdBy,
+        },
+      });
+      return reply.status(204).send();
+    },
   );
 
   app.get(

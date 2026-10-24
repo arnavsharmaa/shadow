@@ -240,6 +240,7 @@ export const artifacts = pgTable(
     name: text("name").notNull(),
     contentType: text("content_type").notNull(),
     content: jsonb("content").notNull(),
+    createdBy: text("created_by"),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("artifacts_trace_idx").on(t.traceId)],

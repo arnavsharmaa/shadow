@@ -28,6 +28,7 @@ describe("artifacts", () => {
     const created = await t.app.inject({
       method: "POST",
       url: `/api/v1/traces/${traceId}/artifacts`,
+      headers: { "x-shadow-actor": "arnav" },
       payload: {
         eventId: emailEventId,
         kind: "email",
@@ -43,6 +44,7 @@ describe("artifacts", () => {
       branchId: rootBranchId,
       eventId: emailEventId,
       kind: "email",
+      createdBy: "arnav",
       contentType: "text/markdown",
     });
     expect(artifact.content).toEqual({
@@ -76,6 +78,54 @@ describe("artifacts", () => {
     });
     expect(one.statusCode).toBe(200);
     expect(json<Artifact>(one).id).toBe(artifact.id);
+  });
+
+  it("deletes an artifact and audits who removed whose note", async () => {
+    const created = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/traces/${traceId}/artifacts`,
+      headers: { "x-shadow-actor": "priya" },
+      payload: { eventId: emailEventId, kind: "note", name: "n", content: "wrong assumption" },
+    });
+    expect(created.statusCode).toBe(201);
+    const note = json<Artifact>(created);
+    expect(note.createdBy).toBe("priya");
+    const anonymous = await t.app.inject({
+      method: "POST",
+      url: `/api/v1/traces/${traceId}/artifacts`,
+      payload: { kind: "note", name: "n2", content: "no header" },
+    });
+    expect(json<Artifact>(anonymous).createdBy).toBe("anonymous");
+
+    const removed = await t.app.inject({
+      method: "DELETE",
+      url: `/api/v1/traces/${traceId}/artifacts/${note.id}`,
+      headers: { "x-shadow-actor": "arnav" },
+    });
+    expect(removed.statusCode).toBe(204);
+    expect(
+      (await t.app.inject({ url: `/api/v1/traces/${traceId}/artifacts/${note.id}` })).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await t.app.inject({
+          method: "DELETE",
+          url: `/api/v1/traces/${traceId}/artifacts/${note.id}`,
+        })
+      ).statusCode,
+    ).toBe(404);
+    const log = json<{ items: { action: string; actor: string; details: unknown }[] }>(
+      await t.app.inject({ url: `/api/v1/audit?traceId=${traceId}&action=artifact.deleted` }),
+    );
+    expect(log.items[0]).toMatchObject({
+      action: "artifact.deleted",
+      actor: "arnav",
+      details: { kind: "note", eventId: emailEventId, createdBy: "priya" },
+    });
+    await t.app.inject({
+      method: "DELETE",
+      url: `/api/v1/traces/${traceId}/artifacts/${json<Artifact>(anonymous).id}`,
+    });
   });
 
   it("rejects unknown traces, events and invalid bodies", async () => {

@@ -14,6 +14,8 @@ export interface CreateArtifactInput {
   name: string;
   contentType: string;
   content: JsonValue;
+  /** Who attaches it (the request's actor); recorded on the artifact. */
+  createdBy?: string;
 }
 
 /** Attach a document (email body, retrieved file, report) to a trace, branch or event. */
@@ -45,9 +47,24 @@ export async function createArtifact(
     name: input.name,
     contentType: input.contentType,
     content: ctx.redactor.redact(input.content),
+    createdBy: input.createdBy ?? null,
     createdAt: iso(new Date(ctx.clock.now())),
   };
   await ctx.handle.db.insert(artifacts).values(row);
+  return toArtifact(row);
+}
+
+/** Remove an artifact (a note that is no longer right, a document attached by mistake). */
+export async function deleteArtifact(
+  ctx: ServiceContext,
+  traceId: string,
+  artifactId: string,
+): Promise<Artifact> {
+  const [row] = await ctx.handle.db
+    .delete(artifacts)
+    .where(and(eq(artifacts.traceId, traceId), eq(artifacts.id, artifactId)))
+    .returning();
+  if (!row) throw ApiError.notFound("artifact", artifactId);
   return toArtifact(row);
 }
 

@@ -90,7 +90,9 @@ is welcome through GitHub issues; integration proposals have their own
 - Sharing: permalinks to events, branches and comparisons; read-only trace sharing (event,
   branch and comparison permalinks and expiring read-only share links with a web viewer are
   done).
-- Annotations and comments on events and branches.
+- Annotations and comments on events and branches (notes on events and branches exist as
+  `note` artifacts with their author, deletable from the API, CLI and web app; threaded
+  comments and mentions remain).
 - Saved views shared across a team (done: shared views are stored by the API next to the
   per-browser ones; per-user ownership arrives with authentication).
 

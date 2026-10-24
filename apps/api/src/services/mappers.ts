@@ -283,6 +283,7 @@ export function toArtifact(row: ArtifactRow): Artifact {
     name: row.name,
     contentType: row.contentType,
     content: row.content as JsonValue,
+    createdBy: row.createdBy,
     createdAt: iso(row.createdAt),
   };
 }

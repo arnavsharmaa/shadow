@@ -185,6 +185,8 @@ export const artifactSchema = z.object({
   name: z.string().max(256),
   contentType: z.string().max(128),
   content: jsonValueSchema,
+  /** Who attached it: the `x-shadow-actor` header, `key:<name>` for an API key, or unknown. */
+  createdBy: z.string().max(128).nullable().default(null),
   createdAt: timestamp,
 });
 export type Artifact = z.infer<typeof artifactSchema>;
@@ -248,6 +250,7 @@ export const AUDIT_ACTIONS = [
   "branch.deleted",
   "comparison.created",
   "artifact.created",
+  "artifact.deleted",
   "batch.run",
   "batch.queued",
   "batch.cancelled",

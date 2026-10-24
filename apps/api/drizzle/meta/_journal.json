@@ -99,6 +99,13 @@
       "when": 1792754270152,
       "tag": "0013_trace_metadata_index",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792824245374,
+      "tag": "0014_artifact_authors",
+      "breakpoints": true
     }
   ]
 }
