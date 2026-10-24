@@ -31,6 +31,8 @@ export interface AlertNotification {
     name: string;
     agent: string | null;
     project: string | null;
+    /** Tag the rule is scoped to, when it is. */
+    tag?: string | null;
     metric: string;
     mode: "threshold" | "baseline";
     /** A value in threshold mode, a multiplier of `baseline` in baseline mode. */

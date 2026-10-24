@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules can be scoped to a tag (`tag` on the rule, `shadow alerts add --tag prod`, a Tag
+  field in the web dialog): only traces carrying the tag count, so one rule can watch
+  production and another staging. Notifications carry the tag in the rule's scope.
 - Collection export: `GET /api/v1/collections/:collection/export` returns every trace of a
   collection as newline-delimited `shadow.trace` bundles; `shadow collections export` saves
   them as one `.json` per trace or as a `.ndjson` file, `shadow traces import` loads `.ndjson`

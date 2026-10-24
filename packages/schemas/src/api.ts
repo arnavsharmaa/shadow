@@ -337,6 +337,8 @@ export const createAlertRuleBodySchema = z.object({
   name: z.string().trim().min(1).max(128),
   agent: z.string().min(1).max(64).optional(),
   project: z.string().min(1).max(64).optional(),
+  /** Only traces carrying this tag count, so one rule can watch `prod` and another `staging`. */
+  tag: z.string().min(1).max(64).optional(),
   metric: alertMetricSchema,
   /** A value in `threshold` mode, a multiplier of the baseline in `baseline` mode. */
   threshold: z.number().nonnegative(),
@@ -360,6 +362,8 @@ export const updateAlertRuleBodySchema = z
     windowMinutes: z.number().int().min(1).max(43_200),
     minTraces: z.number().int().min(1).max(100_000),
     keepFiringMinutes: z.number().int().min(0).max(10_080),
+    /** A tag to scope the rule to; `null` removes the scope. */
+    tag: z.string().min(1).max(64).nullable(),
     enabled: z.boolean(),
   })
   .partial()

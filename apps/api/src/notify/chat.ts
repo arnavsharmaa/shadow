@@ -115,7 +115,11 @@ export function formatAlert(notification: AlertNotification, webUrl?: string): C
     rule.mode === "baseline"
       ? `${metricValue(rule.metric, value)} vs ${rule.threshold}× baseline ${metricValue(rule.metric, baseline)}`
       : `${metricValue(rule.metric, value)} vs threshold ${metricValue(rule.metric, rule.threshold)}`;
-  const scope = [rule.project && `project ${rule.project}`, rule.agent && `agent ${rule.agent}`]
+  const scope = [
+    rule.project && `project ${rule.project}`,
+    rule.agent && `agent ${rule.agent}`,
+    rule.tag && `tag ${rule.tag}`,
+  ]
     .filter((s): s is string => Boolean(s))
     .join(", ");
   const text = `${headline} - ${metric} ${comparison} over ${rule.windowMinutes} min (${traces} traces${scope ? `, ${scope}` : ""})`;

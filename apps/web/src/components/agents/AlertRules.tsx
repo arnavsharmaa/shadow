@@ -70,6 +70,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
   const [name, setName] = useState("");
   const [metric, setMetric] = useState<AlertMetric>("failure_rate");
   const [agent, setAgent] = useState("");
+  const [tag, setTag] = useState("");
   const [mode, setMode] = useState<"threshold" | "baseline">("threshold");
   const [threshold, setThreshold] = useState("0.25");
   const [windowMinutes, setWindowMinutes] = useState(60);
@@ -128,6 +129,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             minTraces: Math.max(1, Number(minTraces) || 1),
             keepFiringMinutes,
             ...(agent.trim() ? { agent: agent.trim() } : {}),
+            ...(tag.trim() ? { tag: tag.trim() } : {}),
           });
         }}
       >
@@ -173,6 +175,18 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
               <option key={slug} value={slug} />
             ))}
           </datalist>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-fg-muted">Tag (optional)</span>
+          <input
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            placeholder="any tag"
+            maxLength={64}
+            title="Only traces carrying this tag count, so one rule can watch prod and another staging"
+            className="h-7 w-28 rounded border border-border bg-bg px-2"
+            data-testid="rule-tag"
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-fg-muted">Mode</span>
@@ -307,6 +321,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
                 <td className="px-3 py-1.5">
                   {rule.agent ?? <span className="text-fg-faint">every agent</span>}
                   {rule.project ? ` in ${rule.project}` : ""}
+                  {rule.tag ? ` tagged ${rule.tag}` : ""}
                 </td>
                 <td className="px-3 py-1.5" data-testid="rule-state">
                   {!rule.enabled ? (

@@ -336,6 +336,8 @@ export const alertRuleSchema = z.object({
   /** Agent slug the rule is scoped to, or `null` for every agent. */
   agent: z.string().max(64).nullable(),
   project: z.string().max(64).nullable(),
+  /** Only traces carrying this tag count (for example `prod`), or `null` for all traces. */
+  tag: z.string().max(64).nullable(),
   metric: alertMetricSchema,
   threshold: z.number().nonnegative(),
   windowMinutes: z.number().int().positive(),

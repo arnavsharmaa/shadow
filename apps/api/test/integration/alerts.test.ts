@@ -184,6 +184,50 @@ describe("alert rules", () => {
     expect(tooLong.statusCode).toBe(400);
   });
 
+  it("scopes a rule to traces carrying a tag", async () => {
+    received.length = 0;
+    const tagged = await createRule({
+      name: "tagged refund failures",
+      agent: "refund-agent",
+      tag: "refund",
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 43_200,
+    });
+    expect(tagged.tag).toBe("refund");
+    const other = await createRule({
+      name: "other tag",
+      tag: "prod",
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 43_200,
+    });
+    const byName = new Map((await evaluate()).map((e) => [e.rule.name, e]));
+    expect(byName.get("tagged refund failures")).toMatchObject({
+      transition: "fired",
+      rule: { state: "firing", lastTraces: 2, lastValue: 1 },
+    });
+    // No trace carries `prod`: nothing to measure, so the rule stays ok.
+    expect(byName.get("other tag")).toMatchObject({
+      transition: "none",
+      rule: { state: "ok", lastTraces: 0, lastValue: null },
+    });
+    expect(received.map((n) => [n.type, n.rule.name, n.rule.tag])).toEqual([
+      ["alert.firing", "tagged refund failures", "refund"],
+    ]);
+
+    // The scope can be changed or cleared afterwards.
+    const cleared = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/alerts/rules/${other.id}`,
+      payload: { tag: null },
+    });
+    expect(json<AlertRule>(cleared).tag).toBeNull();
+    for (const id of [tagged.id, other.id]) {
+      await t.app.inject({ method: "DELETE", url: `/api/v1/alerts/rules/${id}` });
+    }
+  });
+
   it("measures cost, tool errors and latency, and respects disabled rules", async () => {
     const cost = await createRule({
       name: "cost",

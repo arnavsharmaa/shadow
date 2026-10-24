@@ -20,6 +20,7 @@ function toAlertRule(row: AlertRuleRow): AlertRule {
     name: row.name,
     agent: row.agent,
     project: row.project,
+    tag: row.tag,
     metric: row.metric as AlertMetric,
     mode: row.mode === "baseline" ? "baseline" : "threshold",
     baselineWindows: row.baselineWindows,
@@ -97,6 +98,7 @@ export async function createAlertRule(
     name: body.name,
     agent: body.agent ?? null,
     project: body.project ?? null,
+    tag: body.tag ?? null,
     metric: body.metric,
     mode: body.mode,
     baselineWindows: body.baselineWindows,
@@ -181,7 +183,7 @@ const ADDITIVE: ReadonlySet<AlertMetric> = new Set([
  */
 export async function measure(
   ctx: ServiceContext,
-  rule: Pick<AlertRule, "agent" | "project" | "metric" | "windowMinutes">,
+  rule: Pick<AlertRule, "agent" | "project" | "tag" | "metric" | "windowMinutes">,
   range: { from: number; to: number } = {
     from: ctx.clock.now() - rule.windowMinutes * 60_000,
     to: ctx.clock.now() + 1,
@@ -193,6 +195,7 @@ export async function measure(
   ];
   if (rule.agent) filters.push(eq(agents.slug, rule.agent));
   if (rule.project) filters.push(eq(projects.slug, rule.project));
+  if (rule.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([rule.tag])}::jsonb`);
   const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
   const [row] = await ctx.handle.db
     .select({
@@ -244,7 +247,10 @@ export interface AlertEvaluation {
  */
 export async function baselineFor(
   ctx: ServiceContext,
-  rule: Pick<AlertRule, "agent" | "project" | "metric" | "windowMinutes" | "baselineWindows">,
+  rule: Pick<
+    AlertRule,
+    "agent" | "project" | "tag" | "metric" | "windowMinutes" | "baselineWindows"
+  >,
 ): Promise<number | null> {
   const windowMs = rule.windowMinutes * 60_000;
   const to = ctx.clock.now() - windowMs;
@@ -323,6 +329,7 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
           name: next.name,
           agent: next.agent,
           project: next.project,
+          tag: next.tag,
           metric: next.metric,
           mode: next.mode,
           threshold: next.threshold,

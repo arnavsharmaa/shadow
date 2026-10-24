@@ -715,14 +715,17 @@ and fires while the value is at or above its threshold.
 
 ### `GET /api/v1/alerts/rules`
 
-`{ items: [AlertRule] }` sorted by name. An `AlertRule` is `{ id, name, agent, project, metric,
-threshold, windowMinutes, minTraces, keepFiringMinutes, enabled, state, lastValue, lastTraces,
-lastEvaluatedAt, lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or `firing`.
+`{ items: [AlertRule] }` sorted by name. An `AlertRule` is `{ id, name, agent, project, tag,
+metric, threshold, windowMinutes, minTraces, keepFiringMinutes, enabled, state, lastValue,
+lastTraces, lastEvaluatedAt, lastTriggeredAt, createdAt, updatedAt }` with `state` `ok` or
+`firing`.
 
 ### `POST /api/v1/alerts/rules`
 
-Body `{ name, metric, threshold, mode?, baselineWindows?, agent?, project?, windowMinutes?,
-minTraces?, keepFiringMinutes?, enabled? }`.
+Body `{ name, metric, threshold, mode?, baselineWindows?, agent?, project?, tag?,
+windowMinutes?, minTraces?, keepFiringMinutes?, enabled? }`. `agent`, `project` and `tag`
+narrow which traces the rule measures; with `tag`, only traces carrying that tag count, so one
+rule can watch `prod` and another `staging`.
 `windowMinutes` is 1 to 43200 (default 60); `minTraces` (default 1) is how many traces the window
 must hold before the rule can fire, which keeps a single failed run from tripping a rate rule.
 `keepFiringMinutes` (0 to 10080, default 0) is how long a rule keeps firing after it fired even
@@ -745,7 +748,7 @@ rule and `baseline` in the webhook payload carry the value used.
 ### `GET | PATCH | DELETE /api/v1/alerts/rules/:ruleId`
 
 `PATCH` accepts `{ name?, threshold?, baselineWindows?, windowMinutes?, minTraces?,
-keepFiringMinutes?, enabled? }`
+keepFiringMinutes?, tag?, enabled? }` (`tag: null` clears the tag scope)
 (the metric and mode are fixed; delete and recreate to change them); disabling a rule
 resets it to `ok`. `DELETE` answers `204`. Creating, changing and deleting rules is audited.
 

@@ -260,6 +260,7 @@ export interface AlertRuleInput {
   mode?: AlertRule["mode"];
   agent?: string;
   project?: string;
+  tag?: string;
   windowMinutes?: number;
   minTraces?: number;
   keepFiringMinutes?: number;
