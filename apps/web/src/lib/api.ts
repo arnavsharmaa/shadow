@@ -480,6 +480,9 @@ export const api = {
       "DELETE",
       `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
     ),
+  /** Every trace of a collection as newline-delimited `shadow.trace` bundles. */
+  collectionExportUrl: (collection: string) =>
+    `${apiBaseUrl()}/api/v1/collections/${encodeURIComponent(collection)}/export`,
   exportUrl: (traceId: string) =>
     `${apiBaseUrl()}/api/v1/traces/${encodeURIComponent(traceId)}/export`,
   /** The branch's events (the root branch when `branchId` is omitted) as one CSV document. */

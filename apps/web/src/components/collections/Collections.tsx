@@ -288,6 +288,15 @@ function CollectionDetail({
           >
             Open in explorer →
           </Link>
+          <a
+            href={api.collectionExportUrl(collection.id)}
+            className="text-[11px] text-fg-muted hover:text-fg"
+            title="Download every trace of this collection as bundles (newline-delimited JSON)"
+            download
+            data-testid="collection-export"
+          >
+            Export
+          </a>
           {!editing && (
             <Button
               size="xs"

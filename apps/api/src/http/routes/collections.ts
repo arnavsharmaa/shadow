@@ -11,11 +11,13 @@ import {
   addTraces,
   createCollection,
   deleteCollection,
+  exportCollection,
   getCollection,
   listCollections,
   removeTrace,
   updateCollection,
 } from "../../services/collections.js";
+import { safePathComponent } from "../../export/file.js";
 import { audit } from "../audit.js";
 
 /** `:collection` is a collection id (`col_…`) or its name. */
@@ -49,6 +51,25 @@ export const collectionRoutes: FastifyPluginAsyncZod = async (app) => {
     "/collections/:collection",
     { schema: { tags: ["collections"], params } },
     async (request) => getCollection(app.services, request.params.collection),
+  );
+
+  app.get(
+    "/collections/:collection/export",
+    { schema: { tags: ["collections"], params } },
+    async (request, reply) => {
+      const { collection, bundles } = await exportCollection(
+        app.services,
+        request.params.collection,
+      );
+      // Newline-delimited JSON: one `shadow.trace` bundle per line, oldest trace first.
+      reply.header("content-type", "application/x-ndjson; charset=utf-8");
+      reply.header(
+        "content-disposition",
+        `attachment; filename="${safePathComponent(collection.name)}.shadow.ndjson"`,
+      );
+      reply.header("x-shadow-trace-count", String(bundles.length));
+      return reply.send(bundles.map((bundle) => `${JSON.stringify(bundle)}\n`).join(""));
+    },
   );
 
   app.patch(

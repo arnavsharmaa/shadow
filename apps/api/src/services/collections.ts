@@ -1,9 +1,15 @@
-import type { Collection, CreateCollectionBody, UpdateCollectionBody } from "@shadow/schemas";
+import type {
+  Collection,
+  CreateCollectionBody,
+  TraceExport,
+  UpdateCollectionBody,
+} from "@shadow/schemas";
 import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { collectionTraces, collections, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import { iso } from "./mappers.js";
+import { exportTrace } from "./transfer.js";
 
 export const MAX_COLLECTIONS = 500;
 
@@ -52,6 +58,27 @@ export async function getCollection(ctx: ServiceContext, idOrName: string): Prom
     .limit(1);
   if (!row) throw ApiError.notFound("collection", idOrName);
   return toCollection(row.collection, Number(row.traceCount));
+}
+
+/**
+ * Every trace of a collection as a self-contained bundle (the `shadow.trace` format of
+ * `GET /traces/:id/export`), oldest trace first, so an incident or an experiment can be handed
+ * over or archived as one file and loaded elsewhere with `shadow traces import`.
+ */
+export async function exportCollection(
+  ctx: ServiceContext,
+  idOrName: string,
+): Promise<{ collection: Collection; bundles: TraceExport[] }> {
+  const collection = await getCollection(ctx, idOrName);
+  const rows = await ctx.handle.db
+    .select({ traceId: collectionTraces.traceId })
+    .from(collectionTraces)
+    .innerJoin(traces, eq(traces.id, collectionTraces.traceId))
+    .where(eq(collectionTraces.collectionId, collection.id))
+    .orderBy(asc(traces.startedAt), asc(traces.id));
+  const bundles: TraceExport[] = [];
+  for (const row of rows) bundles.push(await exportTrace(ctx, row.traceId));
+  return { collection, bundles };
 }
 
 async function assertNameFree(ctx: ServiceContext, name: string): Promise<void> {

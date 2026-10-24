@@ -673,6 +673,17 @@ name. At most 500 collections.
 `:collection` is the collection id (`col_…`) or its name. `PATCH` accepts `{ name?,
 description? }`; `DELETE` answers `204`.
 
+### `GET /api/v1/collections/:collection/export`
+
+Every trace of the collection as newline-delimited JSON: one `shadow.trace` bundle (the body of
+`GET /traces/:traceId/export`) per line, oldest trace first, as `application/x-ndjson` named
+`<collection>.shadow.ndjson`; `x-shadow-trace-count` carries the number of lines. The whole
+document is built in memory, so it suits collections of hundreds of traces, not archives. CLI:
+`shadow collections export <collection> [--out <dir> | --out <file>.ndjson]` writes one
+`<traceId>.json` per trace into a directory (which `shadow traces import <dir>` loads) or saves
+the stream; `shadow traces import <file>.ndjson` loads such a file directly. The Collections
+page has an Export link.
+
 ### `POST /api/v1/collections/:collection/traces`
 
 Body `{ traceIds }` (1 to 500). Returns `{ collection, added, missing }`: traces already in the

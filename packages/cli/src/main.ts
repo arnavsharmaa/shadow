@@ -633,45 +633,73 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
   traces
     .command("import")
     .description(
-      "import exported trace bundles: a .json file, a share link, or a directory of bundles",
+      "import exported trace bundles: a .json file, a .ndjson collection export, a share link, or a directory of bundles",
     )
     .argument(
       "<file>",
-      "path to a .json bundle or a directory of them (such as SHADOW_EXPORT_DIR), or a share URL (…/api/v1/shared/shs_…)",
+      "path to a .json bundle, a .ndjson file of bundles (shadow collections export), a directory of bundles (such as SHADOW_EXPORT_DIR), or a share URL (…/api/v1/shared/shs_…)",
     )
     .option("--regenerate-ids", "assign fresh ids (import a copy)")
     .option("--json", "print JSON (directory imports)")
     .action(async (file: string, opts: { regenerateIds?: boolean; json?: boolean }) => {
       const idStrategy = opts.regenerateIds ? "regenerate" : "keep";
-      if (!/^https?:\/\//i.test(file) && (await stat(file).catch(() => null))?.isDirectory()) {
-        // A directory: import every bundle, skip what already exists, report the rest.
-        const files = await bundleFiles(file);
-        if (files.length === 0) throw new CliError(`no .json files under ${file}`, EXIT.usage);
+      const isUrl = /^https?:\/\//i.test(file);
+      const isDirectory = !isUrl && ((await stat(file).catch(() => null))?.isDirectory() ?? false);
+      if (isDirectory || (!isUrl && file.endsWith(".ndjson"))) {
+        // Many bundles (a directory, or one bundle per line): import each, skip what already
+        // exists, report the rest.
+        const entries: { label: string; raw: unknown; failure?: string }[] = [];
+        if (isDirectory) {
+          const files = await bundleFiles(file);
+          if (files.length === 0) throw new CliError(`no .json files under ${file}`, EXIT.usage);
+          for (const bundleFile of files) {
+            try {
+              entries.push({
+                label: path.relative(file, bundleFile),
+                raw: JSON.parse(await readFile(bundleFile, "utf8")),
+              });
+            } catch (error) {
+              entries.push({
+                label: path.relative(file, bundleFile),
+                raw: undefined,
+                failure: `could not read: ${error instanceof Error ? error.message : String(error)}`,
+              });
+            }
+          }
+        } else {
+          const lines = (await readFile(file, "utf8")).split("\n").filter((l) => l.length > 0);
+          if (lines.length === 0) throw new CliError(`no bundles in ${file}`, EXIT.usage);
+          lines.forEach((line, index) => {
+            try {
+              entries.push({ label: `line ${index + 1}`, raw: JSON.parse(line) });
+            } catch (error) {
+              entries.push({
+                label: `line ${index + 1}`,
+                raw: undefined,
+                failure: `could not parse: ${error instanceof Error ? error.message : String(error)}`,
+              });
+            }
+          });
+        }
         const results: {
           file: string;
           status: "imported" | "exists" | "skipped" | "failed";
           traceId?: string;
           reason?: string;
         }[] = [];
-        for (const bundleFile of files) {
-          let raw: unknown;
-          try {
-            raw = JSON.parse(await readFile(bundleFile, "utf8"));
-          } catch (error) {
-            results.push({
-              file: bundleFile,
-              status: "failed",
-              reason: `could not read: ${error instanceof Error ? error.message : String(error)}`,
-            });
+        for (const entry of entries) {
+          if (entry.failure) {
+            results.push({ file: entry.label, status: "failed", reason: entry.failure });
             continue;
           }
+          const raw = entry.raw;
           if (!(
             typeof raw === "object" &&
             raw !== null &&
             (raw as { format?: unknown }).format === "shadow.trace"
           )) {
             results.push({
-              file: bundleFile,
+              file: entry.label,
               status: "skipped",
               reason: "not a shadow.trace bundle",
             });
@@ -682,11 +710,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
               bundle: raw,
               idStrategy,
             });
-            results.push({ file: bundleFile, status: "imported", traceId: trace.id });
+            results.push({ file: entry.label, status: "imported", traceId: trace.id });
           } catch (error) {
             if (error instanceof CliError && error.status === 409) {
               results.push({
-                file: bundleFile,
+                file: entry.label,
                 status: "exists",
                 traceId: (raw as { trace?: { id?: string } }).trace?.id,
               });
@@ -694,7 +722,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
               throw error;
             } else {
               results.push({
-                file: bundleFile,
+                file: entry.label,
                 status: "failed",
                 reason: error instanceof Error ? error.message : String(error),
               });
@@ -704,7 +732,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         const count = (status: string) => results.filter((r) => r.status === status).length;
         const summary = {
           directory: file,
-          files: files.length,
+          files: entries.length,
           imported: count("imported"),
           exists: count("exists"),
           skipped: count("skipped"),
@@ -715,7 +743,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         else {
           for (const r of results) {
             out(
-              `${r.status.padEnd(8)} ${path.relative(file, r.file)}${r.traceId ? ` (${r.traceId})` : ""}${r.reason ? `: ${r.reason}` : ""}`,
+              `${r.status.padEnd(8)} ${r.file}${r.traceId ? ` (${r.traceId})` : ""}${r.reason ? `: ${r.reason}` : ""}`,
             );
           }
           out(
@@ -1188,6 +1216,36 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         `added ${result.added.length} trace(s) to ${result.collection.name}; it now holds ${result.collection.traceCount}`,
       );
       if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
+    });
+
+  collections
+    .command("export")
+    .description(
+      "export every trace of a collection as bundles: one .json per trace into a directory, or newline-delimited JSON",
+    )
+    .argument("<collection>", "collection name or id")
+    .option("-o, --out <path>", "directory for one <traceId>.json per trace, or a .ndjson file")
+    .action(async (collection: string, opts: { out?: string }) => {
+      const { bytes } = await client().download(
+        `/api/v1/collections/${encodeURIComponent(collection)}/export`,
+        {},
+        "application/x-ndjson",
+      );
+      const text = new TextDecoder().decode(bytes);
+      const lines = text.split("\n").filter((l) => l.length > 0);
+      if (!opts.out) return out(text.replace(/\n$/, ""));
+      if (opts.out.endsWith(".ndjson")) {
+        await writeFile(opts.out, text, "utf8");
+        return out(`wrote ${lines.length} bundle(s) of ${collection} to ${opts.out}`);
+      }
+      await mkdir(opts.out, { recursive: true });
+      for (const line of lines) {
+        const bundle = JSON.parse(line) as { trace: { id: string } };
+        await writeFile(path.join(opts.out, `${bundle.trace.id}.json`), line, "utf8");
+      }
+      out(
+        `wrote ${lines.length} bundle(s) of ${collection} to ${opts.out}; load them elsewhere with: shadow traces import ${opts.out}`,
+      );
     });
 
   collections

@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Collection export: `GET /api/v1/collections/:collection/export` returns every trace of a
+  collection as newline-delimited `shadow.trace` bundles; `shadow collections export` saves
+  them as one `.json` per trace or as a `.ndjson` file, `shadow traces import` loads `.ndjson`
+  files, and the Collections page has an Export link.
 - Artifacts record who attached them (`createdBy`: the `x-shadow-actor` header or the API
   key's name) and can be deleted: `DELETE /api/v1/traces/:id/artifacts/:artifactId`
   (audited as `artifact.deleted`), `shadow artifacts remove`, and a Delete button on notes in

@@ -1,4 +1,10 @@
-import type { AuditEntry, Collection, SavedView, TraceSummary } from "@shadow/schemas";
+import {
+  traceExportSchema,
+  type AuditEntry,
+  type Collection,
+  type SavedView,
+  type TraceSummary,
+} from "@shadow/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestApp, json, type TestApp } from "../helpers.js";
 
@@ -94,6 +100,55 @@ describe("trace collections", () => {
       json<Collection>(await t.app.inject({ url: `/api/v1/collections/${body.collection.id}` }))
         .traceCount,
     ).toBe(1);
+  });
+
+  it("exports every trace of a collection as newline-delimited bundles", async () => {
+    const all = await traceIds("limit=50");
+    const filled = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections/incident%202026-09-01/traces",
+      payload: { traceIds: all.slice(0, 3) },
+    });
+    expect(filled.statusCode).toBe(200);
+    const added = json<{ added: string[] }>(filled).added;
+    const response = await t.app.inject({
+      url: "/api/v1/collections/incident%202026-09-01/export",
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/x-ndjson");
+    expect(response.headers["content-disposition"]).toContain(
+      'filename="incident_2026-09-01.shadow.ndjson"',
+    );
+    const lines = response.body.split("\n").filter((l) => l.length > 0);
+    expect(response.headers["x-shadow-trace-count"]).toBe(String(lines.length));
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    const bundles = lines.map((l) => traceExportSchema.parse(JSON.parse(l)));
+    const members = await traceIds("collection=incident%202026-09-01&limit=50");
+    expect(bundles.map((b) => b.trace.id).sort()).toEqual([...members].sort());
+    // Oldest trace first.
+    const starts = bundles.map((b) => b.trace.startedAt);
+    expect(starts).toEqual([...starts].sort());
+    expect(bundles.every((b) => b.events.length > 0)).toBe(true);
+
+    const empty = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections",
+      payload: { name: "nothing yet" },
+    });
+    expect(empty.statusCode).toBe(201);
+    const none = await t.app.inject({ url: "/api/v1/collections/nothing%20yet/export" });
+    expect(none.statusCode).toBe(200);
+    expect(none.body).toBe("");
+    expect(none.headers["x-shadow-trace-count"]).toBe("0");
+    expect((await t.app.inject({ url: "/api/v1/collections/nope/export" })).statusCode).toBe(404);
+    // Leave the collection as the other tests expect it.
+    for (const id of added) {
+      await t.app.inject({
+        method: "DELETE",
+        url: `/api/v1/collections/incident%202026-09-01/traces/${id}`,
+      });
+    }
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/nothing%20yet" });
   });
 
   it("renames, validates and deletes collections without touching traces", async () => {

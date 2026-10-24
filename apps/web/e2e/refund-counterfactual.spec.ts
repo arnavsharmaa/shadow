@@ -899,6 +899,17 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       const detail = page.getByTestId("collection-detail");
       await expect(detail.getByTestId("collection-title")).toHaveText(name);
       await expect(detail.locator('[data-testid="collection-trace"]')).toHaveCount(2);
+      // The Export link serves every trace of the collection as one bundle per line.
+      const exportHref = await detail.getByTestId("collection-export").getAttribute("href");
+      expect(exportHref).toMatch(/\/api\/v1\/collections\/col_[^/]+\/export$/);
+      const exported = await request.get(exportHref ?? "");
+      expect(exported.status()).toBe(200);
+      expect(exported.headers()["content-type"]).toContain("application/x-ndjson");
+      const bundles = (await exported.text())
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => JSON.parse(l) as { format: string; trace: { id: string } });
+      expect(bundles.map((b) => b.format)).toEqual(["shadow.trace", "shadow.trace"]);
       await detail
         .locator('[data-testid="collection-trace"]')
         .first()

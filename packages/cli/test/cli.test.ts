@@ -575,6 +575,59 @@ describe("shadow cli", () => {
     expect(await runWith(clean, ["traces", "import", empty])).toBe(2);
   });
 
+  it("exports a collection as bundles and imports a .ndjson file of them", async () => {
+    const bundleLine = (id: string) =>
+      JSON.stringify({
+        format: "shadow.trace",
+        trace: { ...trace, id },
+        branches: [branch],
+        events: [ev(0, "trace.started", "x")],
+        forks: [],
+        replays: [],
+        comparisons: [],
+      });
+    const ndjson = `${bundleLine("trc_1")}\n${bundleLine("trc_2")}\n`;
+    const api = fakeApi({
+      "GET /api/v1/collections/incident-42/export": () => ({
+        raw: true,
+        contentType: "application/x-ndjson; charset=utf-8",
+        body: ndjson,
+      }),
+      "POST /api/v1/traces/import": (body) => {
+        const id = (body as { bundle: { trace: { id: string } } }).bundle.trace.id;
+        return id === "trc_2"
+          ? { status: 409, body: { error: { code: "conflict", message: "exists" } } }
+          : { status: 201, body: { id, branchCount: 1 } };
+      },
+    });
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-col-"));
+    expect(await runWith(api, ["collections", "export", "incident-42", "--out", dir])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain(`wrote 2 bundle(s) of incident-42 to ${dir}`);
+    expect(JSON.parse(await readFile(path.join(dir, "trc_1.json"), "utf8"))).toMatchObject({
+      trace: { id: "trc_1" },
+    });
+    expect(JSON.parse(await readFile(path.join(dir, "trc_2.json"), "utf8"))).toMatchObject({
+      trace: { id: "trc_2" },
+    });
+    const file = path.join(dir, "all.ndjson");
+    expect(await runWith(api, ["collections", "export", "incident-42", "--out", file])).toBe(0);
+    expect(await readFile(file, "utf8")).toBe(ndjson);
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["collections", "export", "incident-42"])).toBe(0);
+    expect(api.captured.out.join("\n").split("\n")).toHaveLength(2);
+
+    // The .ndjson file imports line by line, with the same statuses as a directory.
+    await writeFile(file, `${ndjson}{not json\n`);
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["traces", "import", file])).toBe(1);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("imported line 1 (trc_1)");
+    expect(text).toContain("exists   line 2 (trc_2)");
+    expect(text).toContain("failed   line 3: could not parse");
+    expect(text).toContain("imported 1 of 3 bundle(s); 1 already present, 0 skipped, 1 failed");
+    expect(api.captured.calls.filter((c) => c.url.endsWith("/traces/import"))).toHaveLength(2);
+  });
+
   it("updates trace names, tags and metadata", async () => {
     const api = fakeApi({
       "PATCH /api/v1/traces/trc_1": (body) => {
