@@ -1,7 +1,8 @@
 import type { TraceSummary } from "@shadow/schemas";
 import { DEMO_TRACE_IDS, demoTraces } from "@shadow/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createTestApp, json, type ErrorEnvelope, type TestApp } from "../helpers.js";
+import { csvField } from "../../src/http/csv.js";
+import { createTestApp, json, must, type ErrorEnvelope, type TestApp } from "../helpers.js";
 
 interface TraceList {
   items: TraceSummary[];
@@ -145,6 +146,35 @@ describe("trace listing", () => {
         await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${id}` });
       }
     }
+  });
+
+  it("exports the matching traces as one CSV document", async () => {
+    const response = await t.app.inject({ url: "/api/v1/traces?format=csv&tag=refund&limit=1" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toContain("shadow-traces.csv");
+    expect(response.headers["x-shadow-truncated"]).toBe("false");
+    const lines = response.body.split("\r\n").filter((l) => l.length > 0);
+    expect(lines[0]).toBe(
+      "id,name,project,agent,status,outcomeKind,outcomeLabel,startedAt,completedAt,durationMs,eventCount,modelCalls,toolCalls,toolErrors,inputTokens,outputTokens,totalTokens,estimatedCost,currency,branchCount,tags,metadata",
+    );
+    // `limit` only sizes the pages the route reads; every matching trace is in the document.
+    const refund = await list("tag=refund&limit=200");
+    expect(lines.length - 1).toBe(refund.total);
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(ids(refund));
+    const violation = lines.find((l) => l.startsWith(`${DEMO_TRACE_IDS.refundViolation},`));
+    expect(violation).toContain(",failed,policy_violation,");
+    // Tags are space separated; metadata is the JSON object, escaped like any other field.
+    const summary = must(refund.items.find((i) => i.id === DEMO_TRACE_IDS.refundViolation));
+    expect(violation?.endsWith(csvField(JSON.stringify(summary.metadata)))).toBe(true);
+    expect(violation).toContain(`,${summary.tags.join(" ")},`);
+    const sorted = await t.app.inject({ url: "/api/v1/traces?format=csv&sort=name&order=asc" });
+    const names = sorted.body
+      .split("\r\n")
+      .filter((l) => l.length > 0)
+      .slice(1)
+      .map((l) => l.split(",")[1]);
+    expect(names).toEqual([...names].sort());
   });
 
   it("filters by tool", async () => {

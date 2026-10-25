@@ -12,6 +12,7 @@ import {
   pruneTracesBodySchema,
   traceListQuerySchema,
   updateTraceBodySchema,
+  type TraceSummary,
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -56,6 +57,59 @@ const exportQuerySchema = z.object({
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
 /** Rows an events CSV may hold; larger branches are cut and flagged with `x-shadow-truncated`. */
 const MAX_EVENT_CSV_ROWS = 100_000;
+/** Rows a trace listing CSV holds at most; `x-shadow-truncated: true` says the cap was hit. */
+const MAX_TRACE_CSV_ROWS = 10_000;
+const TRACE_CSV_COLUMNS = [
+  "id",
+  "name",
+  "project",
+  "agent",
+  "status",
+  "outcomeKind",
+  "outcomeLabel",
+  "startedAt",
+  "completedAt",
+  "durationMs",
+  "eventCount",
+  "modelCalls",
+  "toolCalls",
+  "toolErrors",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "estimatedCost",
+  "currency",
+  "branchCount",
+  "tags",
+  "metadata",
+] as const;
+
+function traceCsvRow(t: TraceSummary): unknown[] {
+  return [
+    t.id,
+    t.name,
+    t.projectSlug,
+    t.agentSlug,
+    t.status,
+    t.outcome?.kind ?? "",
+    t.outcome?.label ?? "",
+    t.startedAt,
+    t.completedAt ?? "",
+    t.durationMs ?? "",
+    t.metrics.eventCount,
+    t.metrics.modelCalls,
+    t.metrics.toolCalls,
+    t.metrics.toolErrors,
+    t.metrics.inputTokens,
+    t.metrics.outputTokens,
+    t.metrics.totalTokens,
+    t.metrics.totalEstimatedCost,
+    t.metrics.currency,
+    t.branchCount,
+    t.tags.join(" "),
+    Object.keys(t.metadata).length > 0 ? JSON.stringify(t.metadata) : "",
+  ];
+}
 const EVENT_CSV_COLUMNS = [
   "sequence",
   "timestamp",
@@ -82,7 +136,28 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/traces",
     { schema: { tags: ["traces"], querystring: traceListQuerySchema } },
-    async (request) => listTraces(app.services, request.query),
+    async (request, reply) => {
+      if (request.query.format !== "csv") return listTraces(app.services, request.query);
+      // Follow the cursors server-side so the caller gets one document in the listing's order.
+      const lines = [csvLine([...TRACE_CSV_COLUMNS])];
+      let cursor = request.query.cursor;
+      let count = 0;
+      while (count < MAX_TRACE_CSV_ROWS) {
+        const page = await listTraces(app.services, {
+          ...request.query,
+          cursor,
+          limit: Math.min(200, MAX_TRACE_CSV_ROWS - count),
+        });
+        for (const trace of page.items) lines.push(csvLine(traceCsvRow(trace)));
+        count += page.items.length;
+        if (!page.nextCursor || page.items.length === 0) break;
+        cursor = page.nextCursor;
+      }
+      reply.header("content-type", "text/csv; charset=utf-8");
+      reply.header("content-disposition", 'attachment; filename="shadow-traces.csv"');
+      reply.header("x-shadow-truncated", count >= MAX_TRACE_CSV_ROWS ? "true" : "false");
+      return reply.send(lines.join(""));
+    },
   );
 
   app.get(

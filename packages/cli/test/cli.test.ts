@@ -324,6 +324,24 @@ describe("shadow cli", () => {
     expect(params.get("order")).toBe("asc");
     expect(ranged.captured.out.join("\n")).toContain("no traces found");
 
+    const sheet = fakeApi({
+      "GET /api/v1/traces": () => ({
+        raw: true,
+        contentType: "text/csv; charset=utf-8",
+        body: "id,name,project\r\ntrc_1,refund-request,support\r\n",
+      }),
+    });
+    expect(await runWith(sheet, ["traces", "list", "--csv", "--tag", "refund"])).toBe(0);
+    const csvParams = new URL(sheet.captured.calls[0]?.url ?? "").searchParams;
+    expect(csvParams.get("format")).toBe("csv");
+    expect(csvParams.get("tag")).toBe("refund");
+    expect(csvParams.get("limit")).toBeNull();
+    expect(sheet.captured.out.join("\n")).toBe("id,name,project\r\ntrc_1,refund-request,support");
+    const sheetFile = path.join(await mkdtemp(path.join(tmpdir(), "shadow-cli-csv-")), "t.csv");
+    expect(await runWith(sheet, ["traces", "list", "--out", sheetFile])).toBe(0);
+    expect(await readFile(sheetFile, "utf8")).toContain("trc_1,refund-request");
+    expect(sheet.captured.out.join("\n")).toContain(`wrote 1 trace to ${sheetFile}`);
+
     const relative = fakeApi({
       "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
     });

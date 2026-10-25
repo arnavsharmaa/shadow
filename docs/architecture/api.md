@@ -229,9 +229,18 @@ Query parameters:
 | `minDurationMs` | number                                                                         |                                                                          |
 | `sort`          | `startedAt` \| `durationMs` \| `totalEstimatedCost` \| `totalTokens` \| `name` | default `startedAt`                                                      |
 | `order`         | `asc` \| `desc`                                                                | default `desc`                                                           |
+| `format`        | `json` \| `csv`                                                                | `csv` returns one document for spreadsheets (see below)                  |
 
 Response: `{ items: TraceSummary[], nextCursor, total }`. `TraceSummary` is a `Trace` plus
 `projectSlug`, `projectName`, `agentSlug`, `agentName`.
+
+`format=csv` returns every matching trace as one `text/csv` document instead (columns `id, name,
+project, agent, status, outcomeKind, outcomeLabel, startedAt, completedAt, durationMs,
+eventCount, modelCalls, toolCalls, toolErrors, inputTokens, outputTokens, totalTokens,
+estimatedCost, currency, branchCount, tags, metadata`, with tags space separated and metadata
+as JSON), following the cursors server-side in the listing's order up to 10,000 rows;
+`x-shadow-truncated: true` says the cap was hit. CLI: `shadow traces list --csv [--out <file>]`
+with the usual filters; the explorer's Download CSV link carries the current filters.
 
 ### `GET /api/v1/traces/facets`
 

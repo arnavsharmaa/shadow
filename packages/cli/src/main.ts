@@ -271,6 +271,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       return value;
     })
     .option("--limit <n>", "maximum rows", positiveInt, 25)
+    .option("--csv", "export every matching trace as CSV (for spreadsheets; ignores --limit)")
+    .option("-o, --out <file>", "write the CSV to a file instead of stdout")
     .option("--view <name>", "start from a shared saved view; explicit options override it")
     .option("--collection <name>", "only traces in this collection")
     .option(
@@ -296,6 +298,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         sort?: string;
         order?: string;
         limit: number;
+        csv?: boolean;
+        out?: string;
         json?: boolean;
       }) => {
         const api = client();
@@ -327,6 +331,22 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         const query: Record<string, string | number | undefined> = { ...base };
         for (const [key, value] of Object.entries(explicit)) {
           if (value !== undefined) query[key] = value;
+        }
+        if (opts.csv || opts.out) {
+          const { bytes } = await api.download(
+            "/api/v1/traces",
+            { ...query, format: "csv" },
+            "text/csv",
+          );
+          const text = new TextDecoder().decode(bytes);
+          if (opts.out) {
+            await writeFile(opts.out, text, "utf8");
+            const rows = text.split("\r\n").filter((l) => l.length > 0).length - 1;
+            out(`wrote ${rows} trace${rows === 1 ? "" : "s"} to ${opts.out}`);
+          } else {
+            out(text.replace(/\r\n$/, ""));
+          }
+          return;
         }
         const page = await api.get<Page<TraceSummary>>("/api/v1/traces", {
           ...query,

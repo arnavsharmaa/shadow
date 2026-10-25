@@ -209,6 +209,15 @@ export function TraceExplorer() {
           </Button>
         )}
         <SavedViews />
+        <a
+          href={api.tracesCsvUrl(filters)}
+          className="inline-flex h-6 items-center rounded border border-border px-2 text-[11px] text-fg-muted hover:bg-hover"
+          download
+          title="Download every trace matching the current filters as CSV"
+          data-testid="traces-csv"
+        >
+          Download CSV
+        </a>
         <span className="ml-auto text-[11px] text-fg-muted" aria-live="polite">
           {traces.data
             ? `${traces.data.total.toLocaleString()} trace${traces.data.total === 1 ? "" : "s"}`

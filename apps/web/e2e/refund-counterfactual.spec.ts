@@ -992,7 +992,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("saved-view-select")).toHaveCount(0);
   });
 
-  test("explorer filters and keyboard navigation", async ({ page }) => {
+  test("explorer filters and keyboard navigation", async ({ page, request }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
     await page.goto("/?q=cus_1001");
@@ -1008,6 +1008,15 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(2);
     await page.goto("/?meta=ticketId");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(4);
+    // The CSV link carries the current filters and serves the same rows as a spreadsheet.
+    const csvHref = await page.getByTestId("traces-csv").getAttribute("href");
+    expect(csvHref).toMatch(/\/api\/v1\/traces\?.*meta=ticketId.*format=csv/);
+    const csv = await request.get(csvHref ?? "");
+    expect(csv.status()).toBe(200);
+    expect(csv.headers()["content-type"]).toContain("text/csv");
+    const csvLines = (await csv.text()).split("\r\n").filter((l) => l.length > 0);
+    expect(csvLines[0]).toMatch(/^id,name,project,agent,status/);
+    expect(csvLines).toHaveLength(5);
 
     await openRefundTrace(page);
     // Default selection is the first error; "e" and "p" jump, j/k move.

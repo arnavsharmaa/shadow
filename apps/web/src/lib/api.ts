@@ -481,6 +481,9 @@ export const api = {
       "DELETE",
       `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
     ),
+  /** The traces matching the explorer's filters as one CSV document. */
+  tracesCsvUrl: (filters: TraceFilters) =>
+    `${apiBaseUrl()}/api/v1/traces${query({ ...filters, cursor: undefined, limit: undefined, format: "csv" })}`,
   /** Every trace of a collection as newline-delimited `shadow.trace` bundles. */
   collectionExportUrl: (collection: string) =>
     `${apiBaseUrl()}/api/v1/collections/${encodeURIComponent(collection)}/export`,

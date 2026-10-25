@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Traces CSV export: `GET /api/v1/traces?format=csv` returns every trace matching the listing
+  filters as one document for spreadsheets (status, outcome, timings, call and token counts,
+  cost, tags and metadata; up to 10,000 rows), `shadow traces list --csv [--out <file>]` saves
+  it and the explorer has a Download CSV link that keeps the current filters.
 - Alert rules can be scoped to a tag (`tag` on the rule, `shadow alerts add --tag prod`, a Tag
   field in the web dialog): only traces carrying the tag count, so one rule can watch
   production and another staging. Notifications carry the tag in the rule's scope.
