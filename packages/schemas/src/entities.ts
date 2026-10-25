@@ -261,6 +261,8 @@ export const AUDIT_ACTIONS = [
   "alert.created",
   "alert.updated",
   "alert.deleted",
+  "alert.fired",
+  "alert.resolved",
   "collection.created",
   "collection.updated",
   "collection.deleted",

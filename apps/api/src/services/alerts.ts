@@ -7,6 +7,7 @@ import type {
 import { and, asc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { agents, alertRules, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
+import { recordAudit } from "./audit.js";
 import type { ServiceContext } from "./context.js";
 import { iso } from "./mappers.js";
 
@@ -267,7 +268,8 @@ export async function baselineFor(
  * threshold; a baseline rule fires while its value is at or above `threshold` times a baseline
  * that is above zero (with no history there is nothing to compare against, so it stays ok).
  * Either way the window must hold at least `minTraces` traces. Only the change of state (ok to
- * firing, or back) notifies the webhook, so a rule that stays firing does not repeat itself. A
+ * firing, or back) notifies the webhook and is written to the audit log (`alert.fired`,
+ * `alert.resolved` by `system:alerts`), so a rule that stays firing does not repeat itself. A
  * rule with `keepFiringMinutes` does not resolve until that long after it fired, so a value that
  * dips under the limit and comes back raises one alert rather than a burst.
  */
@@ -321,6 +323,26 @@ export async function evaluateAlertRules(ctx: ServiceContext): Promise<AlertEval
         transition === "fired" ? "alert firing" : "alert resolved",
       );
       ctx.metrics.alertTransitions.inc({ transition });
+      // The audit log keeps the history of what fired when, next to who changed the rules.
+      await recordAudit(ctx, {
+        actor: "system:alerts",
+        action: transition === "fired" ? "alert.fired" : "alert.resolved",
+        targetType: "alert",
+        targetId: next.id,
+        details: {
+          name: next.name,
+          metric: next.metric,
+          mode: next.mode,
+          threshold: next.threshold,
+          windowMinutes: next.windowMinutes,
+          value,
+          baseline,
+          traces: count,
+          ...(next.agent ? { agent: next.agent } : {}),
+          ...(next.project ? { project: next.project } : {}),
+          ...(next.tag ? { tag: next.tag } : {}),
+        },
+      });
       // Delivery is off the evaluation path; the webhook retries and never throws.
       void ctx.webhook.alert({
         type: transition === "fired" ? "alert.firing" : "alert.resolved",

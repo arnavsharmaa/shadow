@@ -768,7 +768,11 @@ Evaluates every enabled rule now and returns `{ items: [{ rule, transition, held
 the rule firing. The API also evaluates on a timer, every
 `SHADOW_ALERT_INTERVAL_MINUTES` (default 5; `0` turns the timer off). Only a change of state
 notifies: with `SHADOW_WEBHOOK_URL` set, the webhook receives `alert.firing` when a rule crosses
-its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHOOK_EVENTS`:
+its threshold and `alert.resolved` when it recovers, regardless of `SHADOW_WEBHOOK_EVENTS`.
+Each transition is also written to the audit log as `alert.fired` or `alert.resolved` by the
+actor `system:alerts`, with the rule's name, metric, threshold, scope, the measured value,
+baseline and trace count, so `GET /api/v1/audit?actor=system:alerts` (or the Audit page) is the
+alert history:
 
 ```json
 {

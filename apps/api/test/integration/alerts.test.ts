@@ -133,6 +133,27 @@ describe("alert rules", () => {
       rule: { state: "ok", lastValue: null, lastTraces: 0 },
     });
     expect(received.map((n) => n.type)).toEqual(["alert.firing", "alert.resolved"]);
+
+    // Both transitions are in the audit log, attributed to the evaluator.
+    const history = json<{ items: AuditEntry[] }>(
+      await t.app.inject({ url: `/api/v1/audit?actor=${encodeURIComponent("system:alerts")}` }),
+    );
+    expect(history.items.map((e) => [e.action, e.targetId])).toEqual([
+      ["alert.resolved", fired?.id],
+      ["alert.fired", fired?.id],
+    ]);
+    expect(history.items[1]).toMatchObject({
+      targetType: "alert",
+      details: {
+        name: "refund failures",
+        metric: "failure_rate",
+        threshold: 0.5,
+        value: 1,
+        traces: 2,
+        agent: "refund-agent",
+      },
+    });
+    expect(history.items[0]?.details).toMatchObject({ value: null, traces: 0 });
   });
 
   it("keeps a fired rule firing for keepFiringMinutes before it may resolve", async () => {

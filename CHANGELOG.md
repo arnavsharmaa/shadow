@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert history: every rule that starts firing or resolves is written to the audit log as
+  `alert.fired` or `alert.resolved` by `system:alerts`, with the metric, threshold, scope,
+  value, baseline and trace count, so the Audit page and `shadow audit --actor system:alerts`
+  show what fired when next to who changed the rules.
 - Traces CSV export: `GET /api/v1/traces?format=csv` returns every trace matching the listing
   filters as one document for spreadsheets (status, outcome, timings, call and token counts,
   cost, tags and metadata; up to 10,000 rows), `shadow traces list --csv [--out <file>]` saves
