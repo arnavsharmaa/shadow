@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The trace page shows the trace's metadata as chips under the title; each links to the
+  explorer filtered to the same entry, so every run for the same customer, ticket or batch is
+  one click away.
 - Alert history: every rule that starts firing or resolves is written to the audit log as
   `alert.fired` or `alert.resolved` by `system:alerts`, with the metric, threshold, scope,
   value, baseline and trace count, so the Audit page and `shadow audit --actor system:alerts`

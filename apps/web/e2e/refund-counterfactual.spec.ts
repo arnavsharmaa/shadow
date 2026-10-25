@@ -34,6 +34,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("trace-header")).toContainText(
       "Refund Agent".length > 0 ? "refund-agent" : "",
     );
+    // Metadata shows as chips that lead to the explorer filtered to the same entry.
+    const chip = page.locator('[data-testid="metadata-chip"][data-key="customerId"]');
+    await expect(chip).toContainText("cus_1001");
+    await expect(chip).toHaveAttribute("href", "/?meta=customerId%3Dcus_1001");
     // The header offers the selected branch's events as CSV, served by the API.
     const csvLink = page.getByTestId("export-events-csv");
     await expect(csvLink).toHaveAttribute("href", /\/events\?branchId=br_.*format=csv$/);

@@ -2,8 +2,9 @@
 
 import { api } from "@/lib/api";
 import { compact, dateTime, duration, money } from "@/lib/format";
-import type { Branch, TraceSummary } from "@shadow/schemas";
+import type { Branch, JsonValue, TraceSummary } from "@shadow/schemas";
 import Link from "next/link";
+import { useState } from "react";
 import { Badge, Button, Kbd, outcomeTone, statusTone } from "../ui/primitives";
 import { TagEditor } from "./TagEditor";
 
@@ -92,6 +93,7 @@ export function TraceHeader({
           <span>{dateTime(trace.startedAt)}</span>
           <TagEditor tags={trace.tags} onChange={onUpdateTags} />
         </div>
+        <MetadataChips metadata={trace.metadata} />
       </div>
       <dl className="ml-auto flex flex-wrap items-center gap-x-4 text-[11px]">
         <Stat label="Duration" value={duration(metrics.durationMs)} />
@@ -207,6 +209,54 @@ export function TraceHeader({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** How many metadata entries the header shows before folding the rest behind a toggle. */
+const METADATA_CHIPS = 4;
+
+function chipValue(value: JsonValue): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/**
+ * The trace's metadata as chips; each links to the explorer filtered to the same entry, so
+ * every run for this customer, ticket or batch is one click away.
+ */
+function MetadataChips({ metadata }: { metadata: Record<string, JsonValue> }) {
+  const [expanded, setExpanded] = useState(false);
+  const entries = Object.entries(metadata);
+  if (entries.length === 0) return null;
+  const shown = expanded ? entries : entries.slice(0, METADATA_CHIPS);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="trace-metadata">
+      {shown.map(([key, value]) => {
+        const text = chipValue(value);
+        return (
+          <Link
+            key={key}
+            href={`/?meta=${encodeURIComponent(`${key}=${text}`)}`}
+            className="mono inline-flex h-5 max-w-[280px] items-center gap-1 rounded border border-border bg-bg px-1.5 text-[11px] text-fg-muted hover:bg-hover hover:text-fg"
+            title={`Show every trace whose ${key} is ${text}`}
+            data-testid="metadata-chip"
+            data-key={key}
+          >
+            <span className="text-fg-faint">{key}</span>
+            <span className="truncate">{text}</span>
+          </Link>
+        );
+      })}
+      {entries.length > METADATA_CHIPS && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[11px] text-fg-muted hover:text-fg"
+          data-testid="metadata-toggle"
+        >
+          {expanded ? "fewer" : `+${entries.length - METADATA_CHIPS} more`}
+        </button>
+      )}
     </div>
   );
 }
