@@ -22,6 +22,17 @@ export interface ShadowOptions {
   headers?: Record<string, string>;
   /** Bearer token for APIs started with SHADOW_API_TOKEN (default: SHADOW_TOKEN env). */
   token?: string;
+  /**
+   * Who this client acts as in the API's audit log and on the notes and artifacts it attaches
+   * (`x-shadow-actor`; default `SHADOW_ACTOR` env, else `sdk`). A service name or a person.
+   */
+  actor?: string;
+  /**
+   * Flush and stop every active trace when the process is about to exit (`beforeExit`), so a
+   * short-lived script or job needs no explicit `shutdown()` (default: `SHADOW_FLUSH_ON_EXIT`
+   * env, else false). A hard `process.exit()` still skips it.
+   */
+  flushOnExit?: boolean;
   /** Milliseconds between automatic flushes. Default 1000; 0 disables the timer. */
   flushIntervalMs?: number;
   /** Flush as soon as this many events are buffered. Default 100. */
@@ -87,6 +98,23 @@ function envEnabled(): boolean {
   return !(value === "0" || value === "false" || value === "no" || value === "off");
 }
 
+function envFlushOnExit(): boolean {
+  const value = readEnv("SHADOW_FLUSH_ON_EXIT")?.toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+interface ExitHooks {
+  on(event: "beforeExit", listener: () => void): unknown;
+  off(event: "beforeExit", listener: () => void): unknown;
+}
+
+function processHooks(): ExitHooks | undefined {
+  const proc = (globalThis as { process?: Partial<ExitHooks> }).process;
+  return proc && typeof proc.on === "function" && typeof proc.off === "function"
+    ? (proc as ExitHooks)
+    : undefined;
+}
+
 /** Entry point of the SDK: configures the transport and starts traces. */
 export class Shadow {
   private readonly options: ShadowOptions;
@@ -94,6 +122,7 @@ export class Shadow {
   private readonly discard: Transport = new NoopTransport();
   private readonly active = new Set<Trace>();
   private warned = false;
+  private exitHook: (() => void) | null = null;
 
   constructor(options: ShadowOptions = {}) {
     const project = options.project ?? readEnv("SHADOW_PROJECT");
@@ -121,9 +150,29 @@ export class Shadow {
               ...((options.token ?? readEnv("SHADOW_TOKEN"))
                 ? { authorization: `Bearer ${options.token ?? readEnv("SHADOW_TOKEN")}` }
                 : {}),
+              ...((options.actor ?? readEnv("SHADOW_ACTOR"))
+                ? { "x-shadow-actor": options.actor ?? (readEnv("SHADOW_ACTOR") as string) }
+                : {}),
               ...(options.headers ?? {}),
             },
           }));
+    if (options.flushOnExit ?? envFlushOnExit()) this.installExitHook();
+  }
+
+  /**
+   * Flush when the event loop is about to drain. The flush keeps the process alive until it
+   * is done; the hook removes itself first so the second `beforeExit` does not start another.
+   */
+  private installExitHook(): void {
+    const hooks = processHooks();
+    if (!hooks || this.exitHook) return;
+    const hook = () => {
+      hooks.off("beforeExit", hook);
+      this.exitHook = null;
+      void this.shutdown();
+    };
+    this.exitHook = hook;
+    hooks.on("beforeExit", hook);
   }
 
   /** False when recording is disabled (`enabled: false`); traces are then discarded. */
@@ -178,8 +227,12 @@ export class Shadow {
     await Promise.all([...this.active].map((t) => t.flush()));
   }
 
-  /** Flush and stop timers; call before the process exits. */
+  /** Flush and stop timers; call before the process exits (or let `flushOnExit` do it). */
   async shutdown(): Promise<void> {
+    if (this.exitHook) {
+      processHooks()?.off("beforeExit", this.exitHook);
+      this.exitHook = null;
+    }
     await this.flush();
     this.active.clear();
   }

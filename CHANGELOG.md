@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `actor` (or `SHADOW_ACTOR`) names the client in the API's audit log and on the notes and
+  artifacts it attaches, and `flushOnExit: true` (or `SHADOW_FLUSH_ON_EXIT`) flushes every
+  active trace when the process is about to exit, so short-lived scripts need no explicit
+  `shutdown()`.
 - `SHADOW_WEBHOOK_PROJECTS` restricts finished-trace webhook notifications to the listed
   project slugs, so a channel hears about production and not about CI runs; alerts, failed
   replays and jobs are not filtered. `/health` and the Settings page show the restriction.

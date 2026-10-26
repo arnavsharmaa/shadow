@@ -278,6 +278,55 @@ describe("Shadow SDK", () => {
     ]);
   });
 
+  it("names the actor on API requests and flushes when the process is about to exit", async () => {
+    const calls: { url: string; headers: Record<string, string> }[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), headers: (init?.headers ?? {}) as Record<string, string> });
+      return new Response(JSON.stringify({ id: "trc_1", rootBranchId: "br_1", accepted: 1 }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    // The actor rides on the headers of the transport the SDK builds itself.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl;
+    try {
+      const built = new Shadow({
+        project: "p",
+        agent: "a",
+        actor: "billing-worker",
+        endpoint: "http://shadow.test",
+        flushIntervalMs: 0,
+      });
+      const trace = built.startTrace({ name: "run" });
+      await trace.end({ outcome: { kind: "completed", label: "ok" } });
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls.every((c) => c.headers["x-shadow-actor"] === "billing-worker")).toBe(true);
+      const plain = new HttpTransport({ endpoint: "http://shadow.test", fetch: fetchImpl });
+      await plain.createTrace({ project: "p", agent: "a", name: "x" });
+      expect(calls.at(-1)?.headers["x-shadow-actor"]).toBe("sdk");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const transport = new MemoryTransport();
+    const listeners = process.listenerCount("beforeExit");
+    const shadow = new Shadow({ project: "p", agent: "a", transport, flushOnExit: true });
+    expect(process.listenerCount("beforeExit")).toBe(listeners + 1);
+    const pending = shadow.startTrace({ name: "exit" });
+    pending.note("about to exit");
+    expect(transport.traces).toHaveLength(0);
+    process.emit("beforeExit", 0);
+    // The hook removes itself before flushing, so a second beforeExit does nothing extra.
+    expect(process.listenerCount("beforeExit")).toBe(listeners);
+    await vi.waitFor(() => expect(transport.traces).toHaveLength(1));
+    expect(transport.events.get(transport.traces[0]?.id ?? "")?.length ?? 0).toBeGreaterThanOrEqual(
+      2,
+    );
+    await shadow.shutdown();
+    expect(process.listenerCount("beforeExit")).toBe(listeners);
+  });
+
   it("HttpTransport sends trace updates as PATCH requests", async () => {
     const calls: { url: string; method?: string; body?: unknown }[] = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {

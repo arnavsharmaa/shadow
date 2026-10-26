@@ -168,6 +168,11 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   same hash of the trace id, so the two agree on which traces to keep.
 - `enabled: false` turns the SDK into a no-op; so does `SHADOW_ENABLED=false` (or `0`, `no`,
   `off`) in the environment, which lets a deployment switch recording off without a code change.
+- `actor` (or `SHADOW_ACTOR`) names the client in the API's audit log and on the notes and
+  artifacts it attaches (`x-shadow-actor`, default `sdk`): a service name or a person.
+- `flushOnExit: true` (or `SHADOW_FLUSH_ON_EXIT=true`) flushes every active trace when the
+  process is about to exit, so a short-lived script needs no explicit `shutdown()`; a hard
+  `process.exit()` still skips it.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.
