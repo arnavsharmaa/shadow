@@ -57,7 +57,7 @@ function describeFeatures(f: HealthFeatures): { key: string; label: string; valu
       key: "webhook",
       label: "Webhook",
       value: f.webhook?.enabled
-        ? `${f.webhook.events ?? "failures"} as ${f.webhook.format ?? "json"}`
+        ? `${f.webhook.events ?? "failures"} as ${f.webhook.format ?? "json"}${f.webhook.projects ? ` for ${f.webhook.projects.join(", ")}` : ""}`
         : "off",
     },
     {

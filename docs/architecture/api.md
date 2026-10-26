@@ -1021,6 +1021,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_WEBHOOK_URL`                | unset                                         | POST finished-trace notifications here                    |
 | `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`              |
 | `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`                |
+| `SHADOW_WEBHOOK_PROJECTS`           | unset (all)                                   | comma-separated project slugs whose traces notify         |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)               |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
 | `SHADOW_RETENTION_PROJECT_DAYS`     | unset                                         | per-project windows, `slug=days` pairs (see below)        |
@@ -1076,7 +1077,10 @@ lifecycle rules give the archive its retention.
 
 With `SHADOW_WEBHOOK_URL` set, the API posts a JSON notification when a trace's root branch
 finishes. `SHADOW_WEBHOOK_EVENTS` selects which: `failures` (default: failed traces, which
-includes policy violations), `policy_violations` only, or `all`. The body is:
+includes policy violations), `policy_violations` only, or `all`; `SHADOW_WEBHOOK_PROJECTS`
+(comma-separated slugs) restricts finished-trace notifications to those projects, so a channel
+hears about production and not about CI runs. Alerts, failed replays and batch jobs are not
+project-filtered: alert rules carry their own scope. The body is:
 
 ```json
 {

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_WEBHOOK_PROJECTS` restricts finished-trace webhook notifications to the listed
+  project slugs, so a channel hears about production and not about CI runs; alerts, failed
+  replays and jobs are not filtered. `/health` and the Settings page show the restriction.
 - `afterSequence` on the event listings returns only events with a greater sequence, so pollers
   read what is new without decoding cursors; `shadow traces tail` uses it.
 - The trace page shows the trace's metadata as chips under the title; each links to the

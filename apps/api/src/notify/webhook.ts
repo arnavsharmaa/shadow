@@ -97,7 +97,9 @@ export interface WebhookOptions {
     ApiConfig,
     "SHADOW_WEBHOOK_URL" | "SHADOW_WEBHOOK_SECRET" | "SHADOW_WEBHOOK_EVENTS"
   > &
-    Partial<Pick<ApiConfig, "SHADOW_WEBHOOK_FORMAT" | "SHADOW_WEB_URL">>;
+    Partial<
+      Pick<ApiConfig, "SHADOW_WEBHOOK_FORMAT" | "SHADOW_WEB_URL" | "SHADOW_WEBHOOK_PROJECTS">
+    >;
   logger: Logger;
   fetch?: typeof fetch;
   /** Attempts per notification (default 3, exponential backoff from 250 ms). */
@@ -107,7 +109,10 @@ export interface WebhookOptions {
 
 export interface Webhook {
   enabled: boolean;
-  /** Decide and send; resolves after delivery (or after retries fail). Never throws. */
+  /**
+   * Decide and send; resolves after delivery (or after retries fail). Never throws. Subject to
+   * the SHADOW_WEBHOOK_EVENTS and SHADOW_WEBHOOK_PROJECTS filters.
+   */
   traceFinished(
     input: Omit<TraceFinishedNotification, "type" | "sentAt" | "reason">,
   ): Promise<void>;
@@ -151,6 +156,7 @@ export function createWebhook(options: WebhookOptions): Webhook {
   const secret = options.config.SHADOW_WEBHOOK_SECRET;
   const format = options.config.SHADOW_WEBHOOK_FORMAT ?? "json";
   const webUrl = options.config.SHADOW_WEB_URL;
+  const projects = options.config.SHADOW_WEBHOOK_PROJECTS;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const maxAttempts = Math.max(1, options.maxAttempts ?? 3);
   const backoffMs = options.backoffMs ?? 250;
@@ -211,6 +217,8 @@ export function createWebhook(options: WebhookOptions): Webhook {
     enabled: url !== undefined,
     async traceFinished(input) {
       if (!url) return;
+      // Alerts, failed replays and jobs are not project-filtered: they are configured per rule.
+      if (projects && !projects.includes(input.trace.projectSlug)) return;
       const reason = classify(options.config.SHADOW_WEBHOOK_EVENTS, input.trace);
       if (!reason) return;
       const notification: TraceFinishedNotification = {

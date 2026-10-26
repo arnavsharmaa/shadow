@@ -34,6 +34,8 @@ const healthSchema = z.object({
       enabled: z.boolean(),
       events: z.string().optional(),
       format: z.string().optional(),
+      /** Project slugs whose finished traces notify, when restricted. */
+      projects: z.array(z.string()).optional(),
     }),
     /** Whether finished traces are written to a directory as bundles. */
     fileExport: z.object({ enabled: z.boolean(), dir: z.string().optional() }),
@@ -62,6 +64,7 @@ export interface HealthRouteOptions {
     | "SHADOW_OTLP_EXPORT_ENCODING"
     | "SHADOW_WEBHOOK_URL"
     | "SHADOW_WEBHOOK_EVENTS"
+    | "SHADOW_WEBHOOK_PROJECTS"
     | "SHADOW_WEBHOOK_FORMAT"
     | "SHADOW_EXPORT_DIR"
     | "SHADOW_EXPORT_S3_BUCKET"
@@ -129,6 +132,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
                 enabled: true,
                 events: config.SHADOW_WEBHOOK_EVENTS,
                 format: config.SHADOW_WEBHOOK_FORMAT,
+                ...(config.SHADOW_WEBHOOK_PROJECTS
+                  ? { projects: config.SHADOW_WEBHOOK_PROJECTS }
+                  : {}),
               }
             : { enabled: false },
           fileExport: config.SHADOW_EXPORT_DIR
