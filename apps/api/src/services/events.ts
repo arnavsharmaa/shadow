@@ -159,6 +159,8 @@ export interface EventPageQuery {
   name?: string;
   severity?: string;
   q?: string;
+  /** Only events with a greater sequence (the later of this and the cursor applies). */
+  afterSequence?: number;
   inherited: boolean;
 }
 
@@ -179,6 +181,7 @@ export async function pageEvents(ctx: ServiceContext, traceId: string, query: Ev
   } catch {
     throw ApiError.badRequest("invalid cursor");
   }
+  if (query.afterSequence !== undefined) after = Math.max(after, query.afterSequence);
   const conditions: SQL[] = [
     query.inherited ? lineageCondition(chain) : eq(events.branchId, branchId),
   ];

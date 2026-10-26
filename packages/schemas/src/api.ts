@@ -198,6 +198,11 @@ export const eventListQuerySchema = cursorPageQuerySchema.extend({
   severity: z.enum(["debug", "info", "warn", "error"]).optional(),
   /** Case-insensitive substring of the event name or type. */
   q: z.string().max(256).optional(),
+  /**
+   * Only events with a greater sequence. A stable way for pollers (`shadow traces tail`) to
+   * read what is new without decoding cursors; combined with `cursor`, the later one wins.
+   */
+  afterSequence: z.coerce.number().int().min(-1).optional(),
   /** Include events inherited from parent branches (default true). */
   inherited: z
     .union([z.boolean(), z.enum(["true", "false"])])

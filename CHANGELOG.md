@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `afterSequence` on the event listings returns only events with a greater sequence, so pollers
+  read what is new without decoding cursors; `shadow traces tail` uses it.
 - The trace page shows the trace's metadata as chips under the title; each links to the
   explorer filtered to the same entry, so every run for the same customer, ticket or batch is
   one click away.

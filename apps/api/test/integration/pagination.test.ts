@@ -142,6 +142,30 @@ describe("event pagination", () => {
     expect(child.body.split("\r\n").filter((l) => l.length > 0).length - 1).toBe(1);
   });
 
+  it("pages from a sequence with afterSequence, also combined with a cursor", async () => {
+    const tail = await page("afterSequence=19");
+    expect(tail.items.map((e) => e.sequence)).toEqual([20, 21, 22, 23, 24]);
+    expect(tail.nextCursor).toBeNull();
+    const everything = await page("afterSequence=-1&limit=1000");
+    expect(everything.items).toHaveLength(TOTAL);
+    const nothing = await page("afterSequence=24");
+    expect(nothing).toEqual({ items: [], nextCursor: null });
+    // The later of the two positions wins, so a stale cursor cannot replay events.
+    const first = await page("limit=10");
+    const later = await page(
+      `cursor=${encodeURIComponent(first.nextCursor ?? "")}&afterSequence=15&limit=100`,
+    );
+    expect(later.items.map((e) => e.sequence)).toEqual([16, 17, 18, 19, 20, 21, 22, 23, 24]);
+    const earlier = await page(
+      `cursor=${encodeURIComponent(first.nextCursor ?? "")}&afterSequence=3&limit=100`,
+    );
+    expect(earlier.items[0]?.sequence).toBe(10);
+    for (const query of ["afterSequence=abc", "afterSequence=-2", "afterSequence=1.5"]) {
+      const response = await t.app.inject({ url: `/api/v1/traces/${trace.id}/events?${query}` });
+      expect(response.statusCode, query).toBe(400);
+    }
+  });
+
   it("rejects invalid limits and cursors", async () => {
     for (const query of ["limit=0", "limit=1001", "limit=abc"]) {
       const response = await t.app.inject({

@@ -518,11 +518,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }
         for (;;) {
           // Pages start after the last sequence seen, so each poll reads only what is new.
-          let cursor: string | undefined = last >= 0 ? cursorAfter(last) : undefined;
+          let cursor: string | undefined;
           do {
             const page: Page<ShadowEvent> = await api.get<Page<ShadowEvent>>(`${traceUrl}/events`, {
               branchId,
               cursor,
+              afterSequence: last >= 0 ? last : undefined,
               limit: 1000,
             });
             for (const e of page.items) {
@@ -2807,11 +2808,6 @@ async function allEvents(
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   return events;
-}
-
-/** The events cursor that continues after `sequence`; the same encoding the API hands out. */
-function cursorAfter(sequence: number): string {
-  return Buffer.from(JSON.stringify({ s: sequence }), "utf8").toString("base64url");
 }
 
 /** Text form of an artifact: strings verbatim, everything else pretty-printed JSON. */

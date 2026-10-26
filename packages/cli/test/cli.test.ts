@@ -436,8 +436,10 @@ describe("shadow cli", () => {
     // the last sequence seen.
     const eventCalls = api.captured.calls.filter((c) => c.url.includes("/events"));
     expect(eventCalls).toHaveLength(2);
-    const cursor = new URL(eventCalls[1]?.url ?? "").searchParams.get("cursor") ?? "";
-    expect(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))).toEqual({ s: 1 });
+    const second = new URL(eventCalls[1]?.url ?? "").searchParams;
+    expect(second.get("afterSequence")).toBe("1");
+    expect(second.get("cursor")).toBeNull();
+    expect(new URL(eventCalls[0]?.url ?? "").searchParams.get("afterSequence")).toBeNull();
 
     // --new skips what was already recorded; --json prints one line per event.
     polls = 0;
