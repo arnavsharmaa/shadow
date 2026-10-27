@@ -68,10 +68,8 @@ export async function getAlertRule(ctx: ServiceContext, ruleId: string): Promise
   return toAlertRule(await getRow(ctx, ruleId));
 }
 
-export async function createAlertRule(
-  ctx: ServiceContext,
-  body: CreateAlertRuleBody,
-): Promise<AlertRule> {
+/** The checks a rule body must pass whether it is stored or only previewed. */
+function assertRuleShape(body: CreateAlertRuleBody): void {
   if (body.mode === "threshold" && body.metric === "failure_rate" && body.threshold > 1) {
     throw ApiError.badRequest("failure_rate is a fraction; the threshold must be between 0 and 1");
   }
@@ -83,6 +81,53 @@ export async function createAlertRule(
   if (body.mode === "baseline" && body.windowMinutes * (body.baselineWindows + 1) > 129_600) {
     throw ApiError.badRequest("the window plus its baseline may span at most 90 days");
   }
+}
+
+export interface AlertPreview {
+  /** The metric over the rule's window right now, `null` without usable data. */
+  value: number | null;
+  baseline: number | null;
+  traces: number;
+  /** What the value is compared against: the threshold, or the baseline times it. */
+  limit: number | null;
+  /** Whether the rule would be firing after the next evaluation if it existed. */
+  wouldFire: boolean;
+}
+
+/**
+ * Measure a rule body against the recorded traces without storing it, so a rule can be tuned
+ * before it exists: what the value is now, over how many traces, and whether it would fire.
+ */
+export async function previewAlertRule(
+  ctx: ServiceContext,
+  body: CreateAlertRuleBody,
+): Promise<AlertPreview> {
+  assertRuleShape(body);
+  const scope = {
+    agent: body.agent ?? null,
+    project: body.project ?? null,
+    tag: body.tag ?? null,
+    metric: body.metric,
+    windowMinutes: body.windowMinutes,
+    baselineWindows: body.baselineWindows,
+  };
+  const { value, traces: count } = await measure(ctx, scope);
+  const baseline = body.mode === "baseline" ? await baselineFor(ctx, scope) : null;
+  const limit =
+    body.mode === "baseline"
+      ? baseline !== null && baseline > 0
+        ? baseline * body.threshold
+        : null
+      : body.threshold;
+  const wouldFire = value !== null && limit !== null && count >= body.minTraces && value >= limit;
+  return { value, baseline, traces: count, limit, wouldFire };
+}
+
+export async function createAlertRule(
+  ctx: ServiceContext,
+  body: CreateAlertRuleBody,
+): Promise<AlertRule> {
+  assertRuleShape(body);
   const existing = await ctx.handle.db
     .select({ id: alertRules.id, name: alertRules.name })
     .from(alertRules)

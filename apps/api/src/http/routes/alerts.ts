@@ -7,6 +7,7 @@ import {
   evaluateAlertRules,
   getAlertRule,
   listAlertRules,
+  previewAlertRule,
   updateAlertRule,
 } from "../../services/alerts.js";
 import { audit } from "../audit.js";
@@ -38,6 +39,13 @@ export const alertRoutes: FastifyPluginAsyncZod = async (app) => {
       });
       return reply.status(201).send(rule);
     },
+  );
+
+  /** Measure a rule body now without storing it; the same body `POST /alerts/rules` takes. */
+  app.post(
+    "/alerts/preview",
+    { schema: { tags: ["alerts"], body: createAlertRuleBodySchema } },
+    async (request) => previewAlertRule(app.services, request.body),
   );
 
   app.get("/alerts/rules/:ruleId", { schema: { tags: ["alerts"], params } }, async (request) =>

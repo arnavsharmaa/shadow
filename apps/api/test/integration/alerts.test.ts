@@ -205,6 +205,68 @@ describe("alert rules", () => {
     expect(tooLong.statusCode).toBe(400);
   });
 
+  it("previews a rule against the recorded traces without storing it", async () => {
+    const before = json<{ items: AlertRule[] }>(
+      await t.app.inject({ url: "/api/v1/alerts/rules" }),
+    );
+    const preview = async (body: Record<string, unknown>) => {
+      const response = await t.app.inject({
+        method: "POST",
+        url: "/api/v1/alerts/preview",
+        payload: body,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      return json<{
+        value: number | null;
+        baseline: number | null;
+        traces: number;
+        limit: number | null;
+        wouldFire: boolean;
+      }>(response);
+    };
+    expect(
+      await preview({
+        name: "refund failures",
+        agent: "refund-agent",
+        metric: "failure_rate",
+        threshold: 0.5,
+        windowMinutes: 43_200,
+      }),
+    ).toEqual({ value: 1, baseline: null, traces: 2, limit: 0.5, wouldFire: true });
+    expect(
+      await preview({ name: "x", tag: "prod", metric: "failure_rate", threshold: 0.5 }),
+    ).toMatchObject({ value: null, traces: 0, wouldFire: false });
+    expect(
+      await preview({
+        name: "x",
+        agent: "refund-agent",
+        metric: "failure_rate",
+        threshold: 0.5,
+        windowMinutes: 43_200,
+        minTraces: 5,
+      }),
+    ).toMatchObject({ value: 1, traces: 2, wouldFire: false });
+    // A baseline rule without history has nothing to compare against yet.
+    expect(
+      await preview({
+        name: "x",
+        metric: "total_cost",
+        mode: "baseline",
+        threshold: 2,
+        windowMinutes: 10_080,
+      }),
+    ).toMatchObject({ baseline: null, limit: null, wouldFire: false });
+    const invalid = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/alerts/preview",
+      payload: { name: "x", metric: "failure_rate", threshold: 5 },
+    });
+    expect(invalid.statusCode).toBe(400);
+    // Previews store nothing and audit nothing.
+    const after = json<{ items: AlertRule[] }>(await t.app.inject({ url: "/api/v1/alerts/rules" }));
+    expect(after.items.map((r) => r.id)).toEqual(before.items.map((r) => r.id));
+  });
+
   it("scopes a rule to traces carrying a tag", async () => {
     received.length = 0;
     const tagged = await createRule({

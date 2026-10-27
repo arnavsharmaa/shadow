@@ -757,6 +757,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await dialog.getByTestId("rule-window").selectOption("1440");
     await dialog.getByTestId("rule-min-traces").fill("3");
     await dialog.getByTestId("rule-keep-firing").selectOption("30");
+    // Preview measures the rule as typed without creating it.
+    await dialog.getByTestId("preview-rule").click();
+    await expect(dialog.getByTestId("rule-preview")).toContainText("would stay ok");
+    await expect(dialog.getByTestId("rule-preview")).toContainText("0 traces");
     await dialog.getByTestId("create-rule").click();
     const row = dialog.locator(`[data-testid="rule-row"][data-rule-name="${name}"]`);
     await expect(row).toContainText("estimated cost ≥ $12.50 over 1d, 3+ traces, held 30m");

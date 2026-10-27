@@ -386,6 +386,15 @@ export const api = {
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
   alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
+  /** Measure a rule against recorded traces now, without storing it. */
+  previewAlertRule: (body: AlertRuleInput) =>
+    request<{
+      value: number | null;
+      baseline: number | null;
+      traces: number;
+      limit: number | null;
+      wouldFire: boolean;
+    }>("POST", "/api/v1/alerts/preview", body),
   createAlertRule: (body: AlertRuleInput) =>
     request<AlertRule>("POST", "/api/v1/alerts/rules", body),
   updateAlertRule: (

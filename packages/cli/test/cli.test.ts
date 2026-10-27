@@ -1522,6 +1522,32 @@ describe("shadow cli", () => {
     ).toBe(0);
     expect(api.captured.calls.at(-1)?.body).toMatchObject({ keepFiringMinutes: 0 });
 
+    // --dry-run measures the rule instead of creating it.
+    const previewApi = fakeApi({
+      "POST /api/v1/alerts/preview": () => ({
+        body: { value: 0.75, baseline: null, traces: 4, limit: 0.5, wouldFire: true },
+      }),
+    });
+    expect(
+      await runWith(previewApi, [
+        "alerts",
+        "add",
+        "refund failures",
+        "--metric",
+        "failure_rate",
+        "--threshold",
+        "0.5",
+        "--window",
+        "6h",
+        "--dry-run",
+      ]),
+    ).toBe(0);
+    expect(previewApi.captured.calls).toHaveLength(1);
+    expect(previewApi.captured.calls[0]?.body).toMatchObject({ name: "refund failures" });
+    expect(previewApi.captured.out.join("\n")).toContain(
+      "failure_rate is 0.75 over 360m (4 traces); limit 0.5; would fire",
+    );
+
     expect(await runWith(api, ["alerts", "list"])).toBe(0);
     expect(api.captured.out.join("\n")).toMatch(
       /refund failures\s+firing\s+refund-agent\s+failure_rate\s+50%\s+75%/,

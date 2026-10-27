@@ -1342,6 +1342,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "--keep-firing <age>",
       "once fired, stay firing for at least this long (such as 30m or 2h) so a flapping metric raises one alert",
     )
+    .option("--dry-run", "measure the rule against recorded traces now instead of creating it")
     .option("--json", "print JSON")
     .action(
       async (
@@ -1357,10 +1358,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           window: string;
           minTraces: number;
           keepFiring?: string;
+          dryRun?: boolean;
           json?: boolean;
         },
       ) => {
-        const rule = await client().post<AlertRule>("/api/v1/alerts/rules", {
+        const body = {
           name,
           metric: opts.metric,
           threshold: opts.threshold,
@@ -1373,7 +1375,24 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           ...(opts.keepFiring !== undefined
             ? { keepFiringMinutes: ageMinutes(opts.keepFiring, "--keep-firing", 0, 10_080) }
             : {}),
-        });
+        };
+        if (opts.dryRun) {
+          const preview = await client().post<{
+            value: number | null;
+            baseline: number | null;
+            traces: number;
+            limit: number | null;
+            wouldFire: boolean;
+          }>("/api/v1/alerts/preview", body);
+          if (opts.json) return json(preview);
+          const value = preview.value === null ? "no data" : String(preview.value);
+          const limit = preview.limit === null ? "no baseline yet" : String(preview.limit);
+          out(
+            `${name}: ${opts.metric} is ${value} over ${body.windowMinutes}m (${preview.traces} traces); limit ${limit}${preview.baseline !== null ? `, baseline ${preview.baseline}` : ""}; would ${preview.wouldFire ? "fire" : "stay ok"}`,
+          );
+          return;
+        }
+        const rule = await client().post<AlertRule>("/api/v1/alerts/rules", body);
         if (opts.json) return json(rule);
         const hold = rule.keepFiringMinutes > 0 ? `, held for ${rule.keepFiringMinutes}m` : "";
         out(

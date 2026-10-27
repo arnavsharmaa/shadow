@@ -755,6 +755,14 @@ rule with no baseline data, or a baseline of zero, stays `ok`, since there is no
 compare against. The window plus its baseline may span at most 90 days. `lastBaseline` on the
 rule and `baseline` in the webhook payload carry the value used.
 
+### `POST /api/v1/alerts/preview`
+
+Takes the same body as `POST /api/v1/alerts/rules` and measures it against the recorded traces
+now, without storing anything: `{ value, baseline, traces, limit, wouldFire }`, where `limit` is
+the threshold (or the baseline times it, `null` without a baseline yet) and `wouldFire` says
+whether the rule would be firing after its next evaluation. CLI: `shadow alerts add … --dry-run`;
+the web dialog's Preview button.
+
 ### `GET | PATCH | DELETE /api/v1/alerts/rules/:ruleId`
 
 `PATCH` accepts `{ name?, threshold?, baselineWindows?, windowMinutes?, minTraces?,

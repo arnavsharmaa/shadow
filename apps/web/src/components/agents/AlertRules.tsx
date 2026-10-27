@@ -77,6 +77,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
   const [minTraces, setMinTraces] = useState("1");
   const [keepFiringMinutes, setKeepFiringMinutes] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
@@ -85,7 +86,20 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
     onSuccess: async () => {
       setName("");
       setError(null);
+      setPreview(null);
       await refresh();
+    },
+    onError: fail,
+  });
+  const previewRule = useMutation({
+    mutationFn: (body: AlertRuleInput) => api.previewAlertRule(body),
+    onSuccess: (result) => {
+      setError(null);
+      const value = result.value === null ? "no data" : formatValue(metric, result.value);
+      const limit = result.limit === null ? "no baseline yet" : formatValue(metric, result.limit);
+      setPreview(
+        `Now: ${METRIC_LABEL[metric]} ${value} over ${result.traces} trace${result.traces === 1 ? "" : "s"}, limit ${limit}${result.baseline !== null ? ` (baseline ${formatValue(metric, result.baseline)})` : ""}: would ${result.wouldFire ? "fire" : "stay ok"}.`,
+      );
     },
     onError: fail,
   });
@@ -106,6 +120,17 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
     Number.isFinite(thresholdValue) &&
     thresholdValue >= 0 &&
     !create.isPending;
+  const ruleBody = (): AlertRuleInput => ({
+    name: name.trim() || "preview",
+    metric,
+    threshold: thresholdValue,
+    mode,
+    windowMinutes,
+    minTraces: Math.max(1, Number(minTraces) || 1),
+    keepFiringMinutes,
+    ...(agent.trim() ? { agent: agent.trim() } : {}),
+    ...(tag.trim() ? { tag: tag.trim() } : {}),
+  });
 
   return (
     <Dialog
@@ -120,17 +145,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
         onSubmit={(e) => {
           e.preventDefault();
           if (!canCreate) return;
-          create.mutate({
-            name: name.trim(),
-            metric,
-            threshold: thresholdValue,
-            mode,
-            windowMinutes,
-            minTraces: Math.max(1, Number(minTraces) || 1),
-            keepFiringMinutes,
-            ...(agent.trim() ? { agent: agent.trim() } : {}),
-            ...(tag.trim() ? { tag: tag.trim() } : {}),
-          });
+          create.mutate(ruleBody());
         }}
       >
         <label className="flex flex-col gap-1">
@@ -256,6 +271,15 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             ))}
           </select>
         </label>
+        <Button
+          type="button"
+          disabled={!Number.isFinite(thresholdValue) || thresholdValue < 0 || previewRule.isPending}
+          onClick={() => previewRule.mutate(ruleBody())}
+          title="Measure this rule against the recorded traces now, without creating it"
+          data-testid="preview-rule"
+        >
+          Preview
+        </Button>
         <Button type="submit" variant="primary" disabled={!canCreate} data-testid="create-rule">
           Add rule
         </Button>
@@ -264,6 +288,11 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             ? "Fires while the metric is at or above the multiplier times its average over the preceding windows."
             : `Fires while the metric is at or above the threshold: ${METRIC_HELP[metric]}.`}
         </span>
+        {preview && (
+          <span className="basis-full text-[11px] text-fg" role="status" data-testid="rule-preview">
+            {preview}
+          </span>
+        )}
       </form>
       {error && (
         <div

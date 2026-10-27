@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rule preview: `POST /api/v1/alerts/preview` measures a rule body against the recorded
+  traces without storing it (value, baseline, trace count, limit and whether it would fire), so
+  thresholds can be tuned first; `shadow alerts add --dry-run` and a Preview button in the web
+  dialog use it.
 - SDK: `actor` (or `SHADOW_ACTOR`) names the client in the API's audit log and on the notes and
   artifacts it attaches, and `flushOnExit: true` (or `SHADOW_FLUSH_ON_EXIT`) flushes every
   active trace when the process is about to exit, so short-lived scripts need no explicit
