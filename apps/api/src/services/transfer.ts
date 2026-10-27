@@ -31,6 +31,27 @@ import { likeSearchProvider } from "./search.js";
 import { getTraceRow } from "./traces.js";
 
 /** Build a self-contained, portable bundle for a trace. */
+/**
+ * Bundles for several traces in the order given (duplicates once); ids that do not exist are
+ * reported in `missing` rather than failing the whole export.
+ */
+export async function exportTraces(
+  ctx: ServiceContext,
+  traceIds: readonly string[],
+): Promise<{ bundles: TraceExport[]; missing: string[] }> {
+  const bundles: TraceExport[] = [];
+  const missing: string[] = [];
+  for (const traceId of [...new Set(traceIds)]) {
+    try {
+      bundles.push(await exportTrace(ctx, traceId));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) missing.push(traceId);
+      else throw error;
+    }
+  }
+  return { bundles, missing };
+}
+
 export async function exportTrace(ctx: ServiceContext, traceId: string): Promise<TraceExport> {
   const traceRow = await getTraceRow(ctx, traceId);
   const [project] = await ctx.handle.db

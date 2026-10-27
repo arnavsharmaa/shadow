@@ -70,6 +70,7 @@ export class ApiClient {
     path: string,
     query: Record<string, string | number | undefined>,
     accept: string,
+    body?: unknown,
   ): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string }> {
     const url = new URL(`${this.endpoint}${path}`);
     for (const [key, value] of Object.entries(query)) {
@@ -77,10 +78,13 @@ export class ApiClient {
     }
     let response: Response;
     try {
+      // A body turns the download into a POST (bulk exports); the response is still bytes.
       response = await this.fetchImpl(url.toString(), {
-        method: "GET",
+        method: body === undefined ? "GET" : "POST",
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         headers: {
           accept,
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
           ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
           ...(this.actor ? { "x-shadow-actor": this.actor } : {}),
         },

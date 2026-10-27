@@ -493,6 +493,26 @@ describe("shadow cli", () => {
     });
     expect(await runWith(api, ["traces", "export", "trc_1", "--out", file])).toBe(0);
     expect(JSON.parse(await readFile(file, "utf8")).format).toBe("shadow.trace");
+    // Several ids go through the bulk route: one file per trace, or newline-delimited JSON.
+    const many = fakeApi({
+      "POST /api/v1/traces/export": () => ({
+        raw: true,
+        contentType: "application/x-ndjson; charset=utf-8",
+        body: `${JSON.stringify(bundle)}\n${JSON.stringify({ ...bundle, trace: { ...bundle.trace, id: "trc_2" } })}\n`,
+      }),
+    });
+    const outDir = path.join(dir, "many");
+    expect(
+      await runWith(many, ["traces", "export", "trc_1", "trc_2", "trc_3", "--out", outDir]),
+    ).toBe(0);
+    expect(many.captured.calls[0]?.method).toBe("POST");
+    expect(many.captured.calls[0]?.body).toEqual({ traceIds: ["trc_1", "trc_2", "trc_3"] });
+    expect(JSON.parse(await readFile(path.join(outDir, "trc_2.json"), "utf8"))).toMatchObject({
+      trace: { id: "trc_2" },
+    });
+    expect(many.captured.out.at(-1)).toContain("wrote 2 bundle(s) to");
+    expect(many.captured.out.at(-1)).toContain("(1 not found)");
+    expect(await runWith(many, ["traces", "export", "trc_1", "trc_2", "--markdown"])).toBe(2);
     expect(await runWith(api, ["traces", "export", "trc_1", "--markdown"])).toBe(0);
     expect(api.captured.out.at(-1)).toContain("## Execution");
     expect(api.captured.out.at(-1)?.startsWith("# ")).toBe(true);

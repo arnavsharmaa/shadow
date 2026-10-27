@@ -267,6 +267,17 @@ Body:
 Project and agent are slugs and are created on first use. Returns `201 Trace` with
 `rootBranchId` (the `main` branch); `409` if `id` already exists.
 
+### `POST /api/v1/traces/export`
+
+Body `{ traceIds }` (1 to 500). Returns the traces as newline-delimited JSON, one `shadow.trace`
+bundle per line in the order given (duplicates once), as `application/x-ndjson` named
+`shadow-traces.shadow.ndjson`; `x-shadow-trace-count` carries the number of lines and
+`x-shadow-missing` lists ids that do not exist instead of failing the call. A key pinned to a
+project is refused (`403`) when any of the traces belongs to another project. CLI: `shadow
+traces export <id> <id>… [--out <dir> | --out <file>.ndjson]` writes one `<traceId>.json` per
+trace or the stream; the explorer's bulk bar exports the ticked traces. `shadow traces import`
+loads either form.
+
 ### `POST /api/v1/traces/import`
 
 Body: `{ bundle: TraceExport, idStrategy?: "keep" | "regenerate" }` (default `keep`). Validates

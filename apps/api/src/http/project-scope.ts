@@ -32,6 +32,7 @@ const PROJECT_FILTERED_ROUTES = new Set([
 /** Routes that apply the pin themselves or carry nothing project-specific. */
 const SELF_SCOPED_ROUTES = new Set([
   "/api/v1/otlp/v1/traces",
+  "/api/v1/traces/export",
   "/api/v1/import/anthropic",
   "/api/v1/import/openai",
   "/api/v1/projects",

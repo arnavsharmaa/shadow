@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Bulk trace export: `POST /api/v1/traces/export` returns up to 500 traces as newline-delimited
+  `shadow.trace` bundles (unknown ids reported in a header), `shadow traces export` takes
+  several ids and writes one file per trace or a `.ndjson` stream, and the explorer's bulk bar
+  has an Export button for the ticked traces.
 - Alert rule preview: `POST /api/v1/alerts/preview` measures a rule body against the recorded
   traces without storing it (value, baseline, trace count, limit and whether it would fire), so
   thresholds can be tuned first; `shadow alerts add --dry-run` and a Preview button in the web

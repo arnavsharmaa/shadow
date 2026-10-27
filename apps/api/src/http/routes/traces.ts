@@ -13,6 +13,7 @@ import {
   traceListQuerySchema,
   updateTraceBodySchema,
   type TraceSummary,
+  exportTracesBodySchema,
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -41,7 +42,9 @@ import {
   traceFacets,
   updateTrace,
 } from "../../services/traces.js";
-import { exportTrace, importTrace } from "../../services/transfer.js";
+import { exportTrace, exportTraces, importTrace } from "../../services/transfer.js";
+import { ApiError } from "../../errors.js";
+import { projectOf } from "../project-scope.js";
 import { audit, requestActor } from "../audit.js";
 import { csvLine } from "../csv.js";
 import { forcedKeep, unlessSampledOut } from "../../sampling.js";
@@ -178,6 +181,30 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       }
       const trace = await createTrace(app.services, { ...request.body, id });
       return reply.status(201).send(trace);
+    },
+  );
+
+  /** Several traces as newline-delimited bundles; a pinned key only gets its own project's. */
+  app.post(
+    "/traces/export",
+    { schema: { tags: ["transfer"], body: exportTracesBodySchema } },
+    async (request, reply) => {
+      const { bundles, missing } = await exportTraces(app.services, request.body.traceIds);
+      const pinned = projectOf(request);
+      const foreign = pinned ? bundles.filter((b) => b.project.slug !== pinned) : [];
+      if (foreign.length > 0) {
+        throw new ApiError(
+          403,
+          "forbidden",
+          `this API key is pinned to project '${pinned}'; ${foreign.length} of the traces belong elsewhere`,
+          { traceIds: foreign.map((b) => b.trace.id) },
+        );
+      }
+      reply.header("content-type", "application/x-ndjson; charset=utf-8");
+      reply.header("content-disposition", 'attachment; filename="shadow-traces.shadow.ndjson"');
+      reply.header("x-shadow-trace-count", String(bundles.length));
+      if (missing.length > 0) reply.header("x-shadow-missing", missing.join(","));
+      return reply.send(bundles.map((bundle) => `${JSON.stringify(bundle)}\n`).join(""));
     },
   );
 

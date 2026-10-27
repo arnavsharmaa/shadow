@@ -22,6 +22,26 @@ export function BulkActions({
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["traces"] });
+  const exportAll = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const text = await api.exportTracesNdjson(traces.map((t) => t.id));
+      const blob = new Blob([text], { type: "application/x-ndjson" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "shadow-traces.shadow.ndjson";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      const count = text.split("\n").filter((l) => l.length > 0).length;
+      setMessage({ text: `Exported ${count} trace${count === 1 ? "" : "s"}`, error: false });
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
   const run = async (
     label: string,
     action: (trace: TraceSummary) => Promise<unknown>,
@@ -76,6 +96,16 @@ export function BulkActions({
           Add tag
         </Button>
       </form>
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={busy}
+        onClick={() => void exportAll()}
+        title="Download the ticked traces as bundles (one per line), ready for shadow traces import"
+        data-testid="bulk-export"
+      >
+        Export
+      </Button>
       {confirming ? (
         <>
           <Button

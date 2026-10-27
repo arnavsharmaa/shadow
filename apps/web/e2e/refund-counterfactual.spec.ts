@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 const REFUND_TRACE_ID = "trc_demo_refund_violation";
@@ -867,6 +868,23 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await page.getByTestId("bulk-add-tag").click();
       await expect(page.getByTestId("bulk-message")).toHaveText("Tagged 3 traces");
       for (const i of [0, 1, 2]) await expect(rows.nth(i)).toContainText(`reviewed-${stamp}`);
+      // Export downloads the ticked traces as one bundle per line.
+      const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.getByTestId("bulk-export").click(),
+      ]);
+      expect(download.suggestedFilename()).toBe("shadow-traces.shadow.ndjson");
+      const exported = (await readFile(await download.path(), "utf8"))
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => JSON.parse(l) as { format: string; trace: { id: string } });
+      expect(exported.map((b) => b.format)).toEqual([
+        "shadow.trace",
+        "shadow.trace",
+        "shadow.trace",
+      ]);
+      expect(exported.map((b) => b.trace.id).sort()).toEqual([...ids].sort());
+      await expect(page.getByTestId("bulk-message")).toHaveText("Exported 3 traces");
       await page.getByTestId("bulk-delete").click();
       await page.getByTestId("bulk-delete-confirm").click();
       await expect(page.getByTestId("bulk-message")).toHaveText("Deleted 3 traces");

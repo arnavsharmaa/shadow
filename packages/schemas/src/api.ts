@@ -640,3 +640,9 @@ export const importTraceBodySchema = z.object({
   /** `keep` fails on id collisions; `regenerate` assigns fresh ids. */
   idStrategy: z.enum(["keep", "regenerate"]).default("keep"),
 });
+
+/** Several traces at once, as newline-delimited bundles. */
+export const exportTracesBodySchema = z.object({
+  traceIds: z.array(idSchema).min(1).max(500),
+});
+export type ExportTracesBody = z.infer<typeof exportTracesBodySchema>;

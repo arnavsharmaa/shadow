@@ -1,3 +1,4 @@
+import { traceExportSchema } from "@shadow/schemas";
 import type {
   Branch,
   Comparison,
@@ -119,6 +120,32 @@ describe("export and import", () => {
     expect(
       (await t.app.inject({ method: "GET", url: "/api/v1/traces/trc_missing/export" })).statusCode,
     ).toBe(404);
+  });
+
+  it("exports several traces as newline-delimited bundles, reporting unknown ids", async () => {
+    const other = await ingestRefundScenario(t, "trc_bulk_export_b", { seed: "bulk-b" });
+    const response = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/export",
+      payload: { traceIds: ["trc_bulk_export_b", scenario.traceId, "trc_nope", scenario.traceId] },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/x-ndjson");
+    expect(response.headers["x-shadow-trace-count"]).toBe("2");
+    expect(response.headers["x-shadow-missing"]).toBe("trc_nope");
+    const bundles = response.body
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => traceExportSchema.parse(JSON.parse(l)));
+    expect(bundles.map((b) => b.trace.id)).toEqual([other.traceId, scenario.traceId]);
+    expect(bundles[0]?.events.length).toBe(other.rootEvents.length);
+    const tooMany = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/export",
+      payload: { traceIds: Array.from({ length: 501 }, (_, i) => `trc_${i}`) },
+    });
+    expect(tooMany.statusCode).toBe(400);
+    await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${other.traceId}` });
   });
 
   it("refuses to import a bundle whose ids already exist when keeping ids", async () => {

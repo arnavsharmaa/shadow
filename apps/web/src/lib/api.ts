@@ -490,6 +490,21 @@ export const api = {
       "DELETE",
       `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
     ),
+  /** Several traces as newline-delimited `shadow.trace` bundles (one request, one document). */
+  exportTracesNdjson: async (traceIds: string[]): Promise<string> => {
+    const response = await fetch(`${apiBaseUrl()}/api/v1/traces/export`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/x-ndjson",
+        ...(apiToken() ? { authorization: `Bearer ${apiToken()}` } : {}),
+      },
+      body: JSON.stringify({ traceIds }),
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`export failed with status ${response.status}`);
+    return response.text();
+  },
   /** The traces matching the explorer's filters as one CSV document. */
   tracesCsvUrl: (filters: TraceFilters) =>
     `${apiBaseUrl()}/api/v1/traces${query({ ...filters, cursor: undefined, limit: undefined, format: "csv" })}`,

@@ -613,13 +613,47 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   traces
     .command("export")
-    .description("export a trace (all branches) as a portable JSON bundle, or as a Markdown report")
-    .argument("<traceId>", "trace id")
-    .option("-o, --out <file>", "write to a file instead of stdout")
-    .option("--markdown", "a human-readable report instead of the JSON bundle")
+    .description(
+      "export a trace (all branches) as a portable JSON bundle or a Markdown report; several traces as one bundle per line or one file each",
+    )
+    .argument("<traceId...>", "trace id, or several")
+    .option(
+      "-o, --out <path>",
+      "write to a file instead of stdout; with several traces, a directory for one <traceId>.json each, or a .ndjson file",
+    )
+    .option("--markdown", "a human-readable report instead of the JSON bundle (one trace)")
     .option("--max-events <n>", "events listed per branch in the report", positiveInt, 60)
     .action(
-      async (traceId: string, opts: { out?: string; markdown?: boolean; maxEvents: number }) => {
+      async (traceIds: string[], opts: { out?: string; markdown?: boolean; maxEvents: number }) => {
+        if (traceIds.length > 1) {
+          if (opts.markdown) {
+            throw new CliError("--markdown reports one trace at a time", EXIT.usage);
+          }
+          const { bytes } = await client().download(
+            "/api/v1/traces/export",
+            {},
+            "application/x-ndjson",
+            {
+              traceIds,
+            },
+          );
+          const text = new TextDecoder().decode(bytes);
+          const lines = text.split("\n").filter((l) => l.length > 0);
+          const missing = traceIds.length - lines.length;
+          const note = missing > 0 ? ` (${missing} not found)` : "";
+          if (!opts.out) return out(text.replace(/\n$/, ""));
+          if (opts.out.endsWith(".ndjson")) {
+            await writeFile(opts.out, text, "utf8");
+            return out(`wrote ${lines.length} bundle(s) to ${opts.out}${note}`);
+          }
+          await mkdir(opts.out, { recursive: true });
+          for (const line of lines) {
+            const bundle = JSON.parse(line) as { trace: { id: string } };
+            await writeFile(path.join(opts.out, `${bundle.trace.id}.json`), line, "utf8");
+          }
+          return out(`wrote ${lines.length} bundle(s) to ${opts.out}${note}`);
+        }
+        const traceId = traceIds[0] ?? "";
         const bundle = await client().get<TraceExport>(
           `/api/v1/traces/${encodeURIComponent(traceId)}/export`,
         );
