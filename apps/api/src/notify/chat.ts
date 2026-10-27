@@ -226,6 +226,20 @@ export function formatChatMessage(notification: Notification, webUrl?: string): 
       return formatReplayFailed(notification, webUrl);
     case "job.finished":
       return formatJobFinished(notification, webUrl);
+    case "webhook.test":
+      return {
+        text: `:white_check_mark: Shadow webhook test - ${notification.message}`,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Shadow webhook test*\n${escapeMrkdwn(notification.message)}`,
+            },
+          },
+          { type: "context", elements: [{ type: "mrkdwn", text: `sent ${notification.sentAt}` }] },
+        ],
+      };
     default:
       return formatAlert(notification, webUrl);
   }

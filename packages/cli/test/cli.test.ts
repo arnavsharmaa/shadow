@@ -1438,6 +1438,41 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["collections", "delete", "unknown"])).toBe(4);
   });
 
+  it("tests the webhook and fails when the delivery did not go through", async () => {
+    const ok = fakeApi({
+      "POST /api/v1/webhook/test": () => ({
+        body: { delivered: true, status: 200, error: null, format: "slack", durationMs: 42 },
+      }),
+    });
+    expect(await runWith(ok, ["webhook", "test"])).toBe(0);
+    expect(ok.captured.out.join("\n")).toContain(
+      "delivered as slack: the receiver answered 200 in 42ms",
+    );
+    const failed = fakeApi({
+      "POST /api/v1/webhook/test": () => ({
+        body: {
+          delivered: false,
+          status: 500,
+          error: "the receiver answered 500",
+          format: "json",
+          durationMs: 7,
+        },
+      }),
+    });
+    expect(await runWith(failed, ["webhook", "test"])).toBe(1);
+    expect(failed.captured.err.join("\n")).toContain(
+      "not delivered (json): the receiver answered 500",
+    );
+    const none = fakeApi({
+      "POST /api/v1/webhook/test": () => ({
+        status: 409,
+        body: { error: { code: "webhook_not_configured", message: "no webhook is configured" } },
+      }),
+    });
+    expect(await runWith(none, ["webhook", "test"])).toBe(1);
+    expect(none.captured.err.join("\n")).toContain("no webhook is configured");
+  });
+
   it("manages alert rules and fails the check when one is firing", async () => {
     const rule = (state: string, lastValue: number | null) => ({
       id: "alr_1",

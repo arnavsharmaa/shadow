@@ -190,6 +190,16 @@ describe("chat formatting", () => {
     expect(cancelled.text).toContain(":no_entry: Batch job cancelled: refund-agent");
   });
 
+  it("renders a test notification", () => {
+    const message = formatChatMessage({
+      type: "webhook.test",
+      sentAt: "2026-10-27T10:00:00.000Z",
+      message: "Hello <there>",
+    });
+    expect(message.text).toContain("Shadow webhook test - Hello <there>");
+    expect(JSON.stringify(message.blocks)).toContain("Hello &lt;there&gt;");
+  });
+
   it("renders threshold and baseline alerts", () => {
     const firing = formatChatMessage(alert, "https://shadow.example.com");
     expect(firing.text).toBe(

@@ -263,6 +263,7 @@ export const AUDIT_ACTIONS = [
   "alert.deleted",
   "alert.fired",
   "alert.resolved",
+  "webhook.tested",
   "collection.created",
   "collection.updated",
   "collection.deleted",

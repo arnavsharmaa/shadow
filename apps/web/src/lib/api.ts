@@ -386,6 +386,15 @@ export const api = {
       points: TrendPoint[];
     }>("GET", `/api/v1/stats/agents/${encodeURIComponent(agent)}/timeseries${query(filter)}`),
   alertRules: () => request<{ items: AlertRule[] }>("GET", "/api/v1/alerts/rules"),
+  /** Send a test notification to the configured webhook and report the delivery. */
+  testWebhook: () =>
+    request<{
+      delivered: boolean;
+      status: number | null;
+      error: string | null;
+      format: string;
+      durationMs: number;
+    }>("POST", "/api/v1/webhook/test", {}),
   /** Measure a rule against recorded traces now, without storing it. */
   previewAlertRule: (body: AlertRuleInput) =>
     request<{

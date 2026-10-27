@@ -18,6 +18,7 @@ export interface AuditInput {
     | "view"
     | "alert"
     | "collection"
+    | "webhook"
     | "key";
   targetId: string;
   traceId?: string | null;

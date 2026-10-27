@@ -86,11 +86,29 @@ export interface JobFinishedNotification {
   };
 }
 
+/** Sent on request to check that the webhook is reachable and the secret and format fit. */
+export interface WebhookTestNotification {
+  type: "webhook.test";
+  sentAt: string;
+  message: string;
+}
+
 export type Notification =
   | TraceFinishedNotification
   | AlertNotification
   | ReplayFailedNotification
-  | JobFinishedNotification;
+  | JobFinishedNotification
+  | WebhookTestNotification;
+
+/** How a test delivery went. */
+export interface WebhookProbe {
+  delivered: boolean;
+  /** HTTP status the receiver answered, `null` when the request never completed. */
+  status: number | null;
+  error: string | null;
+  format: "json" | "slack";
+  durationMs: number;
+}
 
 export interface WebhookOptions {
   config: Pick<
@@ -122,6 +140,8 @@ export interface Webhook {
   replayFailed(input: Omit<ReplayFailedNotification, "type" | "sentAt">): Promise<void>;
   /** Send a finished batch job; not subject to the SHADOW_WEBHOOK_EVENTS filter. Never throws. */
   jobFinished(input: Omit<JobFinishedNotification, "type" | "sentAt">): Promise<void>;
+  /** One attempt to deliver a `webhook.test` notification, reporting the outcome. Never throws. */
+  test(): Promise<WebhookProbe>;
   /** Outstanding deliveries, so shutdown can wait for them. */
   settle(): Promise<void>;
 }
@@ -162,26 +182,38 @@ export function createWebhook(options: WebhookOptions): Webhook {
   const backoffMs = options.backoffMs ?? 250;
   const inflight = new Set<Promise<void>>();
 
-  const deliver = async (notification: Notification): Promise<void> => {
-    if (!url) return;
+  const subjectOf = (notification: Notification): string =>
+    notification.type === "trace.finished"
+      ? notification.trace.id
+      : notification.type === "replay.failed"
+        ? notification.replay.id
+        : notification.type === "job.finished"
+          ? notification.job.id
+          : notification.type === "webhook.test"
+            ? "test"
+            : notification.rule.id;
+
+  /** The body and headers a notification is sent with, signed when a secret is set. */
+  const prepare = (
+    notification: Notification,
+  ): { body: string; headers: Record<string, string> } => {
     const body = JSON.stringify(
       format === "slack" ? formatChatMessage(notification, webUrl) : notification,
     );
-    const subject =
-      notification.type === "trace.finished"
-        ? notification.trace.id
-        : notification.type === "replay.failed"
-          ? notification.replay.id
-          : notification.type === "job.finished"
-            ? notification.job.id
-            : notification.rule.id;
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "user-agent": "shadow-webhook",
       "x-shadow-event": notification.type,
-      "x-shadow-delivery": `${subject}:${notification.sentAt}`,
+      "x-shadow-delivery": `${subjectOf(notification)}:${notification.sentAt}`,
     };
     if (secret) headers["x-shadow-signature-256"] = sign(secret, body);
+    return { body, headers };
+  };
+
+  const deliver = async (notification: Notification): Promise<void> => {
+    if (!url) return;
+    const { body, headers } = prepare(notification);
+    const subject = subjectOf(notification);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const response = await fetchImpl(url, {
@@ -249,6 +281,54 @@ export function createWebhook(options: WebhookOptions): Webhook {
       inflight.add(task);
       await task;
     },
+    async test() {
+      const started = Date.now();
+      if (!url) {
+        return {
+          delivered: false,
+          status: null,
+          error: "no webhook configured",
+          format,
+          durationMs: 0,
+        };
+      }
+      const notification: WebhookTestNotification = {
+        type: "webhook.test",
+        sentAt: new Date().toISOString(),
+        message:
+          "This is a test notification from Shadow. Real notifications carry a trace, an alert, a replay or a job.",
+      };
+      const { body, headers } = prepare(notification);
+      try {
+        const response = await fetchImpl(url, {
+          method: "POST",
+          headers,
+          body,
+          signal: AbortSignal.timeout(10_000),
+        });
+        const text = response.ok ? null : (await response.text()).slice(0, 300);
+        options.logger.info({ status: response.status }, "webhook test sent");
+        return {
+          delivered: response.ok,
+          status: response.status,
+          error: response.ok
+            ? null
+            : `the receiver answered ${response.status}${text ? `: ${text}` : ""}`,
+          format,
+          durationMs: Date.now() - started,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        options.logger.warn({ err: error }, "webhook test failed");
+        return {
+          delivered: false,
+          status: null,
+          error: message,
+          format,
+          durationMs: Date.now() - started,
+        };
+      }
+    },
     async jobFinished(input) {
       if (!url) return;
       const task = deliver({
@@ -272,5 +352,12 @@ export const noopWebhook: Webhook = {
   alert: async () => undefined,
   replayFailed: async () => undefined,
   jobFinished: async () => undefined,
+  test: async () => ({
+    delivered: false,
+    status: null,
+    error: "no webhook configured",
+    format: "json",
+    durationMs: 0,
+  }),
   settle: async () => undefined,
 };

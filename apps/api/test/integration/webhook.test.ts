@@ -109,6 +109,67 @@ describe("webhook on ingestion", () => {
     expect(received).toHaveLength(1);
   });
 
+  it("sends a test notification on request and reports how it went", async () => {
+    received.length = 0;
+    const tested = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/webhook/test",
+      headers: { "x-shadow-actor": "arnav" },
+    });
+    expect(tested.statusCode, tested.body).toBe(200);
+    expect(
+      json<{ delivered: boolean; status: number; error: null; format: string }>(tested),
+    ).toMatchObject({
+      delivered: true,
+      status: 200,
+      error: null,
+      format: "json",
+    });
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ type: "webhook.test" });
+    const log = json<{ items: { action: string; actor: string; details: unknown }[] }>(
+      await t.app.inject({ url: "/api/v1/audit?action=webhook.tested" }),
+    );
+    expect(log.items[0]).toMatchObject({
+      actor: "arnav",
+      details: { delivered: true, status: 200 },
+    });
+
+    // A receiver that rejects the delivery is reported, not retried, and nothing throws.
+    const previous = t.services.webhook;
+    t.services.webhook = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+        SHADOW_WEBHOOK_SECRET: "s3cret",
+        SHADOW_WEBHOOK_EVENTS: "all",
+        SHADOW_WEBHOOK_FORMAT: "slack",
+      },
+      logger: createLogger({ level: "silent" }),
+      fetch: vi.fn(
+        async () => new Response("no such hook", { status: 404 }),
+      ) as unknown as typeof fetch,
+    });
+    try {
+      const rejected = json<{ delivered: boolean; status: number; error: string; format: string }>(
+        await t.app.inject({ method: "POST", url: "/api/v1/webhook/test" }),
+      );
+      expect(rejected).toMatchObject({ delivered: false, status: 404, format: "slack" });
+      expect(rejected.error).toContain("404");
+      expect(rejected.error).toContain("no such hook");
+    } finally {
+      t.services.webhook = previous;
+    }
+
+    // Without a webhook there is nothing to test.
+    const plain = await createTestApp();
+    try {
+      const none = await plain.app.inject({ method: "POST", url: "/api/v1/webhook/test" });
+      expect(none.statusCode).toBe(409);
+    } finally {
+      await plain.close();
+    }
+  });
+
   it("only notifies about the configured projects when SHADOW_WEBHOOK_PROJECTS is set", async () => {
     const seen: Notification[] = [];
     const previous = t.services.webhook;

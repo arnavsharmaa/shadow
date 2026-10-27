@@ -1327,6 +1327,35 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       out(`deleted collection ${collection}`);
     });
 
+  const webhook = program
+    .command("webhook")
+    .description("the API's outgoing webhook (configured with SHADOW_WEBHOOK_URL)");
+
+  webhook
+    .command("test")
+    .description("send a test notification to the configured webhook and report the delivery")
+    .option("--json", "print JSON")
+    .action(async (opts: { json?: boolean }) => {
+      const probe = await client().post<{
+        delivered: boolean;
+        status: number | null;
+        error: string | null;
+        format: string;
+        durationMs: number;
+      }>("/api/v1/webhook/test", {});
+      if (opts.json) return json(probe);
+      if (probe.delivered) {
+        out(
+          `delivered as ${probe.format}: the receiver answered ${probe.status} in ${probe.durationMs}ms`,
+        );
+        return;
+      }
+      throw new CliError(
+        `not delivered (${probe.format}): ${probe.error ?? "unknown error"}`,
+        EXIT.error,
+      );
+    });
+
   const alerts = program
     .command("alerts")
     .description(

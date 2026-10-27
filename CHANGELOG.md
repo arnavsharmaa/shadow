@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Webhook test: `POST /api/v1/webhook/test`, `shadow webhook test` and a button on the Settings
+  page send a `webhook.test` notification to the configured webhook and report whether the
+  receiver accepted it, so a new URL, secret or chat format is checked before the first alert.
 - Bulk trace export: `POST /api/v1/traces/export` returns up to 500 traces as newline-delimited
   `shadow.trace` bundles (unknown ids reported in a header), `shadow traces export` takes
   several ids and writes one file per trace or a `.ndjson` stream, and the explorer's bulk bar

@@ -79,6 +79,7 @@ function describeFeatures(f: HealthFeatures): { key: string; label: string; valu
 export function Settings() {
   const queryClient = useQueryClient();
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: 60_000 });
+  const webhookTest = useMutation({ mutationFn: () => api.testWebhook() });
   const keys = useQuery({ queryKey: ["api-keys"], queryFn: api.apiKeys });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
   const [name, setName] = useState("");
@@ -152,6 +153,30 @@ export function Settings() {
         <section className="mb-3 max-w-4xl rounded border border-border bg-panel">
           <header className="border-b border-border px-3 py-2">
             <h2 className="text-[12px] font-semibold">Deployment</h2>
+            {health.data?.features?.webhook?.enabled && (
+              <span className="ml-auto flex items-center gap-2 text-[11px]">
+                {webhookTest.data && (
+                  <span
+                    className={webhookTest.data.delivered ? "text-fg-muted" : "text-err"}
+                    role="status"
+                    data-testid="webhook-test-result"
+                  >
+                    {webhookTest.data.delivered
+                      ? `delivered as ${webhookTest.data.format}, answered ${webhookTest.data.status} in ${webhookTest.data.durationMs} ms`
+                      : `not delivered: ${webhookTest.data.error ?? "unknown error"}`}
+                  </span>
+                )}
+                <Button
+                  size="xs"
+                  disabled={webhookTest.isPending}
+                  onClick={() => webhookTest.mutate()}
+                  title="Send a test notification to the configured webhook"
+                  data-testid="webhook-test"
+                >
+                  Send test notification
+                </Button>
+              </span>
+            )}
           </header>
           {health.isError ? (
             <ErrorState error={health.error} retry={() => health.refetch()} />

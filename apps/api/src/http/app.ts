@@ -25,6 +25,7 @@ import { alertRoutes } from "./routes/alerts.js";
 import { collectionRoutes } from "./routes/collections.js";
 import { importRoutes } from "./routes/import.js";
 import { keyRoutes } from "./routes/keys.js";
+import { webhookRoutes } from "./routes/webhook.js";
 import { KEY_PREFIX, authenticateApiKey, scopeAllows } from "../services/keys.js";
 import { enforceProjectScope } from "./project-scope.js";
 import type { ApiKey } from "@shadow/schemas";
@@ -339,6 +340,7 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(collectionRoutes, { prefix: "/api/v1" });
   await app.register(importRoutes, { prefix: "/api/v1" });
   await app.register(keyRoutes, { prefix: "/api/v1" });
+  await app.register(webhookRoutes, { prefix: "/api/v1" });
   await app.register(otlpRoutes, {
     prefix: "/api/v1",
     defaultProject: options.config.SHADOW_OTLP_DEFAULT_PROJECT,

@@ -1064,6 +1064,14 @@ three attempts and exponential backoff on `5xx`/`429`; other rejections are logg
 `shadow_otlp_exports_total{result}` on `/metrics` counts `delivered`, `rejected`, `failed` and
 `export_failed`. `/health` reports `features.otlp.export`.
 
+### `POST /api/v1/webhook/test`
+
+Sends a `webhook.test` notification (`{ type, sentAt, message }`, or its chat rendering) to the
+configured webhook once, signed like any other, and reports `{ delivered, status, error, format,
+durationMs }` without retrying; `409 webhook_not_configured` when `SHADOW_WEBHOOK_URL` is not
+set. Audited as `webhook.tested`. CLI: `shadow webhook test` (exit 1 when not delivered); the
+Settings page's Deployment section has a "Send test notification" button.
+
 ### File export
 
 With `SHADOW_EXPORT_DIR` set, the API writes every trace whose root branch finishes as the
