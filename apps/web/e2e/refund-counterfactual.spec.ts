@@ -651,7 +651,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("audit-log")).toBeVisible();
   });
 
-  test("API keys can be issued and revoked from settings", async ({ page }) => {
+  test("API keys can be issued and revoked from settings", async ({ page, request }) => {
     const name = `e2e-key-${Date.now()}`;
     await page.goto("/settings");
     await expect(page.getByTestId("auth-state")).toContainText("SHADOW_API_TOKEN is not set");
@@ -673,6 +673,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(row).toContainText("support-agent");
     await expect(row).toContainText("never");
     await expect(row.getByTestId("key-expiry")).not.toHaveText("never");
+    await expect(row.getByTestId("key-expiring")).toHaveCount(0);
     // Rotation issues a new secret under the same name and retires the old key.
     const firstSecret = await page.getByTestId("issued-secret").textContent();
     await row.getByTestId("rotate-key").click();
@@ -687,6 +688,17 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.locator(`[data-testid="key-row"][data-key-name="${name}"]`)).toContainText(
       "revoked",
     );
+    // A key that expires within a week carries a warning badge.
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
+    const soonName = `${name}-soon`;
+    const soon = await request.post(`${apiUrl}/api/v1/keys`, {
+      data: { name: soonName, scope: "read", expiresInDays: 3 },
+    });
+    expect(soon.status()).toBe(201);
+    await page.reload();
+    const soonRow = page.locator(`[data-testid="key-row"][data-key-name="${soonName}"]`);
+    await expect(soonRow.getByTestId("key-expiring")).toHaveText("expires in 3d");
+    await request.delete(`${apiUrl}/api/v1/keys/${encodeURIComponent(soonName)}`);
     await page.getByTestId("nav-settings").click();
     await expect(page.getByTestId("settings")).toBeVisible();
     await expect(page.getByTestId("deployment-features")).toBeVisible();

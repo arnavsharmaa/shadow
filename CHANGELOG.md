@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- API keys that expire within seven days are called out: `shadow keys list` shows "expires in
+  Nd" and lists them after the table with the rotate command, and the Settings page shows a
+  warning badge on their rows.
 - SDK: `startTrace({ collections })` and `trace.collect(name)` put a trace in named collections
   as it is recorded, creating them when missing; the HTTP transport, the memory transport and
   the spool (a `collection` record, replayed by `shadow spool send`) all support it.

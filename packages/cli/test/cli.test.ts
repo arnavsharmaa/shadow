@@ -1111,7 +1111,20 @@ describe("shadow cli", () => {
         status: 201,
         body: { key: { ...key, ...(body as object) }, secret: "shk_abcdefghSECRET" },
       }),
-      "GET /api/v1/keys": () => ({ body: { items: [key, expired] } }),
+      "GET /api/v1/keys": () => ({
+        body: {
+          items: [
+            key,
+            expired,
+            {
+              ...key,
+              id: "key_9",
+              name: "soon",
+              expiresAt: new Date(Date.now() + 2.5 * 86_400_000).toISOString(),
+            },
+          ],
+        },
+      }),
       "DELETE /api/v1/keys/ci-ingest": () => ({
         body: { ...key, revokedAt: "2026-10-04T10:00:00.000Z" },
       }),
@@ -1138,6 +1151,13 @@ describe("shadow cli", () => {
     );
     expect(api.captured.out.join("\n")).toMatch(
       /key_2\s+old-reader\s+read\s+any\s+shk_abcdefgh…\s+expired 2026-10-05T09:00:00.000Z/,
+    );
+    // A key about to expire is called out in its row and after the table.
+    expect(api.captured.out.join("\n")).toMatch(
+      /key_9\s+soon\s+ingest\s+any\s+shk_abcdefgh…\s+expires in 3d/,
+    );
+    expect(api.captured.out.join("\n")).toContain(
+      "1 key(s) expire within 7 days: soon. Rotate them with: shadow keys rotate <name>",
     );
     expect(await runWith(api, ["keys", "create", "short-lived", "--expires", "30"])).toBe(0);
     expect(api.captured.calls.at(-1)?.body).toEqual({

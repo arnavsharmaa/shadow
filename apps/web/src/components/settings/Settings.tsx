@@ -19,6 +19,13 @@ const SCOPES: { value: ApiKeyScope; label: string; help: string }[] = [
   { value: "admin", label: "Admin", help: "everything the API token can do, including keys" },
 ];
 
+/** Keys that expire within this many days get a warning badge, so they are rotated in time. */
+const KEY_EXPIRY_WARNING_DAYS = 7;
+
+function daysUntil(iso: string, now: number): number {
+  return Math.ceil((Date.parse(iso) - now) / 86_400_000);
+}
+
 /** One line per deployment feature, as `/health` reports it. */
 function describeFeatures(f: HealthFeatures): { key: string; label: string; value: string }[] {
   return [
@@ -392,6 +399,18 @@ export function Settings() {
                         <Badge tone="warn">expired</Badge>
                       ) : (
                         <>
+                          {key.expiresAt &&
+                            daysUntil(key.expiresAt, now) <= KEY_EXPIRY_WARNING_DAYS && (
+                              <Badge
+                                tone="warn"
+                                title={`Expires ${dateTime(key.expiresAt)}; rotate it before then`}
+                                className="mr-2"
+                              >
+                                <span data-testid="key-expiring">
+                                  expires in {daysUntil(key.expiresAt, now)}d
+                                </span>
+                              </Badge>
+                            )}
                           <Button
                             size="xs"
                             variant="ghost"

@@ -1064,9 +1064,21 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     return Object.keys(budget).length > 0 ? { budget } : {};
   };
 
+  /** Keys that expire within this many days are called out, so they get rotated in time. */
+  const KEY_EXPIRY_WARNING_DAYS = 7;
+  const daysUntil = (iso: string): number => Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000);
+  const expiringSoon = (k: ApiKey): boolean =>
+    !k.revokedAt &&
+    k.expiresAt !== null &&
+    Date.parse(k.expiresAt) > Date.now() &&
+    daysUntil(k.expiresAt) <= KEY_EXPIRY_WARNING_DAYS;
   const keyState = (k: ApiKey): string => {
     if (k.revokedAt) return `revoked ${k.revokedAt}`;
     if (k.expiresAt && Date.parse(k.expiresAt) <= Date.now()) return `expired ${k.expiresAt}`;
+    if (k.expiresAt && expiringSoon(k)) {
+      const days = daysUntil(k.expiresAt);
+      return `expires in ${days}d (${k.expiresAt})`;
+    }
     return k.expiresAt ? `active until ${k.expiresAt}` : "active";
   };
 
@@ -1099,6 +1111,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           ]),
         ),
       );
+      const soon = page.items.filter(expiringSoon);
+      if (soon.length > 0) {
+        out(
+          `${soon.length} key(s) expire within ${KEY_EXPIRY_WARNING_DAYS} days: ${soon.map((k) => k.name).join(", ")}. Rotate them with: shadow keys rotate <name>`,
+        );
+      }
     });
 
   keys
