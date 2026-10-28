@@ -19,6 +19,7 @@ describe("SpoolTransport", () => {
     const trace = shadow.startTrace({ name: "run 42", tags: ["ci"] });
     await trace.tool({ name: "lint", arguments: {}, execute: () => ({ ok: true }) });
     trace.artifact({ kind: "report", name: "lint.txt", content: "all good" });
+    trace.collect("nightly");
     trace.tag("green");
     await trace.end();
     await transport.settle();
@@ -26,7 +27,14 @@ describe("SpoolTransport", () => {
     expect(lines.every((l) => l.endsWith("\n"))).toBe(true);
     const { records, errors } = parseSpool(text());
     expect(errors).toEqual([]);
-    expect(records.map((r) => r.kind)).toEqual(["trace", "events", "artifact", "update"]);
+    expect(records.map((r) => r.kind)).toEqual([
+      "trace",
+      "events",
+      "artifact",
+      "update",
+      "collection",
+    ]);
+    expect(records[4]).toEqual({ kind: "collection", traceId: trace.id, collection: "nightly" });
     const first = records[0] as Extract<SpoolRecord, { kind: "trace" }>;
     // The SDK names its traces itself; the spool keeps that id on every record.
     expect(first.body).toMatchObject({

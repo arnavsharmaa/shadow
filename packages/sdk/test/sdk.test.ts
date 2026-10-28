@@ -241,6 +241,42 @@ describe("Shadow SDK", () => {
     expect(artifacts[0]?.content).toEqual({ subject: "Hi", apiKey: "[REDACTED]" });
   });
 
+  it("puts traces in collections after their events, creating the collection when missing", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({
+      name: "experiment run",
+      collections: ["exp-42", " exp-42 ", ""],
+    });
+    trace.collect("nightly");
+    trace.collect("nightly");
+    await trace.end();
+    expect(transport.collectionsFor(trace.id)).toEqual(["exp-42", "nightly"]);
+
+    const calls: { method: string; path: string; body: unknown }[] = [];
+    let created = false;
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      calls.push({ method: init?.method ?? "GET", path, body: JSON.parse(String(init?.body)) });
+      if (path === "/api/v1/collections/exp-42/traces" && !created) {
+        return new Response(JSON.stringify({ error: { code: "not_found" } }), { status: 404 });
+      }
+      if (path === "/api/v1/collections") created = true;
+      return new Response(JSON.stringify({ id: "trc_1", rootBranchId: "br_1", accepted: 1 }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    const http = new HttpTransport({ endpoint: "http://shadow.test", fetch: fetchImpl });
+    await http.addToCollection("trc_1", "exp-42");
+    await http.addToCollection("trc_1", "exp-42");
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "POST /api/v1/collections/exp-42/traces",
+      "POST /api/v1/collections",
+      "POST /api/v1/collections/exp-42/traces",
+    ]);
+    expect(calls[1]?.body).toEqual({ name: "exp-42", traceIds: ["trc_1"] });
+  });
+
   it("coalesces tag and metadata updates and sends them after events", async () => {
     const transport = new MemoryTransport();
     const trace = client(transport).startTrace({ name: "t", tags: ["refund"] });

@@ -26,6 +26,7 @@ const trace = shadow.startTrace({
   name: "refund-request",
   metadata: { customerId: "cus_1001" },
   tags: ["refund"],
+  collections: ["prompt-v3"], // created when missing; trace.collect(name) adds more later
 });
 
 // Context = what the agent knows. State = the agent's working document.
@@ -176,6 +177,9 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.
+- `collections` on `startTrace` (or `trace.collect(name)` at any point) puts the trace in named
+  collections, creating them when they do not exist, so an experiment's or a nightly run's traces
+  are grouped as they are recorded; sent after the events on the next flush.
 - `MemoryTransport` keeps events in memory for tests; implement `Transport` for custom destinations.
 - `SpoolTransport` records to a newline-delimited JSON file instead of an API, for runs where the
   API is not reachable (CI jobs, batch runs offline): `new Shadow({ transport:

@@ -1329,6 +1329,7 @@ describe("shadow cli", () => {
         artifact: { kind: "report", name: "r", content: "x" },
       }),
       JSON.stringify({ kind: "update", traceId: "trc_new", update: { addTags: ["green"] } }),
+      JSON.stringify({ kind: "collection", traceId: "trc_new", collection: "nightly" }),
       JSON.stringify({
         kind: "trace",
         body: { id: "trc_old", project: "ci", agent: "a", name: "old" },
@@ -1353,22 +1354,31 @@ describe("shadow cli", () => {
       "POST /api/v1/traces/trc_new/events": () => ({ status: 201, body: { accepted: 1 } }),
       "POST /api/v1/traces/trc_new/artifacts": () => ({ status: 201, body: { id: "art_1" } }),
       "PATCH /api/v1/traces/trc_new": () => ({ body: { id: "trc_new", tags: ["green"] } }),
+      // The collection does not exist yet: the add answers 404 and the sender creates it.
+      "POST /api/v1/collections/nightly/traces": () => ({
+        status: 404,
+        body: { error: { code: "not_found", message: "collection nightly not found" } },
+      }),
+      "POST /api/v1/collections": () => ({ status: 201, body: { collection: { id: "col_1" } } }),
     });
     expect(await runWith(api, ["spool", "send", file])).toBe(1);
     const text = api.captured.out.join("\n");
     expect(text).toContain(
-      "sent 1 trace(s), 1 event(s), 1 artifact(s), 1 update(s); 1 trace(s) already present, 2 malformed line(s), 0 failed",
+      "sent 1 trace(s), 1 event(s), 1 artifact(s), 1 update(s), 1 collection add(s); 1 trace(s) already present, 2 malformed line(s), 0 failed",
     );
-    expect(text).toContain(`${file}:7:`);
-    expect(text).toContain(`${file}:8: not a spool record`);
+    expect(text).toContain(`${file}:8:`);
+    expect(text).toContain(`${file}:9: not a spool record`);
     // The existing trace's events were not sent; the new trace's records went in order.
     expect(api.captured.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
       "POST /api/v1/traces",
       "POST /api/v1/traces/trc_new/events",
       "POST /api/v1/traces/trc_new/artifacts",
       "PATCH /api/v1/traces/trc_new",
+      "POST /api/v1/collections/nightly/traces",
+      "POST /api/v1/collections",
       "POST /api/v1/traces",
     ]);
+    expect(api.captured.calls[5]?.body).toEqual({ name: "nightly", traceIds: ["trc_new"] });
     const clean = path.join(dir, "clean.ndjson");
     await writeFile(clean, `${lines[0]}\n${lines[1]}\n`);
     const ok = fakeApi({

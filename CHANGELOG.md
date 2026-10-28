@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `startTrace({ collections })` and `trace.collect(name)` put a trace in named collections
+  as it is recorded, creating them when missing; the HTTP transport, the memory transport and
+  the spool (a `collection` record, replayed by `shadow spool send`) all support it.
 - Per-model usage: `GET /api/v1/stats/models` groups model requests by provider and model
   with calls, traces, tokens and estimated cost (and how many calls were priced), most
   expensive first; `shadow models` prints it and the Overview page lists the models of its

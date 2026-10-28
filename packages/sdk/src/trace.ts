@@ -42,6 +42,8 @@ export interface TraceOptions {
   now: () => number;
   /** False when the trace was sampled out; events are then discarded. */
   recorded?: boolean;
+  /** Collections the trace is put in once it exists (created when missing). */
+  collections?: string[];
 }
 
 interface EmitInput {
@@ -114,6 +116,8 @@ export class Trace implements AgentHost {
     removeTags: string[];
     metadata: Record<string, JsonValue | null>;
   } | null = null;
+  /** Collections to add the trace to on the next flush. */
+  private readonly collectionQueue: string[] = [];
   private lastEmittedId: string | null = null;
   private flushing: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -133,6 +137,7 @@ export class Trace implements AgentHost {
     this.transport = transport;
     this.options = options;
     this.id = options.id ?? newId("trc");
+    for (const collection of options.collections ?? []) this.collect(collection);
     this.agentSpanId = newId("spn");
     this.spanId = this.agentSpanId;
     this.startedAtMs = options.startedAt ? Date.parse(options.startedAt) : options.now();
@@ -218,7 +223,13 @@ export class Trace implements AgentHost {
   }
 
   private async flushNow(): Promise<void> {
-    if (this.queue.length === 0 && this.artifactQueue.length === 0 && !this.pendingUpdate) return;
+    if (
+      this.queue.length === 0 &&
+      this.artifactQueue.length === 0 &&
+      this.collectionQueue.length === 0 &&
+      !this.pendingUpdate
+    )
+      return;
     const handle = await this.ensureHandle();
     if (!handle) return;
     const batch = this.queue.splice(0, this.queue.length);
@@ -237,6 +248,12 @@ export class Trace implements AgentHost {
           ...(update.removeTags.length > 0 ? { removeTags: update.removeTags } : {}),
           ...(Object.keys(update.metadata).length > 0 ? { metadata: update.metadata } : {}),
         });
+      }
+      const collections = this.collectionQueue.splice(0, this.collectionQueue.length);
+      for (const collection of collections) {
+        if (this.transport.addToCollection) {
+          await this.transport.addToCollection(handle.id, collection);
+        }
       }
     } catch (error) {
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
@@ -272,6 +289,16 @@ export class Trace implements AgentHost {
       content: this.options.redact(toJson(input.content)),
       ...(input.eventId ? { eventId: input.eventId } : {}),
     });
+  }
+
+  /**
+   * Put the trace in a named collection (an experiment, an incident, a review queue); the
+   * collection is created when it does not exist. Sent on the next flush, after the events.
+   */
+  collect(collection: string): void {
+    const name = collection.trim();
+    if (!name || this.collectionQueue.includes(name)) return;
+    this.collectionQueue.push(name);
   }
 
   /**

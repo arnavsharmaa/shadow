@@ -1816,7 +1816,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         | { kind: "trace"; body: { id: string } & Record<string, unknown> }
         | { kind: "events"; traceId: string; events: unknown[] }
         | { kind: "artifact"; traceId: string; artifact: unknown }
-        | { kind: "update"; traceId: string; update: unknown };
+        | { kind: "update"; traceId: string; update: unknown }
+        | { kind: "collection"; traceId: string; collection: string };
       const api = client();
       const summary = {
         files: files.length,
@@ -1825,6 +1826,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         events: 0,
         artifacts: 0,
         updates: 0,
+        collections: 0,
         malformed: 0,
         failed: 0,
       };
@@ -1849,8 +1851,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             const ok =
               record.kind === "trace"
                 ? typeof record.body?.id === "string"
-                : ["events", "artifact", "update"].includes(record.kind) &&
-                  typeof record.traceId === "string";
+                : record.kind === "collection"
+                  ? typeof record.traceId === "string" && typeof record.collection === "string"
+                  : ["events", "artifact", "update"].includes(record.kind) &&
+                    typeof record.traceId === "string";
             if (!ok) throw new Error("not a spool record");
           } catch (error) {
             summary.malformed += 1;
@@ -1886,6 +1890,22 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
                 record.artifact,
               );
               summary.artifacts += 1;
+            } else if (record.kind === "collection") {
+              try {
+                await api.post(
+                  `/api/v1/collections/${encodeURIComponent(record.collection)}/traces`,
+                  {
+                    traceIds: [traceId],
+                  },
+                );
+              } catch (error) {
+                if (!(error instanceof CliError && error.status === 404)) throw error;
+                await api.post("/api/v1/collections", {
+                  name: record.collection,
+                  traceIds: [traceId],
+                });
+              }
+              summary.collections += 1;
             } else {
               await api.patch(`/api/v1/traces/${encodeURIComponent(traceId)}`, record.update);
               summary.updates += 1;
@@ -1905,7 +1925,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       } else {
         for (const problem of problems) out(problem);
         out(
-          `sent ${summary.traces} trace(s), ${summary.events} event(s), ${summary.artifacts} artifact(s), ${summary.updates} update(s); ${summary.skippedTraces} trace(s) already present, ${summary.malformed} malformed line(s), ${summary.failed} failed`,
+          `sent ${summary.traces} trace(s), ${summary.events} event(s), ${summary.artifacts} artifact(s), ${summary.updates} update(s), ${summary.collections} collection add(s); ${summary.skippedTraces} trace(s) already present, ${summary.malformed} malformed line(s), ${summary.failed} failed`,
         );
       }
       if (summary.failed > 0 || summary.malformed > 0) {

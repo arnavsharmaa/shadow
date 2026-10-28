@@ -17,7 +17,8 @@ export type SpoolRecord =
   | { kind: "trace"; body: CreateTraceBody & { id: string } }
   | { kind: "events"; traceId: string; events: IngestEventInput[] }
   | { kind: "artifact"; traceId: string; artifact: CreateArtifactBodyInput }
-  | { kind: "update"; traceId: string; update: UpdateTraceBody };
+  | { kind: "update"; traceId: string; update: UpdateTraceBody }
+  | { kind: "collection"; traceId: string; collection: string };
 
 export interface SpoolTransportOptions {
   /** Appends one line (already newline-terminated) to the spool. */
@@ -93,6 +94,10 @@ export class SpoolTransport implements Transport {
     await this.#write({ kind: "update", traceId, update });
   }
 
+  async addToCollection(traceId: string, collection: string): Promise<void> {
+    await this.#write({ kind: "collection", traceId, collection });
+  }
+
   /** Resolves once every record handed over so far has been appended. */
   settle(): Promise<void> {
     return this.#chain;
@@ -124,7 +129,10 @@ export function parseSpool(text: string): {
     const ok =
       (kind === "trace" && typeof (record as { body?: { id?: unknown } }).body?.id === "string") ||
       ((kind === "events" || kind === "artifact" || kind === "update") &&
-        typeof (record as { traceId?: unknown }).traceId === "string");
+        typeof (record as { traceId?: unknown }).traceId === "string") ||
+      (kind === "collection" &&
+        typeof (record as { traceId?: unknown }).traceId === "string" &&
+        typeof (record as { collection?: unknown }).collection === "string");
     if (!ok) {
       errors.push({ line: index + 1, message: `not a spool record (kind ${String(kind)})` });
       continue;

@@ -20,6 +20,8 @@ export interface Transport {
   sendArtifact?(traceId: string, artifact: CreateArtifactBodyInput): Promise<Artifact | void>;
   /** Change a trace's name, tags or metadata after it was created; optional. */
   updateTrace?(traceId: string, update: UpdateTraceBody): Promise<Trace | void>;
+  /** Put the trace in a named collection, creating the collection when it does not exist; optional. */
+  addToCollection?(traceId: string, collection: string): Promise<void>;
 }
 
 export class TransportError extends Error {
@@ -96,6 +98,30 @@ export class HttpTransport implements Transport {
     )) as Trace;
   }
 
+  async addToCollection(traceId: string, collection: string): Promise<void> {
+    try {
+      await this.request("POST", `/api/v1/collections/${encodeURIComponent(collection)}/traces`, {
+        traceIds: [traceId],
+      });
+    } catch (error) {
+      if (!(error instanceof TransportError && error.status === 404)) throw error;
+      // The collection does not exist yet: create it with the trace. Another writer may win
+      // the race, in which case the add is retried once against the collection it created.
+      try {
+        await this.request("POST", "/api/v1/collections", {
+          name: collection,
+          traceIds: [traceId],
+        });
+      } catch (createError) {
+        if (!(createError instanceof TransportError && createError.status === 409))
+          throw createError;
+        await this.request("POST", `/api/v1/collections/${encodeURIComponent(collection)}/traces`, {
+          traceIds: [traceId],
+        });
+      }
+    }
+  }
+
   private async request(method: string, path: string, body: unknown): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
@@ -138,6 +164,8 @@ export class MemoryTransport implements Transport {
   readonly events = new Map<string, IngestEventInput[]>();
   readonly artifacts = new Map<string, CreateArtifactBodyInput[]>();
   readonly updates = new Map<string, UpdateTraceBody[]>();
+  /** Collection names each trace was added to, in order. */
+  readonly collections = new Map<string, string[]>();
   private counter = 0;
 
   async createTrace(body: CreateTraceBody): Promise<TraceHandle> {
@@ -157,6 +185,14 @@ export class MemoryTransport implements Transport {
 
   async updateTrace(traceId: string, update: UpdateTraceBody): Promise<void> {
     this.updates.set(traceId, [...(this.updates.get(traceId) ?? []), update]);
+  }
+
+  async addToCollection(traceId: string, collection: string): Promise<void> {
+    this.collections.set(traceId, [...(this.collections.get(traceId) ?? []), collection]);
+  }
+
+  collectionsFor(traceId: string): string[] {
+    return this.collections.get(traceId) ?? [];
   }
 
   eventsFor(traceId: string): IngestEventInput[] {

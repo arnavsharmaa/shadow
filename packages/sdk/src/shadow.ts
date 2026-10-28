@@ -67,6 +67,8 @@ export interface StartTraceOptions {
   startedAt?: string;
   /** Force the sampling decision for this trace (true records, false discards). */
   sample?: boolean;
+  /** Collections to put the trace in (created when missing), such as an experiment name. */
+  collections?: string[];
 }
 
 /** FNV-1a hash of a string mapped to [0, 1). */
@@ -200,6 +202,7 @@ export class Shadow {
       metadata: input.metadata,
       tags: input.tags,
       startedAt: input.startedAt,
+      collections: input.collections,
       flushIntervalMs: this.options.flushIntervalMs ?? 1000,
       maxBatchSize: this.options.maxBatchSize ?? 100,
       snapshotEvery: this.options.snapshotEvery ?? 25,
