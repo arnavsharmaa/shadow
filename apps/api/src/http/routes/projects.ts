@@ -2,7 +2,7 @@ import { createProjectBodySchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
-import { agentStats, agentTrend, overview } from "../../services/stats.js";
+import { agentStats, agentTrend, modelStats, overview } from "../../services/stats.js";
 import { projectOf } from "../project-scope.js";
 
 const agentStatsQuerySchema = z.object({
@@ -60,6 +60,22 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
       from: request.query.from ?? null,
       to: request.query.to ?? null,
       items: await agentStats(app.services, request.query),
+    }),
+  );
+
+  /** Model requests grouped by provider and model, with tokens and estimated cost. */
+  app.get(
+    "/stats/models",
+    {
+      schema: {
+        tags: ["projects"],
+        querystring: agentStatsQuerySchema.extend({ agent: z.string().max(64).optional() }),
+      },
+    },
+    async (request) => ({
+      from: request.query.from ?? null,
+      to: request.query.to ?? null,
+      items: await modelStats(app.services, request.query),
     }),
   );
 

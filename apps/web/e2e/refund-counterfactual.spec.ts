@@ -602,6 +602,9 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(page.getByTestId("overview-traces-chart")).toBeVisible();
     await expect(page.getByTestId("overview-failed-max-label")).toHaveText(/^\d+$/);
     await expect(page.getByTestId("top-agents").locator("tbody tr").first()).toContainText(/Agent/);
+    const modelRow = page.getByTestId("overview-models").locator("tbody tr").first();
+    await expect(modelRow).toContainText("sim-support");
+    await expect(modelRow).toContainText("$");
     const failures = page.getByTestId("recent-failures");
     await expect(failures).toContainText("refund-request: defective headphones");
     await failures.getByRole("link", { name: "refund-request: defective headphones" }).click();

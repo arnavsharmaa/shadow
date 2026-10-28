@@ -77,6 +77,11 @@ export function Overview() {
     refetchInterval: to ? false : 60_000,
   });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
+  const models = useQuery({
+    queryKey: ["overview-models", project, data.data?.from],
+    queryFn: () => api.modelStats({ project, from: data.data?.from, to: data.data?.to }),
+    enabled: data.data !== undefined,
+  });
   const failures = useQuery({
     queryKey: ["overview-failures", project, data.data?.from],
     queryFn: () =>
@@ -246,6 +251,58 @@ export function Overview() {
                     ))}
                   </tbody>
                 </table>
+              </section>
+              <section
+                className="rounded border border-border bg-panel"
+                data-testid="overview-models"
+              >
+                <h2 className="border-b border-border px-3 py-2 text-[12px] font-semibold">
+                  Models{" "}
+                  <Link href="/settings" className="font-normal text-accent hover:underline">
+                    prices
+                  </Link>
+                </h2>
+                {models.data && models.data.items.length === 0 ? (
+                  <p className="px-3 py-2 text-fg-muted">No model calls in this period.</p>
+                ) : (
+                  <table className="w-full border-collapse">
+                    <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+                      <tr>
+                        <th className="px-3 py-1">Model</th>
+                        <th className="px-3 py-1 text-right">Calls</th>
+                        <th className="px-3 py-1 text-right">Traces</th>
+                        <th className="px-3 py-1 text-right">Tokens</th>
+                        <th className="px-3 py-1 text-right">Est. cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="tabular">
+                      {(models.data?.items ?? []).map((m) => (
+                        <tr
+                          key={`${m.provider}:${m.model}`}
+                          className="border-t border-border"
+                          data-model={m.model}
+                        >
+                          <td className="px-3 py-1">
+                            <span className="font-mono text-[11px]">{m.model}</span>
+                            <span className="ml-2 text-fg-faint">{m.provider}</span>
+                            {m.pricedCalls < m.calls && (
+                              <span
+                                className="ml-2 text-warn"
+                                title={`${m.calls - m.pricedCalls} of ${m.calls} calls have no cost estimate; add a price with SHADOW_PRICING_FILE`}
+                              >
+                                unpriced
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1 text-right">{m.calls}</td>
+                          <td className="px-3 py-1 text-right">{m.traces}</td>
+                          <td className="px-3 py-1 text-right">{m.totalTokens.toLocaleString()}</td>
+                          <td className="px-3 py-1 text-right">{money(m.estimatedCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </section>
               <section
                 className="rounded border border-border bg-panel"

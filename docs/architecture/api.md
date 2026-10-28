@@ -178,6 +178,16 @@ Per-agent aggregates over traces started in the range (both bounds optional, ISO
 Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
 constant in the number of events. CLI: `shadow agents --from 7d`.
 
+### `GET /api/v1/stats/models?from=&to=&project=&agent=`
+
+Model requests grouped by provider and model over the traces in range (every branch, replays
+included): `{ from, to, items: [{ provider, model, calls, traces, inputTokens, outputTokens,
+totalTokens, estimatedCost, pricedCalls, lastUsedAt }] }`, most expensive first. Tokens and cost
+come from the response that answered each request; `pricedCalls` below `calls` means some
+responses had no price, so the model should be added with `SHADOW_PRICING_FILE`. CLI:
+`shadow models [--project] [--agent] [--from] [--to]`; the Overview page lists the models of
+its window.
+
 ### `GET /api/v1/stats/overview?days=&to=&project=`
 
 Everything the Overview page shows in one call, for the window of `days` days (1 to 90, default 14) ending at `to` (default now), optionally for one project: `{ from, to, previousFrom,

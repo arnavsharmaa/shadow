@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
-import { agents, projects, traces } from "../db/schema.js";
+import { agents, events, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import { isoOrNull } from "./mappers.js";
@@ -234,6 +234,94 @@ async function trendSeries(
     to: new Date(last + step).toISOString(),
     points,
   };
+}
+
+export interface ModelStatsQuery {
+  from?: string;
+  to?: string;
+  project?: string;
+  agent?: string;
+}
+
+/** Usage of one model across the matching traces (every branch, replays included). */
+export interface ModelStats {
+  provider: string;
+  model: string;
+  /** Model requests recorded. */
+  calls: number;
+  /** Traces the model was used in. */
+  traces: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Sum of the responses' estimated costs; responses without a price count as zero. */
+  estimatedCost: number;
+  /** How many of the calls carried a cost estimate. */
+  pricedCalls: number;
+  lastUsedAt: string | null;
+}
+
+/**
+ * Model requests grouped by provider and model, with the token usage and estimated cost of
+ * the responses that answered them (matched by span), most expensive first. Tells which models
+ * the spend goes to and which run unpriced.
+ */
+export async function modelStats(
+  ctx: ServiceContext,
+  query: ModelStatsQuery,
+): Promise<ModelStats[]> {
+  const filters: SQL[] = [eq(events.eventType, "model.request")];
+  if (query.from) filters.push(gte(traces.startedAt, query.from));
+  if (query.to) filters.push(lte(traces.startedAt, query.to));
+  if (query.project) filters.push(eq(projects.slug, query.project));
+  if (query.agent) filters.push(eq(agents.slug, query.agent));
+  const provider = sql<string>`coalesce(${events.input}->>'provider', 'unknown')`;
+  const model = sql<string>`coalesce(${events.input}->>'model', 'unknown')`;
+  const response = sql`(
+    select e.token_usage as token_usage, e.estimated_cost as estimated_cost
+    from ${events} e
+    where e.trace_id = ${events.traceId}
+      and e.span_id = ${events.spanId}
+      and e.event_type = 'model.response'
+    order by e.sequence asc
+    limit 1
+  )`;
+  const rows = await ctx.handle.db
+    .select({
+      provider,
+      model,
+      calls: sql<number>`count(*)`,
+      traces: sql<number>`count(distinct ${events.traceId})`,
+      inputTokens: sql<number>`coalesce(sum((r.token_usage->>'inputTokens')::float), 0)`,
+      outputTokens: sql<number>`coalesce(sum((r.token_usage->>'outputTokens')::float), 0)`,
+      totalTokens: sql<number>`coalesce(sum((r.token_usage->>'totalTokens')::float), 0)`,
+      estimatedCost: sql<number>`coalesce(sum((r.estimated_cost->>'amount')::float), 0)`,
+      pricedCalls: sql<number>`count(r.estimated_cost)`,
+      lastUsedAt: sql<string | null>`max(${events.timestamp})`,
+    })
+    .from(events)
+    .innerJoin(traces, eq(traces.id, events.traceId))
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId))
+    .leftJoin(sql`lateral ${response} r`, sql`true`)
+    .where(and(...filters))
+    .groupBy(provider, model)
+    .orderBy(
+      desc(sql`coalesce(sum((r.estimated_cost->>'amount')::float), 0)`),
+      desc(sql`count(*)`),
+    );
+  return rows.map((row) => ({
+    provider: row.provider,
+    model: row.model,
+    calls: num(row.calls),
+    traces: num(row.traces),
+    inputTokens: num(row.inputTokens),
+    outputTokens: num(row.outputTokens),
+    totalTokens: num(row.totalTokens),
+    estimatedCost: num(row.estimatedCost),
+    pricedCalls: num(row.pricedCalls),
+    lastUsedAt: isoOrNull(row.lastUsedAt),
+  }));
 }
 
 export interface OverviewTotals {

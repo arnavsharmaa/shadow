@@ -217,6 +217,19 @@ export interface Overview {
   topAgents: AgentStatsRow[];
 }
 
+export interface ModelStatsRow {
+  provider: string;
+  model: string;
+  calls: number;
+  traces: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+  pricedCalls: number;
+  lastUsedAt: string | null;
+}
+
 export interface AgentStatsRow {
   agentId: string;
   agentSlug: string;
@@ -286,6 +299,12 @@ export const api = {
     request<void>("DELETE", `/api/v1/views/${encodeURIComponent(viewId)}`),
   overview: (filter: { days?: number; project?: string; to?: string } = {}) =>
     request<Overview>("GET", `/api/v1/stats/overview${query(filter)}`),
+  /** Usage per provider and model, most expensive first. */
+  modelStats: (filter: { from?: string; to?: string; project?: string; agent?: string } = {}) =>
+    request<{ from: string | null; to: string | null; items: ModelStatsRow[] }>(
+      "GET",
+      `/api/v1/stats/models${query(filter)}`,
+    ),
   agentStats: (filter: { from?: string; to?: string; project?: string } = {}) =>
     request<{ from: string | null; to: string | null; items: AgentStatsRow[] }>(
       "GET",

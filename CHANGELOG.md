@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Per-model usage: `GET /api/v1/stats/models` groups model requests by provider and model
+  with calls, traces, tokens and estimated cost (and how many calls were priced), most
+  expensive first; `shadow models` prints it and the Overview page lists the models of its
+  window, flagging unpriced ones.
 - Webhook test: `POST /api/v1/webhook/test`, `shadow webhook test` and a button on the Settings
   page send a `webhook.test` notification to the configured webhook and report whether the
   receiver accepted it, so a new URL, secret or chat format is checked before the first alert.

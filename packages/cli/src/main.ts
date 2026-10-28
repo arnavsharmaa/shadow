@@ -1633,6 +1633,84 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       );
     });
 
+  program
+    .command("models")
+    .description("usage per model: calls, traces, tokens and estimated cost, most expensive first")
+    .option("--project <slug>", "only this project")
+    .option("--agent <slug>", "only this agent")
+    .option(
+      "--from <cutoff>",
+      "traces started at or after (ISO timestamp or age such as 7d)",
+      cutoff,
+    )
+    .option("--to <cutoff>", "traces started at or before", cutoff)
+    .option("--json", "print JSON")
+    .action(
+      async (opts: {
+        project?: string;
+        agent?: string;
+        from?: string;
+        to?: string;
+        json?: boolean;
+      }) => {
+        const stats = await client().get<{
+          items: {
+            provider: string;
+            model: string;
+            calls: number;
+            traces: number;
+            inputTokens: number;
+            outputTokens: number;
+            totalTokens: number;
+            estimatedCost: number;
+            pricedCalls: number;
+            lastUsedAt: string | null;
+          }[];
+        }>("/api/v1/stats/models", {
+          project: opts.project,
+          agent: opts.agent,
+          from: opts.from,
+          to: opts.to,
+        });
+        if (opts.json) return json(stats);
+        if (stats.items.length === 0) return out("no model calls in range");
+        out(
+          table(
+            [
+              "PROVIDER",
+              "MODEL",
+              "CALLS",
+              "TRACES",
+              "INPUT",
+              "OUTPUT",
+              "TOKENS",
+              "EST. COST",
+              "PRICED",
+              "LAST USED",
+            ],
+            stats.items.map((m) => [
+              m.provider,
+              m.model,
+              String(m.calls),
+              String(m.traces),
+              String(m.inputTokens),
+              String(m.outputTokens),
+              String(m.totalTokens),
+              money(m.estimatedCost),
+              m.pricedCalls === m.calls ? "all" : `${m.pricedCalls}/${m.calls}`,
+              m.lastUsedAt ?? "-",
+            ]),
+          ),
+        );
+        const unpriced = stats.items.filter((m) => m.pricedCalls < m.calls);
+        if (unpriced.length > 0) {
+          out(
+            `${unpriced.length} model(s) have calls without a cost estimate; add their prices with SHADOW_PRICING_FILE (see shadow pricing)`,
+          );
+        }
+      },
+    );
+
   const importers = program
     .command("import")
     .description("import conversation logs recorded outside Shadow");

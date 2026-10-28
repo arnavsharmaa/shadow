@@ -2139,6 +2139,56 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toContain("no traces in range");
   });
 
+  it("prints per-model usage and points at unpriced models", async () => {
+    const api = fakeApi({
+      "GET /api/v1/stats/models": () => ({
+        body: {
+          from: null,
+          to: null,
+          items: [
+            {
+              provider: "openai",
+              model: "gpt-4o",
+              calls: 12,
+              traces: 5,
+              inputTokens: 9000,
+              outputTokens: 1200,
+              totalTokens: 10200,
+              estimatedCost: 0.0345,
+              pricedCalls: 12,
+              lastUsedAt: "2026-10-28T09:00:00.000Z",
+            },
+            {
+              provider: "local",
+              model: "llama-3",
+              calls: 3,
+              traces: 2,
+              inputTokens: 100,
+              outputTokens: 50,
+              totalTokens: 150,
+              estimatedCost: 0,
+              pricedCalls: 0,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      }),
+    });
+    expect(await runWith(api, ["models", "--agent", "refund-agent", "--from", "7d"])).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("agent")).toBe("refund-agent");
+    expect(params.get("from")).toMatch(/^20/);
+    const text = api.captured.out.join("\n");
+    expect(text).toMatch(/openai\s+gpt-4o\s+12\s+5\s+9000\s+1200\s+10200/);
+    expect(text).toMatch(/llama-3.*0\/3/);
+    expect(text).toContain("1 model(s) have calls without a cost estimate");
+    const empty = fakeApi({
+      "GET /api/v1/stats/models": () => ({ body: { from: null, to: null, items: [] } }),
+    });
+    expect(await runWith(empty, ["models"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toContain("no model calls in range");
+  });
+
   it("lists and shows saved comparisons", async () => {
     const comparison = {
       id: "cmp_1",
