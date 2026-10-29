@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow alerts pause <rule>` and `shadow alerts resume <rule>` switch a rule off and on
+  from the terminal (by name or id), the same toggle the web dialog has; a paused rule stops
+  being evaluated and resumes from `ok`.
 - Per-tool usage: `GET /api/v1/stats/tools` groups finished tool calls by tool with calls,
   traces, errors (and how many a guard policy blocked), error rate, mean and p95 latency and
   estimated cost, busiest first; `shadow tools` prints it and the Overview page lists the tools

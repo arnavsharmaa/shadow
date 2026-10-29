@@ -1484,21 +1484,54 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  /** The id behind a rule name (ids pass through), or a not-found error. */
+  const alertRuleId = async (api: ApiClient, nameOrId: string): Promise<string> => {
+    if (nameOrId.startsWith("alr_")) return nameOrId;
+    const page = await api.get<{ items: AlertRule[] }>("/api/v1/alerts/rules");
+    const match = page.items.find((r) => r.name === nameOrId);
+    if (!match) throw new CliError(`no alert rule named '${nameOrId}'`, EXIT.notFound);
+    return match.id;
+  };
+
   alerts
     .command("remove")
     .description("delete an alert rule by name or id")
     .argument("<nameOrId>", "rule name or id")
     .action(async (nameOrId: string) => {
       const api = client();
-      let id = nameOrId;
-      if (!nameOrId.startsWith("alr_")) {
-        const page = await api.get<{ items: AlertRule[] }>("/api/v1/alerts/rules");
-        const match = page.items.find((r) => r.name === nameOrId);
-        if (!match) throw new CliError(`no alert rule named '${nameOrId}'`, EXIT.notFound);
-        id = match.id;
-      }
+      const id = await alertRuleId(api, nameOrId);
       await api.delete(`/api/v1/alerts/rules/${encodeURIComponent(id)}`);
       out(`deleted alert rule ${nameOrId}`);
+    });
+
+  alerts
+    .command("pause")
+    .description("stop evaluating a rule (a firing rule resolves) until it is resumed")
+    .argument("<nameOrId>", "rule name or id")
+    .option("--json", "print the updated rule as JSON")
+    .action(async (nameOrId: string, opts: { json?: boolean }) => {
+      const api = client();
+      const id = await alertRuleId(api, nameOrId);
+      const rule = await api.patch<AlertRule>(`/api/v1/alerts/rules/${encodeURIComponent(id)}`, {
+        enabled: false,
+      });
+      if (opts.json) return json(rule);
+      out(`paused alert rule ${rule.name}; resume it with: shadow alerts resume '${rule.name}'`);
+    });
+
+  alerts
+    .command("resume")
+    .description("evaluate a paused rule again; it starts from ok")
+    .argument("<nameOrId>", "rule name or id")
+    .option("--json", "print the updated rule as JSON")
+    .action(async (nameOrId: string, opts: { json?: boolean }) => {
+      const api = client();
+      const id = await alertRuleId(api, nameOrId);
+      const rule = await api.patch<AlertRule>(`/api/v1/alerts/rules/${encodeURIComponent(id)}`, {
+        enabled: true,
+      });
+      if (opts.json) return json(rule);
+      out(`resumed alert rule ${rule.name}; it is evaluated every interval again`);
     });
 
   alerts

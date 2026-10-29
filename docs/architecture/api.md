@@ -800,6 +800,8 @@ the web dialog's Preview button.
 keepFiringMinutes?, tag?, enabled? }` (`tag: null` clears the tag scope)
 (the metric and mode are fixed; delete and recreate to change them); disabling a rule
 resets it to `ok`. `DELETE` answers `204`. Creating, changing and deleting rules is audited.
+CLI: `shadow alerts pause <name>` and `shadow alerts resume <name>` flip `enabled` (the web
+dialog has the same toggle), `shadow alerts remove <name>` deletes.
 
 ### `POST /api/v1/alerts/evaluate`
 

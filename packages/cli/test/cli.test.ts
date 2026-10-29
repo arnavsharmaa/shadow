@@ -2219,6 +2219,56 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toContain("no model calls in range");
   });
 
+  it("pauses and resumes alert rules by name or id", async () => {
+    const rule = {
+      id: "alr_9",
+      name: "slow refunds",
+      agent: "refund-agent",
+      project: null,
+      tag: null,
+      metric: "p95_duration_ms",
+      mode: "threshold",
+      baselineWindows: 7,
+      lastBaseline: null,
+      threshold: 30_000,
+      windowMinutes: 60,
+      minTraces: 1,
+      keepFiringMinutes: 0,
+      enabled: true,
+      state: "firing",
+      lastValue: 45_000,
+      lastTraces: 4,
+      lastEvaluatedAt: "2026-10-29T08:00:00.000Z",
+      lastTriggeredAt: "2026-10-29T08:00:00.000Z",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-29T08:00:00.000Z",
+    };
+    const api = fakeApi({
+      "GET /api/v1/alerts/rules": () => ({ body: { items: [rule] } }),
+      "PATCH /api/v1/alerts/rules/alr_9": (body) => ({
+        body: { ...rule, ...(body as { enabled: boolean }), state: "ok" },
+      }),
+    });
+    expect(await runWith(api, ["alerts", "pause", "slow refunds"])).toBe(0);
+    expect(api.captured.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+      "GET /api/v1/alerts/rules",
+      "PATCH /api/v1/alerts/rules/alr_9",
+    ]);
+    expect(api.captured.calls[1]?.body).toEqual({ enabled: false });
+    expect(api.captured.out.join("\n")).toContain("paused alert rule slow refunds");
+    expect(api.captured.out.join("\n")).toContain("shadow alerts resume 'slow refunds'");
+
+    api.captured.calls.length = 0;
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["alerts", "resume", "alr_9", "--json"])).toBe(0);
+    // An id needs no lookup.
+    expect(api.captured.calls).toHaveLength(1);
+    expect(api.captured.calls[0]?.body).toEqual({ enabled: true });
+    expect(JSON.parse(api.captured.out.join("\n"))).toMatchObject({ id: "alr_9", enabled: true });
+
+    expect(await runWith(api, ["alerts", "pause", "no such rule"])).toBe(4);
+  });
+
   it("prints usage per tool", async () => {
     const api = fakeApi({
       "GET /api/v1/stats/tools": () => ({
