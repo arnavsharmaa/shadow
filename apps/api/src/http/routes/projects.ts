@@ -2,7 +2,7 @@ import { createProjectBodySchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
-import { agentStats, agentTrend, modelStats, overview } from "../../services/stats.js";
+import { agentStats, agentTrend, modelStats, overview, toolStats } from "../../services/stats.js";
 import { projectOf } from "../project-scope.js";
 
 const agentStatsQuerySchema = z.object({
@@ -11,6 +11,7 @@ const agentStatsQuerySchema = z.object({
   project: z.string().max(64).optional(),
 });
 
+const usageQuerySchema = agentStatsQuerySchema.extend({ agent: z.string().max(64).optional() });
 const agentTrendQuerySchema = agentStatsQuerySchema.extend({
   bucket: z.enum(["hour", "day"]).default("day"),
 });
@@ -69,13 +70,24 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ["projects"],
-        querystring: agentStatsQuerySchema.extend({ agent: z.string().max(64).optional() }),
+        querystring: usageQuerySchema,
       },
     },
     async (request) => ({
       from: request.query.from ?? null,
       to: request.query.to ?? null,
       items: await modelStats(app.services, request.query),
+    }),
+  );
+
+  /** Tool calls grouped by tool, with error counts, latency and cost; busiest first. */
+  app.get(
+    "/stats/tools",
+    { schema: { tags: ["projects"], querystring: usageQuerySchema } },
+    async (request) => ({
+      from: request.query.from ?? null,
+      to: request.query.to ?? null,
+      items: await toolStats(app.services, request.query),
     }),
   );
 

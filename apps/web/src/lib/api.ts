@@ -230,6 +230,19 @@ export interface ModelStatsRow {
   lastUsedAt: string | null;
 }
 
+export interface ToolStatsRow {
+  tool: string;
+  calls: number;
+  traces: number;
+  errors: number;
+  blocked: number;
+  errorRate: number;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  estimatedCost: number;
+  lastUsedAt: string | null;
+}
+
 export interface AgentStatsRow {
   agentId: string;
   agentSlug: string;
@@ -304,6 +317,12 @@ export const api = {
     request<{ from: string | null; to: string | null; items: ModelStatsRow[] }>(
       "GET",
       `/api/v1/stats/models${query(filter)}`,
+    ),
+  /** Usage per tool, busiest first. */
+  toolStats: (filter: { from?: string; to?: string; project?: string; agent?: string } = {}) =>
+    request<{ from: string | null; to: string | null; items: ToolStatsRow[] }>(
+      "GET",
+      `/api/v1/stats/tools${query(filter)}`,
     ),
   agentStats: (filter: { from?: string; to?: string; project?: string } = {}) =>
     request<{ from: string | null; to: string | null; items: AgentStatsRow[] }>(

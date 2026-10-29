@@ -82,6 +82,11 @@ export function Overview() {
     queryFn: () => api.modelStats({ project, from: data.data?.from, to: data.data?.to }),
     enabled: data.data !== undefined,
   });
+  const tools = useQuery({
+    queryKey: ["overview-tools", project, data.data?.from],
+    queryFn: () => api.toolStats({ project, from: data.data?.from, to: data.data?.to }),
+    enabled: data.data !== undefined,
+  });
   const failures = useQuery({
     queryKey: ["overview-failures", project, data.data?.from],
     queryFn: () =>
@@ -298,6 +303,60 @@ export function Overview() {
                           <td className="px-3 py-1 text-right">{m.traces}</td>
                           <td className="px-3 py-1 text-right">{m.totalTokens.toLocaleString()}</td>
                           <td className="px-3 py-1 text-right">{money(m.estimatedCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+              <section
+                className="rounded border border-border bg-panel"
+                data-testid="overview-tools"
+              >
+                <h2 className="border-b border-border px-3 py-2 text-[12px] font-semibold">
+                  Tools
+                </h2>
+                {tools.data && tools.data.items.length === 0 ? (
+                  <p className="px-3 py-2 text-fg-muted">No tool calls in this period.</p>
+                ) : (
+                  <table className="w-full border-collapse">
+                    <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+                      <tr>
+                        <th className="px-3 py-1">Tool</th>
+                        <th className="px-3 py-1 text-right">Calls</th>
+                        <th className="px-3 py-1 text-right">Errors</th>
+                        <th className="px-3 py-1 text-right">p95</th>
+                      </tr>
+                    </thead>
+                    <tbody className="tabular">
+                      {(tools.data?.items ?? []).map((t) => (
+                        <tr key={t.tool} className="border-t border-border" data-tool={t.tool}>
+                          <td className="px-3 py-1">
+                            <Link
+                              href={`/?tool=${encodeURIComponent(t.tool)}${project ? `&project=${encodeURIComponent(project)}` : ""}`}
+                              className="font-mono text-[11px] hover:underline"
+                            >
+                              {t.tool}
+                            </Link>
+                            {t.blocked > 0 && (
+                              <span
+                                className="ml-2 text-warn"
+                                title={`${t.blocked} of ${t.calls} calls were blocked by a guard policy`}
+                              >
+                                {t.blocked} blocked
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1 text-right">{t.calls}</td>
+                          <td className={`px-3 py-1 text-right ${t.errors > 0 ? "text-err" : ""}`}>
+                            {t.errors}
+                            {t.errors > 0 && (
+                              <span className="ml-1 text-fg-faint">
+                                ({(t.errorRate * 100).toFixed(1)}%)
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1 text-right">{duration(t.p95DurationMs)}</td>
                         </tr>
                       ))}
                     </tbody>

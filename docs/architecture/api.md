@@ -188,6 +188,16 @@ responses had no price, so the model should be added with `SHADOW_PRICING_FILE`.
 `shadow models [--project] [--agent] [--from] [--to]`; the Overview page lists the models of
 its window.
 
+### `GET /api/v1/stats/tools?from=&to=&project=&agent=`
+
+Finished tool calls (`tool.response` and `tool.error` events of every branch, replays included)
+grouped by tool over the traces in range: `{ from, to, items: [{ tool, calls, traces, errors,
+blocked, errorRate, avgDurationMs, p95DurationMs, estimatedCost, lastUsedAt }] }`, busiest
+first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a subset of
+`errors`; a call still waiting for its result is not counted. CLI: `shadow tools [--project]
+[--agent] [--from] [--to]`; the Overview page lists the tools of its window, each linking to
+the explorer filtered by that tool.
+
 ### `GET /api/v1/stats/overview?days=&to=&project=`
 
 Everything the Overview page shows in one call, for the window of `days` days (1 to 90, default 14) ending at `to` (default now), optionally for one project: `{ from, to, previousFrom,

@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Per-tool usage: `GET /api/v1/stats/tools` groups finished tool calls by tool with calls,
+  traces, errors (and how many a guard policy blocked), error rate, mean and p95 latency and
+  estimated cost, busiest first; `shadow tools` prints it and the Overview page lists the tools
+  of its window, each linking to the explorer filtered by that tool.
 - API keys that expire within seven days are called out: `shadow keys list` shows "expires in
   Nd" and lists them after the table with the rotate command, and the Settings page shows a
   warning badge on their rows.

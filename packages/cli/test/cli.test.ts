@@ -2219,6 +2219,58 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toContain("no model calls in range");
   });
 
+  it("prints usage per tool", async () => {
+    const api = fakeApi({
+      "GET /api/v1/stats/tools": () => ({
+        body: {
+          from: null,
+          to: null,
+          items: [
+            {
+              tool: "read_customer",
+              calls: 20,
+              traces: 10,
+              errors: 0,
+              blocked: 0,
+              errorRate: 0,
+              avgDurationMs: 42,
+              p95DurationMs: 80,
+              estimatedCost: 0,
+              lastUsedAt: "2026-10-29T09:00:00.000Z",
+            },
+            {
+              tool: "refund_order",
+              calls: 8,
+              traces: 8,
+              errors: 2,
+              blocked: 1,
+              errorRate: 0.25,
+              avgDurationMs: 1500,
+              p95DurationMs: null,
+              estimatedCost: 0,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      }),
+    });
+    expect(await runWith(api, ["tools", "--project", "demo", "--to", "2026-10-29T00:00:00Z"])).toBe(
+      0,
+    );
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("project")).toBe("demo");
+    expect(params.get("to")).toBe("2026-10-29T00:00:00.000Z");
+    const text = api.captured.out.join("\n");
+    expect(text).toMatch(/read_customer\s+20\s+10\s+0\s+0\s+42ms\s+80ms\s+2026-10-29/);
+    expect(text).toMatch(/refund_order\s+8\s+8\s+2 \(25\.0%\)\s+1\s+1\.50s\s+-\s+-/);
+    expect(text).toContain("1 tool(s) had errors");
+    const empty = fakeApi({
+      "GET /api/v1/stats/tools": () => ({ body: { from: null, to: null, items: [] } }),
+    });
+    expect(await runWith(empty, ["tools"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toContain("no tool calls in range");
+  });
+
   it("lists and shows saved comparisons", async () => {
     const comparison = {
       id: "cmp_1",

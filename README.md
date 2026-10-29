@@ -195,6 +195,7 @@ shadow status
 shadow traces list --project support-agent --status failed
 shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow agents --from 7d
+shadow tools --from 7d
 shadow otlp import ./collector-export.json
 shadow import anthropic examples/anthropic-messages/refund-conversation.json
 shadow import openai examples/openai-chat/refund-conversation.json

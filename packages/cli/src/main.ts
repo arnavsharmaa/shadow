@@ -1729,6 +1729,71 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       },
     );
 
+  program
+    .command("tools")
+    .description("usage per tool: calls, traces, errors, blocked calls and latency, busiest first")
+    .option("--project <slug>", "only this project")
+    .option("--agent <slug>", "only this agent")
+    .option(
+      "--from <cutoff>",
+      "traces started at or after (ISO timestamp or age such as 7d)",
+      cutoff,
+    )
+    .option("--to <cutoff>", "traces started at or before", cutoff)
+    .option("--json", "print JSON")
+    .action(
+      async (opts: {
+        project?: string;
+        agent?: string;
+        from?: string;
+        to?: string;
+        json?: boolean;
+      }) => {
+        const stats = await client().get<{
+          items: {
+            tool: string;
+            calls: number;
+            traces: number;
+            errors: number;
+            blocked: number;
+            errorRate: number;
+            avgDurationMs: number | null;
+            p95DurationMs: number | null;
+            estimatedCost: number;
+            lastUsedAt: string | null;
+          }[];
+        }>("/api/v1/stats/tools", {
+          project: opts.project,
+          agent: opts.agent,
+          from: opts.from,
+          to: opts.to,
+        });
+        if (opts.json) return json(stats);
+        if (stats.items.length === 0) return out("no tool calls in range");
+        out(
+          table(
+            ["TOOL", "CALLS", "TRACES", "ERRORS", "BLOCKED", "AVG", "P95", "LAST USED"],
+            stats.items.map((t) => [
+              t.tool,
+              String(t.calls),
+              String(t.traces),
+              t.errors === 0 ? "0" : `${t.errors} (${(t.errorRate * 100).toFixed(1)}%)`,
+              String(t.blocked),
+              duration(t.avgDurationMs),
+              duration(t.p95DurationMs),
+              t.lastUsedAt ?? "-",
+            ]),
+          ),
+        );
+        const failing = stats.items.filter((t) => t.errors > 0);
+        if (failing.length > 0) {
+          out(
+            `${failing.length} tool(s) had errors; list them with: shadow traces list --tool <name> --status failed`,
+          );
+        }
+      },
+    );
+
   const importers = program
     .command("import")
     .description("import conversation logs recorded outside Shadow");

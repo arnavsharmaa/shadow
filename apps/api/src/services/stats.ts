@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import { agents, events, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
@@ -322,6 +322,84 @@ export async function modelStats(
     pricedCalls: num(row.pricedCalls),
     lastUsedAt: isoOrNull(row.lastUsedAt),
   }));
+}
+
+/** Usage of one tool across the matching traces (every branch, replays included). */
+export interface ToolStats {
+  tool: string;
+  /** Finished tool calls: responses plus errors. */
+  calls: number;
+  /** Traces the tool was called in. */
+  traces: number;
+  /** Calls that ended in a `tool.error`. */
+  errors: number;
+  /** Errors raised because a guard policy blocked the call (part of `errors`). */
+  blocked: number;
+  /** Errors divided by calls. */
+  errorRate: number;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  /** Sum of the tool results' estimated costs; most tools report none. */
+  estimatedCost: number;
+  lastUsedAt: string | null;
+}
+
+export type ToolStatsQuery = ModelStatsQuery;
+
+/** Error code the runtime puts on a `tool.error` raised by a guard policy. */
+const POLICY_BLOCKED_CODE = "policy_blocked";
+
+/**
+ * Per-tool aggregates over the tool calls of the traces started in a time range: how often
+ * each tool was called, in how many traces, how often it failed (and how often a guard policy
+ * blocked it), its latency and what it cost. Counts finished calls (`tool.response` and
+ * `tool.error` events) of every branch, so replays are included; a call still waiting for its
+ * result is not counted. Busiest tool first.
+ */
+export async function toolStats(ctx: ServiceContext, query: ToolStatsQuery): Promise<ToolStats[]> {
+  const filters: SQL[] = [inArray(events.eventType, ["tool.response", "tool.error"])];
+  if (query.from) filters.push(gte(traces.startedAt, query.from));
+  if (query.to) filters.push(lte(traces.startedAt, query.to));
+  if (query.project) filters.push(eq(projects.slug, query.project));
+  if (query.agent) filters.push(eq(agents.slug, query.agent));
+  const isError = sql`${events.eventType} = 'tool.error'`;
+  const rows = await ctx.handle.db
+    .select({
+      tool: events.name,
+      calls: sql<number>`count(*)`,
+      traces: sql<number>`count(distinct ${events.traceId})`,
+      errors: sql<number>`count(*) filter (where ${isError})`,
+      blocked: sql<number>`count(*) filter (where ${isError} and ${events.output}->'error'->>'code' = ${POLICY_BLOCKED_CODE})`,
+      avgDurationMs: sql<number | null>`avg(${events.durationMs})`,
+      p95DurationMs: sql<
+        number | null
+      >`percentile_cont(0.95) within group (order by ${events.durationMs})`,
+      estimatedCost: sql<number>`coalesce(sum((${events.estimatedCost}->>'amount')::float), 0)`,
+      lastUsedAt: sql<string | null>`max(${events.timestamp})`,
+    })
+    .from(events)
+    .innerJoin(traces, eq(traces.id, events.traceId))
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId))
+    .where(and(...filters))
+    .groupBy(events.name)
+    .orderBy(desc(sql`count(*)`), asc(events.name));
+  return rows.map((row) => {
+    const calls = num(row.calls);
+    const errors = num(row.errors);
+    return {
+      tool: row.tool,
+      calls,
+      traces: num(row.traces),
+      errors,
+      blocked: num(row.blocked),
+      errorRate: calls === 0 ? 0 : errors / calls,
+      avgDurationMs: nullableNum(row.avgDurationMs),
+      p95DurationMs: nullableNum(row.p95DurationMs),
+      estimatedCost: num(row.estimatedCost),
+      lastUsedAt: isoOrNull(row.lastUsedAt),
+    };
+  });
 }
 
 export interface OverviewTotals {

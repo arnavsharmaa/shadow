@@ -605,6 +605,9 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     const modelRow = page.getByTestId("overview-models").locator("tbody tr").first();
     await expect(modelRow).toContainText("sim-support");
     await expect(modelRow).toContainText("$");
+    const toolRow = page.getByTestId("overview-tools").locator("tbody tr").first();
+    await expect(toolRow.locator("td").first()).toContainText(/^[a-z_.]+/);
+    await expect(toolRow.locator("td").nth(3)).toContainText(/\d/);
     const failures = page.getByTestId("recent-failures");
     await expect(failures).toContainText("refund-request: defective headphones");
     await failures.getByRole("link", { name: "refund-request: defective headphones" }).click();
