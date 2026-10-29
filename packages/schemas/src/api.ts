@@ -348,6 +348,8 @@ export const createAlertRuleBodySchema = z.object({
   project: z.string().min(1).max(64).optional(),
   /** Only traces carrying this tag count, so one rule can watch `prod` and another `staging`. */
   tag: z.string().min(1).max(64).optional(),
+  /** Only traces that called this tool count; `tool_errors` then counts this tool's errors. */
+  tool: z.string().min(1).max(128).optional(),
   metric: alertMetricSchema,
   /** A value in `threshold` mode, a multiplier of the baseline in `baseline` mode. */
   threshold: z.number().nonnegative(),
@@ -373,6 +375,8 @@ export const updateAlertRuleBodySchema = z
     keepFiringMinutes: z.number().int().min(0).max(10_080),
     /** A tag to scope the rule to; `null` removes the scope. */
     tag: z.string().min(1).max(64).nullable(),
+    /** A tool to scope the rule to; `null` removes the scope. */
+    tool: z.string().min(1).max(128).nullable(),
     enabled: z.boolean(),
   })
   .partial()

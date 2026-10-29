@@ -772,6 +772,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await dialog.getByTestId("rule-metric").selectOption("total_cost");
     await dialog.getByTestId("rule-agent").fill("refund-agent");
     await dialog.getByTestId("rule-tag").fill("prod");
+    await dialog.getByTestId("rule-tool").fill("refund_order");
     await dialog.getByTestId("rule-threshold").fill("12.5");
     await dialog.getByTestId("rule-window").selectOption("1440");
     await dialog.getByTestId("rule-min-traces").fill("3");
@@ -783,7 +784,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await dialog.getByTestId("create-rule").click();
     const row = dialog.locator(`[data-testid="rule-row"][data-rule-name="${name}"]`);
     await expect(row).toContainText("estimated cost ≥ $12.50 over 1d, 3+ traces, held 30m");
-    await expect(row).toContainText("refund-agent tagged prod");
+    await expect(row).toContainText("refund-agent tagged prod calling refund_order");
     await expect(row.getByTestId("rule-state")).toHaveText("ok");
     await row.getByTestId("toggle-rule").click();
     await expect(row.getByTestId("rule-state")).toHaveText("paused");

@@ -311,6 +311,60 @@ describe("alert rules", () => {
     }
   });
 
+  it("scopes a rule to traces that called a tool", async () => {
+    received.length = 0;
+    // Both refund runs call refund_order (and are blocked by its guard), none calls lookup_x.
+    const refunds = await createRule({
+      name: "refund_order failures",
+      tool: "refund_order",
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 43_200,
+    });
+    expect(refunds.tool).toBe("refund_order");
+    const unused = await createRule({
+      name: "unused tool",
+      tool: "lookup_x",
+      metric: "failure_rate",
+      threshold: 0.5,
+      windowMinutes: 43_200,
+    });
+    // read_customer is called in every run and never fails: its error count stays at zero even
+    // though the runs carry errors from other tools.
+    const readCustomer = await createRule({
+      name: "read_customer errors",
+      tool: "read_customer",
+      metric: "tool_errors",
+      threshold: 1,
+      windowMinutes: 43_200,
+    });
+    const byName = new Map((await evaluate()).map((e) => [e.rule.name, e]));
+    expect(byName.get("refund_order failures")).toMatchObject({
+      transition: "fired",
+      rule: { state: "firing", lastTraces: 2, lastValue: 1 },
+    });
+    expect(byName.get("unused tool")).toMatchObject({
+      transition: "none",
+      rule: { state: "ok", lastTraces: 0, lastValue: null },
+    });
+    expect(byName.get("read_customer errors")).toMatchObject({
+      transition: "none",
+      rule: { state: "ok", lastTraces: 2, lastValue: 0 },
+    });
+    expect(received.map((n) => [n.type, n.rule.name, n.rule.tool])).toEqual([
+      ["alert.firing", "refund_order failures", "refund_order"],
+    ]);
+    const cleared = await t.app.inject({
+      method: "PATCH",
+      url: `/api/v1/alerts/rules/${unused.id}`,
+      payload: { tool: null },
+    });
+    expect(json<AlertRule>(cleared).tool).toBeNull();
+    for (const id of [refunds.id, unused.id, readCustomer.id]) {
+      await t.app.inject({ method: "DELETE", url: `/api/v1/alerts/rules/${id}` });
+    }
+  });
+
   it("measures cost, tool errors and latency, and respects disabled rules", async () => {
     const cost = await createRule({
       name: "cost",

@@ -341,6 +341,11 @@ export const alertRuleSchema = z.object({
   project: z.string().max(64).nullable(),
   /** Only traces carrying this tag count (for example `prod`), or `null` for all traces. */
   tag: z.string().max(64).nullable(),
+  /**
+   * Only traces that called this tool count, and `tool_errors` counts this tool's errors only;
+   * `null` for all traces.
+   */
+  tool: z.string().max(128).nullable(),
   metric: alertMetricSchema,
   threshold: z.number().nonnegative(),
   windowMinutes: z.number().int().positive(),

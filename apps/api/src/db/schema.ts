@@ -338,6 +338,7 @@ export const alertRules = pgTable(
     agent: text("agent"),
     project: text("project"),
     tag: text("tag"),
+    tool: text("tool"),
     metric: text("metric").notNull(),
     mode: text("mode").notNull().default("threshold"),
     baselineWindows: integer("baseline_windows").notNull().default(7),

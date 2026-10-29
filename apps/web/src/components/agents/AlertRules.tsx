@@ -71,6 +71,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
   const [metric, setMetric] = useState<AlertMetric>("failure_rate");
   const [agent, setAgent] = useState("");
   const [tag, setTag] = useState("");
+  const [tool, setTool] = useState("");
   const [mode, setMode] = useState<"threshold" | "baseline">("threshold");
   const [threshold, setThreshold] = useState("0.25");
   const [windowMinutes, setWindowMinutes] = useState(60);
@@ -130,6 +131,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
     keepFiringMinutes,
     ...(agent.trim() ? { agent: agent.trim() } : {}),
     ...(tag.trim() ? { tag: tag.trim() } : {}),
+    ...(tool.trim() ? { tool: tool.trim() } : {}),
   });
 
   return (
@@ -201,6 +203,18 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
             title="Only traces carrying this tag count, so one rule can watch prod and another staging"
             className="h-7 w-28 rounded border border-border bg-bg px-2"
             data-testid="rule-tag"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-fg-muted">Tool (optional)</span>
+          <input
+            value={tool}
+            onChange={(e) => setTool(e.target.value)}
+            placeholder="any tool"
+            maxLength={128}
+            title="Only traces that called this tool count; tool errors then counts this tool's errors only"
+            className="h-7 w-32 rounded border border-border bg-bg px-2 font-mono text-[11px]"
+            data-testid="rule-tool"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -351,6 +365,7 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
                   {rule.agent ?? <span className="text-fg-faint">every agent</span>}
                   {rule.project ? ` in ${rule.project}` : ""}
                   {rule.tag ? ` tagged ${rule.tag}` : ""}
+                  {rule.tool ? ` calling ${rule.tool}` : ""}
                 </td>
                 <td className="px-3 py-1.5" data-testid="rule-state">
                   {!rule.enabled ? (

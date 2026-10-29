@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules can be scoped to a tool (`tool` on the rule, `shadow alerts add --tool
+  refund_order`, a Tool field in the web dialog): only traces that called the tool count, and
+  the `tool_errors` metric then counts that tool's errors alone, so one rule can watch a
+  single flaky integration. Notifications carry the tool in the rule's scope.
 - Retention spares collected traces: `POST /api/v1/traces/prune` takes `keepCollected`
   (`shadow traces prune --keep-collected`) to leave traces that are in any collection alone,
   and the retention sweep does so by default (`SHADOW_RETENTION_KEEP_COLLECTED=false` restores

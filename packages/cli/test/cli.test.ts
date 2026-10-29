@@ -1512,6 +1512,7 @@ describe("shadow cli", () => {
       agent: "refund-agent",
       project: null,
       tag: null,
+      tool: null,
       metric: "failure_rate",
       mode: "threshold",
       baselineWindows: 7,
@@ -1564,6 +1565,8 @@ describe("shadow cli", () => {
         "30m",
         "--tag",
         "prod",
+        "--tool",
+        "refund_order",
       ]),
     ).toBe(0);
     expect(api.captured.calls[0]?.body).toEqual({
@@ -1572,6 +1575,7 @@ describe("shadow cli", () => {
       threshold: 0.5,
       agent: "refund-agent",
       tag: "prod",
+      tool: "refund_order",
       windowMinutes: 360,
       minTraces: 1,
       keepFiringMinutes: 30,
@@ -2228,6 +2232,7 @@ describe("shadow cli", () => {
       agent: "refund-agent",
       project: null,
       tag: null,
+      tool: null,
       metric: "p95_duration_ms",
       mode: "threshold",
       baselineWindows: 7,

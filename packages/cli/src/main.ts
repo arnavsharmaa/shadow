@@ -1420,6 +1420,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--agent <slug>", "only this agent's traces")
     .option("--project <slug>", "only this project's traces")
     .option("--tag <tag>", "only traces carrying this tag (such as prod)")
+    .option(
+      "--tool <name>",
+      "only traces that called this tool; tool_errors then counts its errors only",
+    )
     .option("--window <age>", "look-back window such as 30m, 6h or 7d", "1h")
     .option("--min-traces <n>", "traces needed in the window before it can fire", positiveInt, 1)
     .option(
@@ -1439,6 +1443,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           agent?: string;
           project?: string;
           tag?: string;
+          tool?: string;
           window: string;
           minTraces: number;
           keepFiring?: string;
@@ -1454,6 +1459,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           agent: opts.agent,
           project: opts.project,
           tag: opts.tag,
+          tool: opts.tool,
           windowMinutes: windowMinutes(opts.window),
           minTraces: opts.minTraces,
           ...(opts.keepFiring !== undefined
@@ -3260,7 +3266,9 @@ function alertTable(rules: AlertRule[]): string {
     rules.map((r) => [
       r.name,
       r.enabled ? r.state : "disabled",
-      [r.project, r.agent, r.tag && `#${r.tag}`].filter(Boolean).join(" ") || "all agents",
+      [r.project, r.agent, r.tag && `#${r.tag}`, r.tool && `tool:${r.tool}`]
+        .filter(Boolean)
+        .join(" ") || "all agents",
       r.metric,
       r.mode === "baseline"
         ? `${r.threshold}x ${r.lastBaseline === null ? "baseline" : alertValue(r, r.lastBaseline)}`

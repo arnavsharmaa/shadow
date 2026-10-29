@@ -119,6 +119,7 @@ export function formatAlert(notification: AlertNotification, webUrl?: string): C
     rule.project && `project ${rule.project}`,
     rule.agent && `agent ${rule.agent}`,
     rule.tag && `tag ${rule.tag}`,
+    rule.tool && `tool ${rule.tool}`,
   ]
     .filter((s): s is string => Boolean(s))
     .join(", ");
