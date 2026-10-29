@@ -266,7 +266,13 @@ export interface AgentStatsRow {
 /** What the API reports under `features` on `/health`; older APIs omit some of these. */
 export interface HealthFeatures {
   auth: boolean;
-  retention: { enabled: boolean; days?: number; intervalMinutes?: number; keepTag?: string };
+  retention: {
+    enabled: boolean;
+    days?: number;
+    intervalMinutes?: number;
+    keepTag?: string;
+    keepCollected?: boolean;
+  };
   sampling?: { enabled: boolean; rate: number };
   otlp?: {
     path: string;

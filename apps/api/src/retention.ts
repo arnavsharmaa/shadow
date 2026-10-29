@@ -51,13 +51,14 @@ export function createRetention(input: {
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_AUDIT_RETENTION_DAYS"
   > &
-    Partial<Pick<ApiConfig, "SHADOW_RETENTION_PROJECT_DAYS">>;
+    Partial<Pick<ApiConfig, "SHADOW_RETENTION_PROJECT_DAYS" | "SHADOW_RETENTION_KEEP_COLLECTED">>;
   logger: Logger;
 }): Retention {
   const { services, config, logger } = input;
   const days = config.SHADOW_RETENTION_DAYS;
   const auditDays = config.SHADOW_AUDIT_RETENTION_DAYS;
   const perProject = Object.entries(config.SHADOW_RETENTION_PROJECT_DAYS ?? {});
+  const keepCollected = config.SHADOW_RETENTION_KEEP_COLLECTED ?? true;
   const enabled = days !== undefined || auditDays !== undefined || perProject.length > 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let running: Promise<RetentionSweep | null> | null = null;
@@ -83,6 +84,7 @@ export function createRetention(input: {
             dryRun: false,
             limit: BATCH,
             excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
+            keepCollected,
             ...(project ? { project } : {}),
           },
           // The global pass leaves projects with their own retention alone.
@@ -116,6 +118,7 @@ export function createRetention(input: {
             retentionDays,
             ...(project ? { project } : {}),
             keepTag: config.SHADOW_RETENTION_KEEP_TAG,
+            keepCollected,
           },
           "retention sweep",
         );

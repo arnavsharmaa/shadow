@@ -108,6 +108,33 @@ describe("POST /traces/prune", () => {
     await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${ids.kept}` });
   });
 
+  it("spares traces that are in a collection when asked", async () => {
+    await createTrace("collected", "2025-01-03T00:00:00.000Z");
+    await createTrace("loose", "2025-01-04T00:00:00.000Z");
+    const created = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections",
+      payload: { name: "incident-29", traceIds: [ids.collected] },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const prune = (keepCollected: boolean, dryRun: boolean) =>
+      t.app.inject({
+        method: "POST",
+        url: "/api/v1/traces/prune",
+        payload: { before: "2025-02-01T00:00:00.000Z", keepCollected, dryRun },
+      });
+    expect(json<{ traceIds: string[] }>(await prune(true, true)).traceIds).toEqual([ids.loose]);
+    // The default keeps the old behaviour: collections do not protect by themselves.
+    expect(json<{ traceIds: string[] }>(await prune(false, true)).traceIds).toEqual([
+      ids.collected,
+      ids.loose,
+    ]);
+    expect(json<{ traceIds: string[] }>(await prune(true, false)).traceIds).toEqual([ids.loose]);
+    expect(await listIds()).toContain(ids.collected);
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/incident-29" });
+    await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${ids.collected}` });
+  });
+
   it("is a no-op when nothing matches and validates the cutoff", async () => {
     const nothing = await t.app.inject({
       method: "POST",

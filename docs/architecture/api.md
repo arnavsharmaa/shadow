@@ -318,13 +318,15 @@ Retention helper. Body:
   "status": "completed",
   "tag": "archived",
   "excludeTag": "keep",
+  "keepCollected": true,
   "dryRun": true,
   "limit": 1000
 }
 ```
 
 Only `before` is required. Traces carrying `excludeTag` are never deleted; the CLI sends
-`keep` unless told otherwise. Deletes (or, with `dryRun`, lists) traces whose `startedAt` is
+`keep` unless told otherwise. With `keepCollected` (`shadow traces prune --keep-collected`),
+traces that are in any collection are never deleted either. Deletes (or, with `dryRun`, lists) traces whose `startedAt` is
 earlier than the cutoff and that match every given filter, oldest first, up to `limit`
 (1–10000, default 1000). Deletion cascades like `DELETE /traces/:traceId`. Response:
 `{ dryRun, matched, traceIds, truncated }`; `truncated` is `true` when more traces matched than
@@ -1070,6 +1072,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_PRICING_FILE`               | unset                                         | JSON price list that adds to or overrides built-in prices |
 | `SHADOW_INGEST_SAMPLE_RATE`         | `1`                                           | fraction of new traces the API stores (0 to 1)            |
 | `SHADOW_RETENTION_KEEP_TAG`         | `keep`                                        | tag that exempts a trace from retention (empty disables)  |
+| `SHADOW_RETENTION_KEEP_COLLECTED`   | `true`                                        | leave traces that are in a collection alone               |
 | `SHADOW_AUDIT_RETENTION_DAYS`       | unset                                         | delete audit entries older than N days                    |
 | `SHADOW_API_TOKEN`                  | unset                                         | bearer token required on `/api/*` when set                |
 | `NEXT_PUBLIC_SHADOW_API_TOKEN`      | unset                                         | token the web app sends (must match)                      |
@@ -1234,7 +1237,9 @@ created before sampling was turned on) is always served. Explicit imports (`/tra
 With `SHADOW_RETENTION_DAYS` set, the API deletes traces whose `startedAt` is older than the
 window at startup and then every `SHADOW_RETENTION_INTERVAL_MINUTES`. Traces tagged with
 `SHADOW_RETENTION_KEEP_TAG` (default `keep`; add it from the trace header, the SDK or
-`shadow traces update --tag keep`) are exempt. Each sweep uses the same
+`shadow traces update --tag keep`) are exempt, and so are traces in any collection unless
+`SHADOW_RETENTION_KEEP_COLLECTED=false` (a collection is a deliberate grouping, such as an
+incident or an experiment, that should outlive the retention window). Each sweep uses the same
 code path as `POST /api/v1/traces/prune` in batches of 500 (at most 20 batches per sweep, so a
 large backlog drains over several intervals without blocking ingestion) and logs a
 `retention sweep` line with the cutoff and count. Sweeps never overlap. Retention applies to the

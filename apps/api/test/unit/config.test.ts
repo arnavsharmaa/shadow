@@ -73,6 +73,10 @@ describe("loadConfig", () => {
       "archive",
     );
     expect(loadConfig({ SHADOW_RETENTION_KEEP_TAG: "" }).SHADOW_RETENTION_KEEP_TAG).toBeUndefined();
+    expect(off.SHADOW_RETENTION_KEEP_COLLECTED).toBe(true);
+    expect(
+      loadConfig({ SHADOW_RETENTION_KEEP_COLLECTED: "false" }).SHADOW_RETENTION_KEEP_COLLECTED,
+    ).toBe(false);
     expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "0" })).toThrow(/positive/);
     expect(() => loadConfig({ SHADOW_RETENTION_DAYS: "soon" })).toThrow(/positive/);
     expect(() => loadConfig({ SHADOW_RETENTION_INTERVAL_MINUTES: "0" })).toThrow();

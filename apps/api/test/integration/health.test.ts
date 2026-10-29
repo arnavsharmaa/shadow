@@ -59,6 +59,7 @@ describe("health and error envelope", () => {
         SHADOW_RETENTION_DAYS: "30",
         SHADOW_RETENTION_INTERVAL_MINUTES: "15",
         SHADOW_RETENTION_PROJECT_DAYS: "ci=7",
+        SHADOW_RETENTION_KEEP_COLLECTED: "no",
 
         SHADOW_OTLP_DEFAULT_PROJECT: "ingest",
         SHADOW_OTLP_BUFFER_SECONDS: "30",
@@ -83,6 +84,7 @@ describe("health and error envelope", () => {
           days: 30,
           intervalMinutes: 15,
           keepTag: "keep",
+          keepCollected: false,
           projects: { ci: 7 },
         },
         sampling: { enabled: true, rate: 0.25 },

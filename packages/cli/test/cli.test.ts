@@ -1032,9 +1032,11 @@ describe("shadow cli", () => {
         "--dry-run",
         "--exclude-tag",
         "",
+        "--keep-collected",
       ]),
     ).toBe(0);
     expect(everything.captured.calls[0]?.body).not.toHaveProperty("excludeTag");
+    expect(everything.captured.calls[0]?.body).toMatchObject({ keepCollected: true });
     expect(Date.now() - new Date(sent.before).getTime()).toBeGreaterThan(29 * 86_400_000);
     expect(JSON.parse(api.captured.out.join("\n")).matched).toBe(2);
 

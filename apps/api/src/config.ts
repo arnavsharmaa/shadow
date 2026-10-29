@@ -174,6 +174,8 @@ const configSchema = z.object({
     .max(64)
     .default("keep")
     .transform((v) => (v.trim().length > 0 ? v.trim() : undefined)),
+  /** Whether retention leaves traces that are in a collection alone (default: yes). */
+  SHADOW_RETENTION_KEEP_COLLECTED: boolish.default(true),
   /** How often the retention sweep runs (minutes). */
   SHADOW_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(10_080).default(60),
   /** Fraction of new traces the API stores, 0 to 1 (default 1: everything). */

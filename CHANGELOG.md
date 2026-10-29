@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Retention spares collected traces: `POST /api/v1/traces/prune` takes `keepCollected`
+  (`shadow traces prune --keep-collected`) to leave traces that are in any collection alone,
+  and the retention sweep does so by default (`SHADOW_RETENTION_KEEP_COLLECTED=false` restores
+  the old behaviour), so an incident's or experiment's traces outlive the retention window.
+  `/health` and the Settings page report it.
 - `shadow alerts pause <rule>` and `shadow alerts resume <rule>` switch a rule off and on
   from the terminal (by name or id), the same toggle the web dialog has; a paused rule stops
   being evaluated and resumes from `ok`.

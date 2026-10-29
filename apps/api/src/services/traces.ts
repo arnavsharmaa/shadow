@@ -304,6 +304,12 @@ export async function pruneTraces(
   if (body.excludeTag) {
     filters.push(sql`not (${traces.tags} @> ${JSON.stringify([body.excludeTag])}::jsonb)`);
   }
+  if (body.keepCollected) {
+    // A collection is a deliberate grouping (an incident, an experiment): its traces stay.
+    filters.push(
+      sql`not exists (select 1 from ${collectionTraces} where ${collectionTraces.traceId} = ${traces.id})`,
+    );
+  }
   const rows = await ctx.handle.db
     .select({ id: traces.id })
     .from(traces)

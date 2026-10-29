@@ -38,7 +38,7 @@ function describeFeatures(f: HealthFeatures): { key: string; label: string; valu
       key: "retention",
       label: "Retention",
       value: f.retention.enabled
-        ? `traces older than ${f.retention.days ?? "?"} days are deleted every ${f.retention.intervalMinutes ?? "?"} min${f.retention.keepTag ? `, except those tagged ${f.retention.keepTag}` : ""}`
+        ? `traces older than ${f.retention.days ?? "?"} days are deleted every ${f.retention.intervalMinutes ?? "?"} min${f.retention.keepTag ? `, except those tagged ${f.retention.keepTag}` : ""}${f.retention.keepCollected ? " or in a collection" : ""}`
         : "off",
     },
     {

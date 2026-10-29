@@ -101,6 +101,37 @@ describe("retention", () => {
     expect((await retention.runOnce())?.deleted).toBe(0);
   });
 
+  it("leaves traces in a collection alone unless told otherwise", async () => {
+    await createTrace("old-collected", "2026-07-02T00:00:00.000Z");
+    await createTrace("old-loose", "2026-07-03T00:00:00.000Z");
+    const collected = json<{ items: TraceSummary[] }>(
+      await t.app.inject({ url: "/api/v1/traces?q=old-collected" }),
+    ).items[0];
+    const created = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections",
+      payload: { name: "retention-incident", traceIds: [collected?.id ?? ""] },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const config = {
+      SHADOW_RETENTION_DAYS: 30,
+      SHADOW_RETENTION_INTERVAL_MINUTES: 60,
+      SHADOW_RETENTION_KEEP_TAG: "keep",
+      SHADOW_AUDIT_RETENTION_DAYS: undefined,
+    };
+    const careful = createRetention({ services: t.services, config, logger: t.services.logger });
+    expect((await careful.runOnce())?.deleted).toBe(1);
+    expect(await listNames()).toEqual(["old-collected", "edge-30d", "fresh"]);
+    const sweeping = createRetention({
+      services: t.services,
+      config: { ...config, SHADOW_RETENTION_KEEP_COLLECTED: false },
+      logger: t.services.logger,
+    });
+    expect((await sweeping.runOnce())?.deleted).toBe(1);
+    expect(await listNames()).toEqual(["edge-30d", "fresh"]);
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/retention-incident" });
+  });
+
   it("applies per-project windows and leaves those projects out of the global pass", async () => {
     const make = (project: string, name: string, startedAt: string) =>
       t.app.inject({

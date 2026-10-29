@@ -960,6 +960,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       'never delete traces carrying this tag (pass "" to include them)',
       "keep",
     )
+    .option("--keep-collected", "never delete traces that are in a collection")
     .option("--limit <n>", "maximum traces to delete per run", positiveInt, 1000)
     .option("--dry-run", "list what would be deleted without deleting")
     .option(
@@ -976,6 +977,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         status?: string;
         tag?: string;
         excludeTag: string;
+        keepCollected?: boolean;
         limit: number;
         dryRun?: boolean;
         archive?: string;
@@ -996,6 +998,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           status: opts.status,
           tag: opts.tag,
           ...(opts.excludeTag ? { excludeTag: opts.excludeTag } : {}),
+          ...(opts.keepCollected ? { keepCollected: true } : {}),
           limit: opts.limit,
         };
         type PruneResult = {
