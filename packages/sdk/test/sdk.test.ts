@@ -532,6 +532,39 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("puts default tags and metadata on every trace", async () => {
+    const transport = new MemoryTransport();
+    const shadow = client(transport, { tags: ["prod", "eu"], metadata: { build: "1.4.2" } });
+    const trace = shadow.startTrace({
+      name: "t",
+      tags: ["refund", "prod"],
+      metadata: { build: "override", customer: "cus_1" },
+    });
+    await trace.end();
+    expect(transport.traces[0]).toMatchObject({
+      tags: ["prod", "eu", "refund"],
+      metadata: { build: "override", customer: "cus_1" },
+    });
+    const bare = client(transport, { tags: ["prod"] }).startTrace({ name: "bare" });
+    await bare.end();
+    expect(transport.traces[1]).toMatchObject({ tags: ["prod"] });
+    expect(transport.traces[1]?.metadata).toBeUndefined();
+
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_TAGS = " ci ,eu,, ";
+      const fromEnv = client(transport).startTrace({ name: "env", tags: ["x"] });
+      await fromEnv.end();
+      expect(transport.traces[2]).toMatchObject({ tags: ["ci", "eu", "x"] });
+      // Explicit options win over the environment.
+      const explicit = client(transport, { tags: [] }).startTrace({ name: "explicit" });
+      await explicit.end();
+      expect(transport.traces[3]?.tags).toEqual([]);
+    } finally {
+      process.env = saved;
+    }
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({

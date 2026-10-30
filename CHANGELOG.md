@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `tags` (or `SHADOW_TAGS=prod,eu`) and `metadata` on the `Shadow` client go on every
+  trace it starts, ahead of and under the trace's own, so a deployment's tag reaches alert
+  rules and views without changing every `startTrace` call.
 - `shadow projects list` and `shadow projects create <slug> [--name] [--description]` manage
   projects from the terminal, so a project can be named and described before its first trace.
 - `shadow overview [--days] [--to] [--project]` prints what the Overview page shows: the

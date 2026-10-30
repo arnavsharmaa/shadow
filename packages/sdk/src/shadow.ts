@@ -9,6 +9,13 @@ export interface ShadowOptions {
   project?: string;
   /** Default agent slug for traces started from this client (default: `SHADOW_AGENT` env). */
   agent?: string;
+  /**
+   * Tags put on every trace (default: `SHADOW_TAGS` env, comma-separated), such as `prod` or
+   * a region, so alert rules and views can tell deployments apart; a trace's own tags follow.
+   */
+  tags?: string[];
+  /** Metadata put on every trace (a build id, a host name); a trace's own entries win. */
+  metadata?: JsonObject;
   /** Shadow API base URL. Defaults to `SHADOW_ENDPOINT` or http://localhost:4000. */
   endpoint?: string;
   /** Custom transport (tests, file export, future async transports). */
@@ -95,6 +102,27 @@ function envSampleRate(): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+function envTags(): string[] | undefined {
+  const raw = readEnv("SHADOW_TAGS");
+  if (raw === undefined) return undefined;
+  const tags = raw
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+  return tags.length > 0 ? tags : undefined;
+}
+
+/** Default tags first, then the trace's own, without repeats. */
+function mergeTags(
+  defaults: string[] | undefined,
+  own: string[] | undefined,
+): string[] | undefined {
+  if (!defaults) return own;
+  const merged = [...defaults];
+  for (const tag of own ?? []) if (!merged.includes(tag)) merged.push(tag);
+  return merged;
+}
+
 function envEnabled(): boolean {
   const value = readEnv("SHADOW_ENABLED")?.toLowerCase();
   return !(value === "0" || value === "false" || value === "no" || value === "off");
@@ -137,6 +165,7 @@ export class Shadow {
       ...options,
       project,
       agent: options.agent ?? readEnv("SHADOW_AGENT"),
+      tags: options.tags ?? envTags(),
       enabled: options.enabled ?? envEnabled(),
       sampleRate,
     };
@@ -199,8 +228,11 @@ export class Shadow {
       project: this.options.project as string,
       agent,
       id: input.id,
-      metadata: input.metadata,
-      tags: input.tags,
+      metadata:
+        this.options.metadata || input.metadata
+          ? { ...this.options.metadata, ...input.metadata }
+          : undefined,
+      tags: mergeTags(this.options.tags, input.tags),
       startedAt: input.startedAt,
       collections: input.collections,
       flushIntervalMs: this.options.flushIntervalMs ?? 1000,

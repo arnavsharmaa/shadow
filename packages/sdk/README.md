@@ -174,6 +174,10 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
 - `flushOnExit: true` (or `SHADOW_FLUSH_ON_EXIT=true`) flushes every active trace when the
   process is about to exit, so a short-lived script needs no explicit `shutdown()`; a hard
   `process.exit()` still skips it.
+- `tags` (or `SHADOW_TAGS=prod,eu`) go on every trace this client starts, ahead of the trace's
+  own tags, and `metadata` (a build id, a host name) is merged under the trace's own entries,
+  so alert rules scoped to a tag and saved views can tell deployments apart without touching
+  every `startTrace` call.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.
