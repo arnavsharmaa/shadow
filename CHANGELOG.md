@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow projects list` and `shadow projects create <slug> [--name] [--description]` manage
+  projects from the terminal, so a project can be named and described before its first trace.
 - `shadow overview [--days] [--to] [--project]` prints what the Overview page shows: the
   period's totals next to the previous period's with the change, and the busiest agents.
 - Failed-tool filter: `GET /api/v1/traces?toolError=<name>` returns the traces in which that

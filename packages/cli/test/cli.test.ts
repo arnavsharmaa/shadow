@@ -2289,6 +2289,43 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["alerts", "pause", "no such rule"])).toBe(4);
   });
 
+  it("lists and creates projects", async () => {
+    const project = {
+      id: "prj_1",
+      slug: "support-agent",
+      name: "Support",
+      description: "Customer support agents",
+      createdAt: "2026-09-01T00:00:00.000Z",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+    };
+    const api = fakeApi({
+      "GET /api/v1/projects": () => ({ body: { items: [project] } }),
+      "POST /api/v1/projects": (body) => ({
+        status: 201,
+        body: { ...project, id: "prj_2", ...(body as object), description: null },
+      }),
+    });
+    expect(await runWith(api, ["projects", "list"])).toBe(0);
+    expect(api.captured.out.join("\n")).toMatch(
+      /prj_1\s+support-agent\s+Support\s+Customer support agents\s+2026-09-01/,
+    );
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["projects", "create", "billing", "--name", "Billing"])).toBe(0);
+    expect(api.captured.calls[1]?.body).toEqual({ slug: "billing", name: "Billing" });
+    expect(api.captured.out.join("\n")).toContain("created project billing (prj_2): Billing");
+    expect(
+      await runWith(api, ["projects", "create", "ops", "--description", "Operations", "--json"]),
+    ).toBe(0);
+    expect(api.captured.calls[2]?.body).toEqual({
+      slug: "ops",
+      name: "ops",
+      description: "Operations",
+    });
+    const empty = fakeApi({ "GET /api/v1/projects": () => ({ body: { items: [] } }) });
+    expect(await runWith(empty, ["projects", "list"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toContain("no projects");
+  });
+
   it("summarises a period next to the one before it", async () => {
     const totals = {
       traces: 120,

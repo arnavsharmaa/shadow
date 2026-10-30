@@ -1088,6 +1088,57 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     return k.expiresAt ? `active until ${k.expiresAt}` : "active";
   };
 
+  interface ProjectRow {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }
+  const projects = program
+    .command("projects")
+    .description("list and create projects (traces create them on first use too)");
+
+  projects
+    .command("list")
+    .description("list projects")
+    .option("--json", "print JSON instead of a table")
+    .action(async (opts: { json?: boolean }) => {
+      const page = await client().get<{ items: ProjectRow[] }>("/api/v1/projects");
+      if (opts.json) return json(page);
+      if (page.items.length === 0) return out("no projects");
+      out(
+        table(
+          ["PROJECT", "SLUG", "NAME", "DESCRIPTION", "CREATED"],
+          page.items.map((p) => [
+            p.id,
+            p.slug,
+            p.name,
+            p.description ? truncate(p.description, 60) : "-",
+            p.createdAt,
+          ]),
+        ),
+      );
+    });
+
+  projects
+    .command("create")
+    .description("create a project before any trace is recorded under it")
+    .argument("<slug>", "lowercase letters, digits and dashes")
+    .option("--name <name>", "display name (default: the slug)")
+    .option("--description <text>", "what the project is for")
+    .option("--json", "print the project as JSON")
+    .action(async (slug: string, opts: { name?: string; description?: string; json?: boolean }) => {
+      const project = await client().post<ProjectRow>("/api/v1/projects", {
+        slug,
+        name: opts.name ?? slug,
+        ...(opts.description ? { description: opts.description } : {}),
+      });
+      if (opts.json) return json(project);
+      out(`created project ${project.slug} (${project.id}): ${project.name}`);
+    });
+
   const keys = program
     .command("keys")
     .description(

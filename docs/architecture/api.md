@@ -142,6 +142,8 @@ Returns `201 Project`; `409` if the slug exists. Projects are also created impli
 `replayable` lists programs registered in the API's `AgentRegistry`; `Agent.replayable` is true
 when the agent slug matches one of them.
 
+CLI: `shadow projects list` and `shadow projects create <slug> [--name] [--description]`.
+
 ### `GET /api/v1/stats/agents?from=&to=&project=`
 
 Per-agent aggregates over traces started in the range (both bounds optional, ISO timestamps;

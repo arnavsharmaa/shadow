@@ -7,6 +7,8 @@ shadow --version
 shadow --help
 shadow status [--json]
 shadow overview [--days <n>] [--to <cutoff>] [--project <slug>] [--json]
+shadow projects list [--json]
+shadow projects create <slug> [--name <name>] [--description <text>] [--json]
 shadow traces list [--project <slug>] [--agent <slug>] [--status <s>] [--tag <t>] [--tool <name>] [--tool-error <name>] [-q <text>] [--limit <n>] [--json]
 shadow traces inspect <traceId> [--branch <branchId>] [--json]
 shadow traces export <traceId> [--out <file>] [--markdown [--max-events <n>]]
