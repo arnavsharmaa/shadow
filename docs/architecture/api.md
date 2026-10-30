@@ -206,7 +206,8 @@ failureRate, policyViolations, toolErrors, totalEstimatedCost, totalTokens, p95D
 agents }`; `previous` is the same for the window of the same length just before `from`, so
 deltas can be shown; `daily` is the per-day series across all agents (every day the window
 touches, as in the timeseries endpoint); `topAgents` is the five busiest agents of the window,
-as `GET /stats/agents` rows.
+as `GET /stats/agents` rows. CLI: `shadow overview [--days 7] [--to] [--project]` prints the
+totals next to the previous period's with the change, then the busiest agents.
 
 ### `GET /api/v1/pricing`
 

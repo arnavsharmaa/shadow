@@ -194,6 +194,7 @@ shadow --help
 shadow status
 shadow traces list --project support-agent --status failed
 shadow traces list --from 7d --sort totalEstimatedCost --order desc
+shadow overview --days 7
 shadow agents --from 7d
 shadow tools --from 7d
 shadow otlp import ./collector-export.json

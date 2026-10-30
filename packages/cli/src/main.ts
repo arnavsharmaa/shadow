@@ -1775,6 +1775,122 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     );
 
   program
+    .command("overview")
+    .description("totals for a period next to the period before it, plus the busiest agents")
+    .option("--days <n>", "window length in days (1 to 90)", positiveInt, 14)
+    .option(
+      "--to <cutoff>",
+      "end of the window (ISO timestamp or age such as 1d; default now)",
+      cutoff,
+    )
+    .option("--project <slug>", "only this project")
+    .option("--json", "print JSON")
+    .action(async (opts: { days: number; to?: string; project?: string; json?: boolean }) => {
+      interface Totals {
+        traces: number;
+        completed: number;
+        failed: number;
+        running: number;
+        failureRate: number | null;
+        policyViolations: number;
+        toolErrors: number;
+        totalEstimatedCost: number;
+        totalTokens: number;
+        p95DurationMs: number | null;
+        agents: number;
+      }
+      const overview = await client().get<{
+        from: string;
+        to: string;
+        previousFrom: string;
+        totals: Totals;
+        previous: Totals;
+        topAgents: {
+          agentSlug: string;
+          projectSlug: string;
+          traces: number;
+          failed: number;
+          totalEstimatedCost: number;
+        }[];
+      }>("/api/v1/stats/overview", { days: opts.days, to: opts.to, project: opts.project });
+      if (opts.json) return json(overview);
+      const change = (current: number, previous: number): string => {
+        if (previous === 0) return current === 0 ? "0.0%" : "new";
+        return percent((current - previous) / previous);
+      };
+      const rate = (value: number | null): string =>
+        value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+      const { totals, previous } = overview;
+      out(
+        `overview ${overview.from} to ${overview.to} (${opts.days} day${opts.days === 1 ? "" : "s"}${opts.project ? `, project ${opts.project}` : ""}); previous period from ${overview.previousFrom}`,
+      );
+      const rows: [string, string, string, string][] = [
+        [
+          "traces",
+          String(totals.traces),
+          String(previous.traces),
+          change(totals.traces, previous.traces),
+        ],
+        [
+          "completed",
+          String(totals.completed),
+          String(previous.completed),
+          change(totals.completed, previous.completed),
+        ],
+        [
+          "failed",
+          String(totals.failed),
+          String(previous.failed),
+          change(totals.failed, previous.failed),
+        ],
+        ["running", String(totals.running), String(previous.running), "-"],
+        ["failure rate", rate(totals.failureRate), rate(previous.failureRate), "-"],
+        [
+          "policy violations",
+          String(totals.policyViolations),
+          String(previous.policyViolations),
+          change(totals.policyViolations, previous.policyViolations),
+        ],
+        [
+          "tool errors",
+          String(totals.toolErrors),
+          String(previous.toolErrors),
+          change(totals.toolErrors, previous.toolErrors),
+        ],
+        [
+          "est. cost",
+          money(totals.totalEstimatedCost),
+          money(previous.totalEstimatedCost),
+          change(totals.totalEstimatedCost, previous.totalEstimatedCost),
+        ],
+        [
+          "tokens",
+          String(totals.totalTokens),
+          String(previous.totalTokens),
+          change(totals.totalTokens, previous.totalTokens),
+        ],
+        ["p95 duration", duration(totals.p95DurationMs), duration(previous.p95DurationMs), "-"],
+        ["agents", String(totals.agents), String(previous.agents), "-"],
+      ];
+      out(table(["METRIC", "VALUE", "PREVIOUS", "CHANGE"], rows));
+      if (overview.topAgents.length > 0) {
+        out("busiest agents:");
+        out(
+          table(
+            ["AGENT", "PROJECT", "TRACES", "FAILED", "EST. COST"],
+            overview.topAgents.map((a) => [
+              a.agentSlug,
+              a.projectSlug,
+              String(a.traces),
+              String(a.failed),
+              money(a.totalEstimatedCost),
+            ]),
+          ),
+        );
+      }
+    });
+
+  program
     .command("tools")
     .description("usage per tool: calls, traces, errors, blocked calls and latency, busiest first")
     .option("--project <slug>", "only this project")

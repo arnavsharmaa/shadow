@@ -2289,6 +2289,63 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["alerts", "pause", "no such rule"])).toBe(4);
   });
 
+  it("summarises a period next to the one before it", async () => {
+    const totals = {
+      traces: 120,
+      completed: 110,
+      failed: 6,
+      running: 4,
+      failureRate: 6 / 116,
+      policyViolations: 2,
+      toolErrors: 9,
+      totalEstimatedCost: 1.2345,
+      totalTokens: 456_000,
+      p95DurationMs: 8200,
+      agents: 3,
+    };
+    const previous = { ...totals, traces: 100, failed: 4, policyViolations: 0, toolErrors: 9 };
+    const api = fakeApi({
+      "GET /api/v1/stats/overview": () => ({
+        body: {
+          from: "2026-10-23T00:00:00.000Z",
+          to: "2026-10-30T00:00:00.000Z",
+          previousFrom: "2026-10-16T00:00:00.000Z",
+          totals,
+          previous,
+          daily: [],
+          topAgents: [
+            {
+              agentSlug: "refund-agent",
+              projectSlug: "support-agent",
+              traces: 80,
+              failed: 5,
+              totalEstimatedCost: 0.9,
+            },
+          ],
+        },
+      }),
+    });
+    expect(
+      await runWith(api, ["overview", "--days", "7", "--project", "support-agent", "--to", "1d"]),
+    ).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("days")).toBe("7");
+    expect(params.get("project")).toBe("support-agent");
+    expect(params.get("to")).toMatch(/^20/);
+    const text = api.captured.out.join("\n");
+    expect(text).toContain(
+      "overview 2026-10-23T00:00:00.000Z to 2026-10-30T00:00:00.000Z (7 days, project support-agent)",
+    );
+    expect(text).toMatch(/traces\s+120\s+100\s+\+20\.0%/);
+    expect(text).toMatch(/failed\s+6\s+4\s+\+50\.0%/);
+    expect(text).toMatch(/policy violations\s+2\s+0\s+new/);
+    expect(text).toMatch(/tool errors\s+9\s+9\s+0\.0%/);
+    expect(text).toMatch(/failure rate\s+5\.2%\s+5\.2%/);
+    expect(text).toMatch(/p95 duration\s+8\.20s/);
+    expect(text).toMatch(/refund-agent\s+support-agent\s+80\s+5\s+\$0\.90/);
+    expect(await runWith(api, ["overview", "--days", "0"])).toBe(2);
+  });
+
   it("prints usage per tool", async () => {
     const api = fakeApi({
       "GET /api/v1/stats/tools": () => ({

@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow overview [--days] [--to] [--project]` prints what the Overview page shows: the
+  period's totals next to the previous period's with the change, and the busiest agents.
 - Failed-tool filter: `GET /api/v1/traces?toolError=<name>` returns the traces in which that
   tool raised an error on any branch; `shadow traces list --tool-error`, a Failed tool field in
   the explorer and saved views carry it, and the Overview's tool error counts link to it.
