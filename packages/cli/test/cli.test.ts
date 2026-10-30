@@ -2225,6 +2225,19 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toContain("no model calls in range");
   });
 
+  it("lists the traces in which a tool failed", async () => {
+    const api = fakeApi({
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+    });
+    expect(
+      await runWith(api, ["traces", "list", "--tool-error", "refund_order", "--status", "failed"]),
+    ).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("toolError")).toBe("refund_order");
+    expect(params.get("status")).toBe("failed");
+    expect(api.captured.out.join("\n")).toContain("no traces found");
+  });
+
   it("pauses and resumes alert rules by name or id", async () => {
     const rule = {
       id: "alr_9",

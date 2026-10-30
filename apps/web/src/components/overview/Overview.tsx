@@ -349,7 +349,17 @@ export function Overview() {
                           </td>
                           <td className="px-3 py-1 text-right">{t.calls}</td>
                           <td className={`px-3 py-1 text-right ${t.errors > 0 ? "text-err" : ""}`}>
-                            {t.errors}
+                            {t.errors > 0 ? (
+                              <Link
+                                href={`/?toolError=${encodeURIComponent(t.tool)}${project ? `&project=${encodeURIComponent(project)}` : ""}`}
+                                className="hover:underline"
+                                title="The traces in which this tool failed"
+                              >
+                                {t.errors}
+                              </Link>
+                            ) : (
+                              t.errors
+                            )}
                             {t.errors > 0 && (
                               <span className="ml-1 text-fg-faint">
                                 ({(t.errorRate * 100).toFixed(1)}%)

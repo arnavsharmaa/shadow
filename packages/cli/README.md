@@ -6,7 +6,7 @@ Command-line client for the [Shadow](../../README.md) API.
 shadow --version
 shadow --help
 shadow status [--json]
-shadow traces list [--project <slug>] [--agent <slug>] [--status <s>] [--tag <t>] [--tool <name>] [-q <text>] [--limit <n>] [--json]
+shadow traces list [--project <slug>] [--agent <slug>] [--status <s>] [--tag <t>] [--tool <name>] [--tool-error <name>] [-q <text>] [--limit <n>] [--json]
 shadow traces inspect <traceId> [--branch <branchId>] [--json]
 shadow traces export <traceId> [--out <file>] [--markdown [--max-events <n>]]
 shadow traces import <file|dir|share-url> [--regenerate-ids] [--json]

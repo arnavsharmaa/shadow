@@ -250,6 +250,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--status <status>", "running | completed | failed")
     .option("--tag <tag>", "filter by tag")
     .option("--tool <name>", "traces that called a tool")
+    .option("--tool-error <name>", "traces in which a tool raised an error")
     .option("-q, --query <text>", "free-text search")
     .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
     .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
@@ -290,6 +291,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         status?: string;
         tag?: string;
         tool?: string;
+        toolError?: string;
         query?: string;
         from?: string;
         to?: string;
@@ -318,6 +320,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           status: opts.status,
           tag: opts.tag,
           tool: opts.tool,
+          toolError: opts.toolError,
           q: opts.query,
           from: opts.from,
           to: opts.to,
@@ -1830,7 +1833,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         const failing = stats.items.filter((t) => t.errors > 0);
         if (failing.length > 0) {
           out(
-            `${failing.length} tool(s) had errors; list them with: shadow traces list --tool <name> --status failed`,
+            `${failing.length} tool(s) had errors; see the runs with: shadow traces list --tool-error <name>`,
           );
         }
       },

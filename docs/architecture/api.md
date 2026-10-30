@@ -196,7 +196,7 @@ blocked, errorRate, avgDurationMs, p95DurationMs, estimatedCost, lastUsedAt }] }
 first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a subset of
 `errors`; a call still waiting for its result is not counted. CLI: `shadow tools [--project]
 [--agent] [--from] [--to]`; the Overview page lists the tools of its window, each linking to
-the explorer filtered by that tool.
+the explorer filtered by that tool, and each error count to the traces in which it failed.
 
 ### `GET /api/v1/stats/overview?days=&to=&project=`
 
@@ -242,6 +242,7 @@ Query parameters:
 | `status`        | `running` \| `completed` \| `failed`                                           |                                                                          |
 | `tag`           | string                                                                         | exact tag match                                                          |
 | `tool`          | string                                                                         | traces that called this tool                                             |
+| `toolError`     | string                                                                         | traces in which this tool raised an error (on any branch)                |
 | `q`             | string                                                                         | free text over ids, names, tags, metadata, tools                         |
 | `meta`          | `key=value` or `key`                                                           | exact top-level metadata match (JSON values understood), or key presence |
 | `from`, `to`    | ISO timestamp                                                                  | `startedAt` range                                                        |
@@ -926,7 +927,8 @@ is the explorer query string, which is also valid as `GET /api/v1/traces` parame
 ### `POST /api/v1/views`
 
 Body `{ name, query, description? }`. `query` may only contain trace list filters (`project`,
-`agent`, `status`, `tag`, `tool`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `sort`, `order`)
+`agent`, `status`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`,
+`sort`, `order`)
 with values the list endpoint accepts; `cursor` and `limit` are dropped and the keys sorted, so
 equal filters produce equal strings. Creates the view (`201`) or, when a view with that name
 exists, replaces its query and description and keeps its id (`200`). Invalid queries are `400

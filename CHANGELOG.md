@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Failed-tool filter: `GET /api/v1/traces?toolError=<name>` returns the traces in which that
+  tool raised an error on any branch; `shadow traces list --tool-error`, a Failed tool field in
+  the explorer and saved views carry it, and the Overview's tool error counts link to it.
 - Alert rules can be scoped to a tool (`tool` on the rule, `shadow alerts add --tool
   refund_order`, a Tool field in the web dialog): only traces that called the tool count, and
   the `tool_errors` metric then counts that tool's errors alone, so one rule can watch a

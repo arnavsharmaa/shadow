@@ -21,7 +21,15 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
-import { agents, branches, collectionTraces, collections, projects, traces } from "../db/schema.js";
+import {
+  agents,
+  branches,
+  collectionTraces,
+  collections,
+  events,
+  projects,
+  traces,
+} from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import {
@@ -169,6 +177,11 @@ export async function listTraces(
   if (query.status) filters.push(eq(traces.status, query.status));
   if (query.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([query.tag])}::jsonb`);
   if (query.tool) filters.push(likeSearchProvider.filter(`tool:${query.tool}`));
+  if (query.toolError) {
+    filters.push(
+      sql`exists (select 1 from ${events} e where e.trace_id = ${traces.id} and e.event_type = 'tool.error' and e.name = ${query.toolError})`,
+    );
+  }
   if (query.q) filters.push(likeSearchProvider.filter(query.q));
   if (query.from) filters.push(gte(traces.startedAt, query.from));
   if (query.to) filters.push(lte(traces.startedAt, query.to));

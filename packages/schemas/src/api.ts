@@ -64,6 +64,8 @@ export const traceListQuerySchema = z.object({
   status: traceStatusSchema.optional(),
   tag: z.string().max(64).optional(),
   tool: z.string().max(128).optional(),
+  /** Traces in which this tool raised an error, on any branch. */
+  toolError: z.string().max(128).optional(),
   q: z.string().max(256).optional(),
   from: z.iso.datetime({ offset: true }).optional(),
   to: z.iso.datetime({ offset: true }).optional(),
@@ -92,6 +94,7 @@ export const SAVED_VIEW_KEYS = [
   "status",
   "tag",
   "tool",
+  "toolError",
   "q",
   "from",
   "to",

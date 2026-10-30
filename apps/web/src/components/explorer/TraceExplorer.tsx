@@ -28,6 +28,7 @@ function readFilters(params: URLSearchParams): TraceFilters {
     status: get("status") as TraceFilters["status"],
     tag: get("tag"),
     tool: get("tool"),
+    toolError: get("toolError"),
     q: get("q"),
     from: get("from"),
     to: get("to"),
@@ -96,6 +97,7 @@ export function TraceExplorer() {
     "status",
     "tag",
     "tool",
+    "toolError",
     "q",
     "from",
     "to",
@@ -173,6 +175,12 @@ export function TraceExplorer() {
           label="Tool"
           value={filters.tool}
           onChange={(v) => setFilter({ tool: v })}
+          options={(facets.data?.tools ?? []).map((t) => ({ value: t, label: t }))}
+        />
+        <Select
+          label="Failed tool"
+          value={filters.toolError}
+          onChange={(v) => setFilter({ toolError: v })}
           options={(facets.data?.tools ?? []).map((t) => ({ value: t, label: t }))}
         />
         <TextInput

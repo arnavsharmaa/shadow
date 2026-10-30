@@ -186,6 +186,20 @@ describe("trace listing", () => {
     expect((await list("tool=does_not_exist")).total).toBe(0);
   });
 
+  it("filters by the tool that failed", async () => {
+    // The inventory agent times out in inventory.lookup; the violating refund run is blocked in
+    // refund_order by its guard policy. read_customer is called everywhere and never fails.
+    expect(ids(await list("toolError=inventory.lookup"))).toEqual([
+      DEMO_TRACE_IDS.inventoryTimeout,
+    ]);
+    const blocked = await list("toolError=refund_order");
+    expect(ids(blocked)).toContain(DEMO_TRACE_IDS.refundViolation);
+    const called = ids(await list("tool=refund_order"));
+    expect(ids(blocked).every((id) => called.includes(id))).toBe(true);
+    expect((await list("toolError=read_customer")).total).toBe(0);
+    expect((await list("toolError=inventory.lookup&tool=refund_order")).total).toBe(0);
+  });
+
   it("searches ids, metadata values and tool names with q", async () => {
     expect(ids(await list("q=cus_1001"))).toEqual([DEMO_TRACE_IDS.refundViolation]);
     expect(ids(await list("q=CUS_1001"))).toEqual([DEMO_TRACE_IDS.refundViolation]);
