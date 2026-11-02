@@ -1298,11 +1298,13 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       if (page.items.length === 0) return out("no collections");
       out(
         table(
-          ["COLLECTION", "NAME", "TRACES", "UPDATED", "DESCRIPTION"],
+          ["COLLECTION", "NAME", "TRACES", "FAILED", "EST. COST", "UPDATED", "DESCRIPTION"],
           page.items.map((c) => [
             c.id,
             c.name,
             String(c.traceCount),
+            String(c.stats.failed),
+            money(c.stats.totalEstimatedCost),
             c.updatedAt,
             truncate(c.description ?? "", 50),
           ]),

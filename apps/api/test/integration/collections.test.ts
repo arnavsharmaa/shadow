@@ -68,6 +68,26 @@ describe("trace collections", () => {
       missing: [],
       collection: { traceCount: 3 },
     });
+    // Totals over the members: every trace is in exactly one status bucket.
+    const stats = json<Created>(added).collection.stats;
+    expect(stats.completed + stats.failed + stats.running).toBe(3);
+    expect(stats.totalEstimatedCost).toBeGreaterThan(0);
+    expect(stats.totalTokens).toBeGreaterThan(0);
+    const empty = json<Created>(
+      await t.app.inject({
+        method: "POST",
+        url: "/api/v1/collections",
+        payload: { name: "empty-stats" },
+      }),
+    ).collection;
+    expect(empty.stats).toEqual({
+      completed: 0,
+      failed: 0,
+      running: 0,
+      totalEstimatedCost: 0,
+      totalTokens: 0,
+    });
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/empty-stats" });
 
     expect((await traceIds("collection=incident%202026-09-01")).sort()).toEqual(
       [REFUND, first, second].sort(),

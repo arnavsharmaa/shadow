@@ -369,11 +369,22 @@ export const alertRuleSchema = z.object({
 export type AlertRule = z.infer<typeof alertRuleSchema>;
 
 /** A named group of related traces: an incident, an experiment, a batch, a review queue. */
+/** Totals over a collection's traces, so experiments and incidents can be compared. */
+export const collectionStatsSchema = z.object({
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  totalEstimatedCost: z.number().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+});
+export type CollectionStats = z.infer<typeof collectionStatsSchema>;
+
 export const collectionSchema = z.object({
   id: idSchema,
   name: z.string().min(1).max(64),
   description: z.string().max(500).nullable(),
   traceCount: z.number().int().nonnegative(),
+  stats: collectionStatsSchema,
   createdAt: timestamp,
   updatedAt: timestamp,
 });

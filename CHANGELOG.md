@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Collections carry totals over their traces (`stats`: completed, failed and running counts,
+  estimated cost and tokens) in every collection response; `shadow collections list` shows
+  the failed count and the cost, and the Collections page shows them under each name, so two
+  experiments or incidents can be compared without opening them.
 - SDK: `tags` (or `SHADOW_TAGS=prod,eu`) and `metadata` on the `Shadow` client go on every
   trace it starts, ahead of and under the trace's own, so a deployment's tag reaches alert
   rules and views without changing every `startTrace` call.

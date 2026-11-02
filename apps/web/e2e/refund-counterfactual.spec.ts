@@ -941,6 +941,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await expect(page.getByTestId("collections")).toBeVisible();
       const item = page.locator(`[data-testid="collection-item"][data-collection-name="${name}"]`);
       await expect(item).toContainText("2 traces");
+      await expect(item.getByTestId("collection-stats")).toContainText("$");
       await item.click();
       const detail = page.getByTestId("collection-detail");
       await expect(detail.getByTestId("collection-title")).toHaveText(name);

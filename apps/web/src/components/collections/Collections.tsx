@@ -135,8 +135,18 @@ export function Collections() {
                         </span>
                       )}
                     </span>
-                    <span className="shrink-0 text-[11px] text-fg-muted">
-                      {c.traceCount} trace{c.traceCount === 1 ? "" : "s"}
+                    <span className="shrink-0 text-right text-[11px] text-fg-muted">
+                      <span className="block">
+                        {c.traceCount} trace{c.traceCount === 1 ? "" : "s"}
+                      </span>
+                      {c.traceCount > 0 && (
+                        <span className="block text-fg-faint" data-testid="collection-stats">
+                          {c.stats.failed > 0 && (
+                            <span className="text-err">{c.stats.failed} failed · </span>
+                          )}
+                          {money(c.stats.totalEstimatedCost)}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>

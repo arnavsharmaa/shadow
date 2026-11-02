@@ -1421,6 +1421,13 @@ describe("shadow cli", () => {
       name: "incident-42",
       description: "refund incident",
       traceCount,
+      stats: {
+        completed: traceCount,
+        failed: traceCount > 1 ? 1 : 0,
+        running: 0,
+        totalEstimatedCost: 0.25 * traceCount,
+        totalTokens: 1200 * traceCount,
+      },
       createdAt: "2026-09-30T09:00:00.000Z",
       updatedAt: "2026-09-30T09:00:00.000Z",
     });
@@ -1457,7 +1464,7 @@ describe("shadow cli", () => {
 
     expect(await runWith(api, ["collections", "list", "--trace", "trc_1"])).toBe(0);
     expect(api.captured.calls.at(-1)?.url).toContain("traceId=trc_1");
-    expect(api.captured.out.join("\n")).toMatch(/col_1\s+incident-42\s+2/);
+    expect(api.captured.out.join("\n")).toMatch(/col_1\s+incident-42\s+2\s+1\s+\$0\.50/);
 
     expect(await runWith(api, ["collections", "add", "incident-42", "trc_2"])).toBe(0);
     expect(api.captured.out.join("\n")).toContain(

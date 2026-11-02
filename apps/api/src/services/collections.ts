@@ -15,18 +15,42 @@ export const MAX_COLLECTIONS = 500;
 
 type CollectionRow = typeof collections.$inferSelect;
 
-function toCollection(row: CollectionRow, traceCount: number): Collection {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    traceCount,
-    createdAt: iso(row.createdAt),
-    updatedAt: iso(row.updatedAt),
-  };
-}
+const num = (value: unknown): number => Number(value ?? 0) || 0;
 
 const traceCount = sql<number>`(select count(*) from ${collectionTraces} where ${collectionTraces.collectionId} = ${collections.id})`;
+/** The traces of the collection, for the per-collection totals below. */
+const members = sql`from ${collectionTraces} inner join ${traces} on ${traces.id} = ${collectionTraces.traceId} where ${collectionTraces.collectionId} = ${collections.id}`;
+const columns = {
+  collection: collections,
+  traceCount,
+  completed: sql<number>`(select count(*) ${members} and ${traces.status} = 'completed')`,
+  failed: sql<number>`(select count(*) ${members} and ${traces.status} = 'failed')`,
+  running: sql<number>`(select count(*) ${members} and ${traces.status} = 'running')`,
+  totalEstimatedCost: sql<number>`(select coalesce(sum((${traces.metrics}->>'totalEstimatedCost')::float), 0) ${members})`,
+  totalTokens: sql<number>`(select coalesce(sum((${traces.metrics}->>'totalTokens')::float), 0) ${members})`,
+};
+type Row = { collection: CollectionRow } & Record<
+  Exclude<keyof typeof columns, "collection">,
+  unknown
+>;
+
+function toCollection(row: Row): Collection {
+  return {
+    id: row.collection.id,
+    name: row.collection.name,
+    description: row.collection.description,
+    traceCount: num(row.traceCount),
+    stats: {
+      completed: num(row.completed),
+      failed: num(row.failed),
+      running: num(row.running),
+      totalEstimatedCost: num(row.totalEstimatedCost),
+      totalTokens: num(row.totalTokens),
+    },
+    createdAt: iso(row.collection.createdAt),
+    updatedAt: iso(row.collection.updatedAt),
+  };
+}
 
 export async function listCollections(
   ctx: ServiceContext,
@@ -39,25 +63,25 @@ export async function listCollections(
     );
   }
   const rows = await ctx.handle.db
-    .select({ collection: collections, traceCount })
+    .select(columns)
     .from(collections)
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(asc(collections.name))
     .limit(MAX_COLLECTIONS);
-  return rows.map((r) => toCollection(r.collection, Number(r.traceCount)));
+  return rows.map(toCollection);
 }
 
 /** Look a collection up by id (`col_…`) or by name. */
 export async function getCollection(ctx: ServiceContext, idOrName: string): Promise<Collection> {
   const [row] = await ctx.handle.db
-    .select({ collection: collections, traceCount })
+    .select(columns)
     .from(collections)
     .where(
       idOrName.startsWith("col_") ? eq(collections.id, idOrName) : eq(collections.name, idOrName),
     )
     .limit(1);
   if (!row) throw ApiError.notFound("collection", idOrName);
-  return toCollection(row.collection, Number(row.traceCount));
+  return toCollection(row);
 }
 
 /**

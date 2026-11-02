@@ -707,7 +707,10 @@ them, and deleting a collection never deletes traces.
 ### `GET /api/v1/collections?traceId=`
 
 `{ items: [Collection] }` sorted by name; with `traceId`, only the collections containing that
-trace. A `Collection` is `{ id, name, description, traceCount, createdAt, updatedAt }`.
+trace. A `Collection` is `{ id, name, description, traceCount, stats, createdAt, updatedAt }`
+where `stats` sums up its traces: `{ completed, failed, running, totalEstimatedCost,
+totalTokens }`, so two experiments or incidents can be compared at a glance (`shadow
+collections list` shows the failed count and the cost).
 
 ### `POST /api/v1/collections`
 
