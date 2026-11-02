@@ -198,7 +198,8 @@ blocked, errorRate, avgDurationMs, p95DurationMs, estimatedCost, lastUsedAt }] }
 first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a subset of
 `errors`; a call still waiting for its result is not counted. CLI: `shadow tools [--project]
 [--agent] [--from] [--to]`; the Overview page lists the tools of its window, each linking to
-the explorer filtered by that tool, and each error count to the traces in which it failed.
+the explorer filtered by that tool, and each error count to the traces in which it failed; the
+Agents page lists an agent's tools under its trend.
 
 ### `GET /api/v1/stats/overview?days=&to=&project=`
 

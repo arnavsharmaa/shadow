@@ -805,6 +805,9 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     const bars = trend.getByTestId("trend-bar");
     await expect(bars).toHaveCount(31);
     await expect(trend.getByTestId("trend-max-label")).toHaveText(/^\d+$/);
+    const tools = trend.getByTestId("agent-tools");
+    await expect(tools).toContainText("read_customer");
+    await expect(tools.locator('[data-tool="refund_order"] td').nth(3)).not.toHaveText("0");
     await bars.last().hover();
     await expect(trend.getByTestId("trend-tooltip")).toContainText("Traces:");
     await trend.getByTestId("trend-metric").selectOption("totalEstimatedCost");

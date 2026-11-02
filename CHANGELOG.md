@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Agents page lists an agent's tools under its trend: calls, errors, calls blocked by a
+  guard policy and p95 latency over all of its runs, so a flaky integration is visible next to
+  the agent it belongs to.
 - `SHADOW_WEBHOOK_TAGS` restricts finished-trace webhook notifications to traces carrying at
   least one of the listed tags, so with the SDK's `SHADOW_TAGS` a channel hears about one
   deployment only; `/health` and the Settings page show the restriction.

@@ -1,6 +1,7 @@
 "use client";
 
 import { api, type AgentStatsRow } from "@/lib/api";
+import { duration } from "@/lib/format";
 import { TREND_METRICS, metricValue, type TrendMetric } from "@/lib/trend";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -22,6 +23,10 @@ export function AgentTrend({ agent, onClose }: { agent: AgentStatsRow; onClose: 
       }),
   });
   const label = TREND_METRICS.find((m) => m.key === metric)?.label ?? metric;
+  const tools = useQuery({
+    queryKey: ["agent-tools", agent.agentSlug, agent.projectSlug],
+    queryFn: () => api.toolStats({ agent: agent.agentSlug, project: agent.projectSlug }),
+  });
 
   const points = trend.data?.points ?? [];
   const max = Math.max(0, ...points.map((p) => metricValue(p, metric) ?? 0));
@@ -84,6 +89,45 @@ export function AgentTrend({ agent, onClose }: { agent: AgentStatsRow; onClose: 
           subject={agent.agentSlug}
         />
       )}
+      <div className="mt-3" data-testid="agent-tools">
+        <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+          Tools (all runs)
+        </h3>
+        {tools.isError ? (
+          <ErrorState error={tools.error} retry={() => tools.refetch()} />
+        ) : !tools.data ? (
+          <Skeleton className="h-16 w-full" />
+        ) : tools.data.items.length === 0 ? (
+          <p className="text-fg-muted">This agent has not called any tools.</p>
+        ) : (
+          <table className="w-full max-w-2xl border-collapse">
+            <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+              <tr>
+                <th className="py-1 pr-3">Tool</th>
+                <th className="py-1 pr-3 text-right">Calls</th>
+                <th className="py-1 pr-3 text-right">Errors</th>
+                <th className="py-1 pr-3 text-right">Blocked</th>
+                <th className="py-1 text-right">p95</th>
+              </tr>
+            </thead>
+            <tbody className="tabular">
+              {tools.data.items.map((t) => (
+                <tr key={t.tool} className="border-t border-border" data-tool={t.tool}>
+                  <td className="py-1 pr-3 font-mono text-[11px]">{t.tool}</td>
+                  <td className="py-1 pr-3 text-right">{t.calls}</td>
+                  <td className={`py-1 pr-3 text-right ${t.errors > 0 ? "text-err" : ""}`}>
+                    {t.errors}
+                  </td>
+                  <td className={`py-1 pr-3 text-right ${t.blocked > 0 ? "text-warn" : ""}`}>
+                    {t.blocked}
+                  </td>
+                  <td className="py-1 text-right">{duration(t.p95DurationMs)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </section>
   );
 }
