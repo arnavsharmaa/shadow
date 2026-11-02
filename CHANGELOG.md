@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_WEBHOOK_TAGS` restricts finished-trace webhook notifications to traces carrying at
+  least one of the listed tags, so with the SDK's `SHADOW_TAGS` a channel hears about one
+  deployment only; `/health` and the Settings page show the restriction.
 - Collections carry totals over their traces (`stats`: completed, failed and running counts,
   estimated cost and tokens) in every collection response; `shadow collections list` shows
   the failed count and the cost, and the Collections page shows them under each name, so two

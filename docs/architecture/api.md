@@ -1075,6 +1075,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_WEBHOOK_SECRET`             | unset                                         | HMAC-SHA256 key for `x-shadow-signature-256`              |
 | `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`                |
 | `SHADOW_WEBHOOK_PROJECTS`           | unset (all)                                   | comma-separated project slugs whose traces notify         |
+| `SHADOW_WEBHOOK_TAGS`               | unset (all)                                   | comma-separated tags, one of which a trace must carry     |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)               |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
 | `SHADOW_RETENTION_PROJECT_DAYS`     | unset                                         | per-project windows, `slug=days` pairs (see below)        |
@@ -1141,8 +1142,10 @@ With `SHADOW_WEBHOOK_URL` set, the API posts a JSON notification when a trace's 
 finishes. `SHADOW_WEBHOOK_EVENTS` selects which: `failures` (default: failed traces, which
 includes policy violations), `policy_violations` only, or `all`; `SHADOW_WEBHOOK_PROJECTS`
 (comma-separated slugs) restricts finished-trace notifications to those projects, so a channel
-hears about production and not about CI runs. Alerts, failed replays and batch jobs are not
-project-filtered: alert rules carry their own scope. The body is:
+hears about production and not about CI runs, and `SHADOW_WEBHOOK_TAGS` (comma-separated)
+restricts them to traces carrying at least one of the tags, which pairs with the SDK's
+`SHADOW_TAGS` to notify about one deployment only. Alerts, failed replays and batch jobs are
+not filtered this way: alert rules carry their own scope. The body is:
 
 ```json
 {

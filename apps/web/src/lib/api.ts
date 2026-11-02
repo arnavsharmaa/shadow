@@ -279,7 +279,13 @@ export interface HealthFeatures {
     defaultProject: string;
     export?: { enabled: boolean; encoding?: string };
   };
-  webhook?: { enabled: boolean; events?: string; format?: string; projects?: string[] };
+  webhook?: {
+    enabled: boolean;
+    events?: string;
+    format?: string;
+    projects?: string[];
+    tags?: string[];
+  };
   fileExport?: { enabled: boolean; dir?: string };
   s3Export?: { enabled: boolean; bucket?: string; endpoint?: string; prefix?: string };
 }

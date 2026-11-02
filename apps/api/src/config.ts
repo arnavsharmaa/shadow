@@ -8,6 +8,18 @@ const boolish = z
     typeof v === "boolean" ? v : ["1", "true", "yes", "on"].includes(v.toLowerCase()),
   );
 
+/** A comma-separated list without blanks or repeats; empty counts as unset. */
+const csvList = z
+  .string()
+  .optional()
+  .transform((v) => {
+    const items = (v ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return items.length > 0 ? [...new Set(items)] : undefined;
+  });
+
 /** An optional `http(s)` URL; blank values count as unset. */
 /** An optional string; blank counts as unset. */
 const optionalText = z
@@ -66,16 +78,9 @@ const configSchema = z.object({
   /** Which finished traces to notify about. */
   SHADOW_WEBHOOK_EVENTS: z.enum(["policy_violations", "failures", "all"]).default("failures"),
   /** Only finished traces of these projects notify (comma-separated slugs; unset = every project). */
-  SHADOW_WEBHOOK_PROJECTS: z
-    .string()
-    .optional()
-    .transform((v) => {
-      const slugs = (v ?? "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      return slugs.length > 0 ? [...new Set(slugs)] : undefined;
-    }),
+  SHADOW_WEBHOOK_PROJECTS: csvList,
+  /** Only finished traces carrying one of these tags notify (comma-separated; unset = any). */
+  SHADOW_WEBHOOK_TAGS: csvList,
   /** Body shape: Shadow's JSON notification, or a Slack-compatible chat message. */
   SHADOW_WEBHOOK_FORMAT: z.enum(["json", "slack"]).default("json"),
   /** Public base URL of the web app, used for links in chat notifications. */

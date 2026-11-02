@@ -219,6 +219,56 @@ describe("webhook on ingestion", () => {
     }
   });
 
+  it("only notifies about traces carrying one of SHADOW_WEBHOOK_TAGS", async () => {
+    const seen: Notification[] = [];
+    const previous = t.services.webhook;
+    t.services.webhook = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+        SHADOW_WEBHOOK_SECRET: undefined,
+        SHADOW_WEBHOOK_EVENTS: "all",
+        SHADOW_WEBHOOK_TAGS: ["prod", "canary"],
+      },
+      logger: createLogger({ level: "silent" }),
+      fetch: vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+        seen.push(JSON.parse(String(init?.body)) as Notification);
+        return new Response("ok", { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    try {
+      const finish = async (name: string, tags: string[]) => {
+        const created = await t.app.inject({
+          method: "POST",
+          url: "/api/v1/traces",
+          payload: { project: "support-agent", agent: "a", name, tags },
+        });
+        const { id } = created.json() as { id: string };
+        await t.app.inject({
+          method: "POST",
+          url: `/api/v1/traces/${id}/events`,
+          payload: {
+            events: [
+              { eventType: "trace.started", name: "trace.started" },
+              {
+                eventType: "trace.completed",
+                name: "trace.completed",
+                output: { outcome: { kind: "completed", label: "Done" } },
+              },
+            ],
+          },
+        });
+        return id;
+      };
+      await finish("staging run", ["staging"]);
+      await finish("untagged run", []);
+      const kept = await finish("production run", ["eu", "prod"]);
+      await t.services.webhook.settle();
+      expect(seen.map((n) => (n.type === "trace.finished" ? n.trace.id : n.type))).toEqual([kept]);
+    } finally {
+      t.services.webhook = previous;
+    }
+  });
+
   it("notifies when a replay fails, regardless of the event filter", async () => {
     const traceId = "trc_webhook_fickle";
     const recorded = await recordExecution({

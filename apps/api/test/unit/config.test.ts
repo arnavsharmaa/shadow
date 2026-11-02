@@ -36,6 +36,12 @@ describe("loadConfig", () => {
     const off = loadConfig({});
     expect(off.SHADOW_WEBHOOK_URL).toBeUndefined();
     expect(off.SHADOW_WEBHOOK_EVENTS).toBe("failures");
+    expect(off.SHADOW_WEBHOOK_TAGS).toBeUndefined();
+    expect(loadConfig({ SHADOW_WEBHOOK_TAGS: " prod, eu,,prod " }).SHADOW_WEBHOOK_TAGS).toEqual([
+      "prod",
+      "eu",
+    ]);
+    expect(loadConfig({ SHADOW_WEBHOOK_TAGS: " , " }).SHADOW_WEBHOOK_TAGS).toBeUndefined();
     const on = loadConfig({
       SHADOW_WEBHOOK_URL: " https://hooks.example.com/shadow?x=1 ",
       SHADOW_WEBHOOK_SECRET: " s3cret ",

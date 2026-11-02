@@ -118,7 +118,13 @@ export interface WebhookOptions {
     "SHADOW_WEBHOOK_URL" | "SHADOW_WEBHOOK_SECRET" | "SHADOW_WEBHOOK_EVENTS"
   > &
     Partial<
-      Pick<ApiConfig, "SHADOW_WEBHOOK_FORMAT" | "SHADOW_WEB_URL" | "SHADOW_WEBHOOK_PROJECTS">
+      Pick<
+        ApiConfig,
+        | "SHADOW_WEBHOOK_FORMAT"
+        | "SHADOW_WEB_URL"
+        | "SHADOW_WEBHOOK_PROJECTS"
+        | "SHADOW_WEBHOOK_TAGS"
+      >
     >;
   logger: Logger;
   fetch?: typeof fetch;
@@ -179,6 +185,7 @@ export function createWebhook(options: WebhookOptions): Webhook {
   const format = options.config.SHADOW_WEBHOOK_FORMAT ?? "json";
   const webUrl = options.config.SHADOW_WEB_URL;
   const projects = options.config.SHADOW_WEBHOOK_PROJECTS;
+  const tags = options.config.SHADOW_WEBHOOK_TAGS;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const maxAttempts = Math.max(1, options.maxAttempts ?? 3);
   const backoffMs = options.backoffMs ?? 250;
@@ -253,6 +260,7 @@ export function createWebhook(options: WebhookOptions): Webhook {
       if (!url) return;
       // Alerts, failed replays and jobs are not project-filtered: they are configured per rule.
       if (projects && !projects.includes(input.trace.projectSlug)) return;
+      if (tags && !input.trace.tags.some((tag) => tags.includes(tag))) return;
       const reason = classify(options.config.SHADOW_WEBHOOK_EVENTS, input.trace);
       if (!reason) return;
       const notification: TraceFinishedNotification = {
