@@ -711,7 +711,9 @@ them, and deleting a collection never deletes traces.
 trace. A `Collection` is `{ id, name, description, traceCount, stats, createdAt, updatedAt }`
 where `stats` sums up its traces: `{ completed, failed, running, totalEstimatedCost,
 totalTokens }`, so two experiments or incidents can be compared at a glance (`shadow
-collections list` shows the failed count and the cost).
+collections list` shows the failed count and the cost, `shadow collections show <name>` the
+totals and the traces, and `shadow collections compare <a> <b>` two collections side by side
+with the change).
 
 ### `POST /api/v1/collections`
 

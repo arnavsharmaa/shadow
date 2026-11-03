@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow collections show <name>` prints a collection's totals and the traces it holds, and
+  `shadow collections compare <a> <b>` puts two collections' totals side by side with the
+  change, so an experiment can be judged against its baseline from the terminal.
 - Trace listings sort by `toolCalls` and `toolErrors` as well (`sort=` on the API, `shadow
   traces list --sort toolErrors`, the explorer's Tools column, saved views), so the runs that
   leaned on tools the most, or failed in them the most, come first.

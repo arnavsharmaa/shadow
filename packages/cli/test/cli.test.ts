@@ -1437,6 +1437,15 @@ describe("shadow cli", () => {
         body: { collection: collection(1), added: ["trc_1"], missing: ["trc_gone"] },
       }),
       "GET /api/v1/collections": () => ({ body: { items: [collection(2)] } }),
+      "GET /api/v1/collections/incident-42": () => ({ body: collection(2) }),
+      "GET /api/v1/collections/baseline": () => ({
+        body: {
+          ...collection(4),
+          id: "col_2",
+          name: "baseline",
+          stats: { completed: 4, failed: 0, running: 0, totalEstimatedCost: 2, totalTokens: 8000 },
+        },
+      }),
       "POST /api/v1/collections/incident-42/traces": () => ({
         body: { collection: collection(2), added: ["trc_2"], missing: [] },
       }),
@@ -1465,6 +1474,27 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["collections", "list", "--trace", "trc_1"])).toBe(0);
     expect(api.captured.calls.at(-1)?.url).toContain("traceId=trc_1");
     expect(api.captured.out.join("\n")).toMatch(/col_1\s+incident-42\s+2\s+1\s+\$0\.50/);
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["collections", "show", "incident-42"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.url).toContain("collection=incident-42");
+    let text = api.captured.out.join("\n");
+    expect(text).toContain(
+      "incident-42 (col_1): 2 trace(s); 2 completed, 1 failed, 0 running; $0.5000; 2400 tokens",
+    );
+    expect(text).toContain("refund incident");
+    expect(text).toContain(trace.id);
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["collections", "compare", "incident-42", "baseline"])).toBe(0);
+    text = api.captured.out.join("\n");
+    expect(text).toContain("incident-42 vs baseline");
+    expect(text).toMatch(/traces\s+2\s+4\s+-50\.0%/);
+    expect(text).toMatch(/failed\s+1\s+0\s+new/);
+    expect(text).toMatch(/failure rate\s+33\.3%\s+0\.0%/);
+    expect(text).toMatch(/est\. cost\s+\$0\.5000\s+\$2\.0000\s+-75\.0%/);
+    expect(text).toMatch(/avg cost \/ trace\s+\$0\.2500\s+\$0\.5000\s+-50\.0%/);
+    expect(await runWith(api, ["collections", "compare", "incident-42", "nope"])).toBe(4);
 
     expect(await runWith(api, ["collections", "add", "incident-42", "trc_2"])).toBe(0);
     expect(api.captured.out.join("\n")).toContain(

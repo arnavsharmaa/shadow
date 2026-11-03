@@ -1321,6 +1321,113 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
 
   collections
+    .command("show")
+    .description("a collection's totals and the traces it holds")
+    .argument("<nameOrId>", "collection name or id")
+    .option("--limit <n>", "maximum traces to list", positiveInt, 25)
+    .option("--json", "print JSON")
+    .action(async (nameOrId: string, opts: { limit: number; json?: boolean }) => {
+      const api = client();
+      const collection = await api.get<Collection>(
+        `/api/v1/collections/${encodeURIComponent(nameOrId)}`,
+      );
+      const page = await api.get<Page<TraceSummary>>("/api/v1/traces", {
+        collection: collection.name,
+        limit: opts.limit,
+      });
+      if (opts.json) return json({ collection, traces: page });
+      const s = collection.stats;
+      out(
+        `${collection.name} (${collection.id}): ${collection.traceCount} trace(s); ${s.completed} completed, ${s.failed} failed, ${s.running} running; ${money(s.totalEstimatedCost)}; ${s.totalTokens} tokens`,
+      );
+      if (collection.description) out(`  ${collection.description}`);
+      if (page.items.length === 0) return out("no traces");
+      out(
+        table(
+          ["TRACE", "AGENT", "NAME", "STATUS", "STARTED", "DURATION", "EST. COST"],
+          page.items.map((t) => [
+            t.id,
+            t.agentSlug,
+            truncate(t.name, 40),
+            t.status,
+            t.startedAt,
+            duration(t.durationMs),
+            money(t.metrics.totalEstimatedCost, t.metrics.currency),
+          ]),
+        ),
+      );
+      if (page.nextCursor) out("more traces in this collection; raise --limit");
+    });
+
+  collections
+    .command("compare")
+    .description("two collections' totals side by side, such as two experiments")
+    .argument("<nameOrId>", "collection name or id")
+    .argument("<otherNameOrId>", "the collection to compare against")
+    .option("--json", "print JSON")
+    .action(async (left: string, right: string, opts: { json?: boolean }) => {
+      const api = client();
+      const [a, b] = await Promise.all([
+        api.get<Collection>(`/api/v1/collections/${encodeURIComponent(left)}`),
+        api.get<Collection>(`/api/v1/collections/${encodeURIComponent(right)}`),
+      ]);
+      if (opts.json) return json({ left: a, right: b });
+      const finished = (c: Collection) => c.stats.completed + c.stats.failed;
+      const failureRate = (c: Collection) =>
+        finished(c) === 0 ? null : c.stats.failed / finished(c);
+      const avgCost = (c: Collection) =>
+        c.traceCount === 0 ? 0 : c.stats.totalEstimatedCost / c.traceCount;
+      const rate = (value: number | null) =>
+        value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+      out(`${a.name} vs ${b.name} (change is ${a.name} relative to ${b.name})`);
+      out(
+        table(
+          ["METRIC", a.name, b.name, "CHANGE"],
+          [
+            [
+              "traces",
+              String(a.traceCount),
+              String(b.traceCount),
+              relativeChange(a.traceCount, b.traceCount),
+            ],
+            [
+              "completed",
+              String(a.stats.completed),
+              String(b.stats.completed),
+              relativeChange(a.stats.completed, b.stats.completed),
+            ],
+            [
+              "failed",
+              String(a.stats.failed),
+              String(b.stats.failed),
+              relativeChange(a.stats.failed, b.stats.failed),
+            ],
+            ["failure rate", rate(failureRate(a)), rate(failureRate(b)), "-"],
+            ["running", String(a.stats.running), String(b.stats.running), "-"],
+            [
+              "est. cost",
+              money(a.stats.totalEstimatedCost),
+              money(b.stats.totalEstimatedCost),
+              relativeChange(a.stats.totalEstimatedCost, b.stats.totalEstimatedCost),
+            ],
+            [
+              "avg cost / trace",
+              money(avgCost(a)),
+              money(avgCost(b)),
+              relativeChange(avgCost(a), avgCost(b)),
+            ],
+            [
+              "tokens",
+              String(a.stats.totalTokens),
+              String(b.stats.totalTokens),
+              relativeChange(a.stats.totalTokens, b.stats.totalTokens),
+            ],
+          ],
+        ),
+      );
+    });
+
+  collections
     .command("create")
     .description("create a collection, optionally with traces")
     .argument("<name>", "collection name")
@@ -3438,6 +3545,12 @@ function alertValue(rule: AlertRule, value: number | null): string {
   if (rule.metric === "total_cost") return money(value);
   if (rule.metric === "p95_duration_ms") return duration(value);
   return String(value);
+}
+
+/** `current` relative to `previous` as a signed percentage; `new` when there was nothing before. */
+function relativeChange(current: number, previous: number): string {
+  if (previous === 0) return current === 0 ? "0.0%" : "new";
+  return percent((current - previous) / previous);
 }
 
 function alertTable(rules: AlertRule[]): string {
