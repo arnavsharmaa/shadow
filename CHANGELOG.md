@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `collections` on the `Shadow` client (or `SHADOW_COLLECTIONS=exp-42`) puts every trace
+  it starts in those collections, ahead of the trace's own, so an experiment or batch run is
+  grouped without changing every `startTrace` call.
 - `shadow collections show <name>` prints a collection's totals and the traces it holds, and
   `shadow collections compare <a> <b>` puts two collections' totals side by side with the
   change, so an experiment can be judged against its baseline from the terminal.

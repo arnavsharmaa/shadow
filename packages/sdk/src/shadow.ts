@@ -16,6 +16,11 @@ export interface ShadowOptions {
   tags?: string[];
   /** Metadata put on every trace (a build id, a host name); a trace's own entries win. */
   metadata?: JsonObject;
+  /**
+   * Collections every trace is put in (default: `SHADOW_COLLECTIONS` env, comma-separated),
+   * such as an experiment or a batch name; the trace's own collections follow.
+   */
+  collections?: string[];
   /** Shadow API base URL. Defaults to `SHADOW_ENDPOINT` or http://localhost:4000. */
   endpoint?: string;
   /** Custom transport (tests, file export, future async transports). */
@@ -102,14 +107,15 @@ function envSampleRate(): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-function envTags(): string[] | undefined {
-  const raw = readEnv("SHADOW_TAGS");
+/** A comma-separated list from the environment, trimmed, without blanks. */
+function envList(name: string): string[] | undefined {
+  const raw = readEnv(name);
   if (raw === undefined) return undefined;
-  const tags = raw
+  const items = raw
     .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0);
-  return tags.length > 0 ? tags : undefined;
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return items.length > 0 ? items : undefined;
 }
 
 /** Default tags first, then the trace's own, without repeats. */
@@ -165,7 +171,8 @@ export class Shadow {
       ...options,
       project,
       agent: options.agent ?? readEnv("SHADOW_AGENT"),
-      tags: options.tags ?? envTags(),
+      tags: options.tags ?? envList("SHADOW_TAGS"),
+      collections: options.collections ?? envList("SHADOW_COLLECTIONS"),
       enabled: options.enabled ?? envEnabled(),
       sampleRate,
     };
@@ -234,7 +241,7 @@ export class Shadow {
           : undefined,
       tags: mergeTags(this.options.tags, input.tags),
       startedAt: input.startedAt,
-      collections: input.collections,
+      collections: mergeTags(this.options.collections, input.collections),
       flushIntervalMs: this.options.flushIntervalMs ?? 1000,
       maxBatchSize: this.options.maxBatchSize ?? 100,
       snapshotEvery: this.options.snapshotEvery ?? 25,

@@ -183,7 +183,9 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   configuration.
 - `collections` on `startTrace` (or `trace.collect(name)` at any point) puts the trace in named
   collections, creating them when they do not exist, so an experiment's or a nightly run's traces
-  are grouped as they are recorded; sent after the events on the next flush.
+  are grouped as they are recorded; sent after the events on the next flush. `collections` on
+  the client (or `SHADOW_COLLECTIONS=exp-42`) puts every trace it starts in those collections,
+  so an experiment run needs no code change.
 - `MemoryTransport` keeps events in memory for tests; implement `Transport` for custom destinations.
 - `SpoolTransport` records to a newline-delimited JSON file instead of an API, for runs where the
   API is not reachable (CI jobs, batch runs offline): `new Shadow({ transport:

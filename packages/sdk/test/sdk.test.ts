@@ -565,6 +565,28 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("puts every trace in the client's default collections", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport, { collections: ["exp-42"] }).startTrace({
+      name: "run",
+      collections: ["nightly", "exp-42"],
+    });
+    await trace.end();
+    expect(transport.collectionsFor(trace.id)).toEqual(["exp-42", "nightly"]);
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_COLLECTIONS = " batch-7, ,exp-42";
+      const fromEnv = client(transport).startTrace({ name: "env" });
+      await fromEnv.end();
+      expect(transport.collectionsFor(fromEnv.id)).toEqual(["batch-7", "exp-42"]);
+      const none = client(transport, { collections: [] }).startTrace({ name: "none" });
+      await none.end();
+      expect(transport.collectionsFor(none.id)).toEqual([]);
+    } finally {
+      process.env = saved;
+    }
+  });
+
   it("discards everything when recording is disabled", async () => {
     const transport = new MemoryTransport();
     const shadow = new Shadow({
