@@ -237,24 +237,24 @@ totalEstimatedCost] [--from 14d]`.
 
 Query parameters:
 
-| Name            | Type                                                                           | Notes                                                                    |
-| --------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `cursor`        | string                                                                         | from a previous `nextCursor`                                             |
-| `limit`         | 1–200 (default 50)                                                             |                                                                          |
-| `project`       | project slug                                                                   |                                                                          |
-| `agent`         | agent slug                                                                     |                                                                          |
-| `status`        | `running` \| `completed` \| `failed`                                           |                                                                          |
-| `tag`           | string                                                                         | exact tag match                                                          |
-| `tool`          | string                                                                         | traces that called this tool                                             |
-| `toolError`     | string                                                                         | traces in which this tool raised an error (on any branch)                |
-| `q`             | string                                                                         | free text over ids, names, tags, metadata, tools                         |
-| `meta`          | `key=value` or `key`                                                           | exact top-level metadata match (JSON values understood), or key presence |
-| `from`, `to`    | ISO timestamp                                                                  | `startedAt` range                                                        |
-| `minCost`       | number                                                                         | `metrics.totalEstimatedCost >=`                                          |
-| `minDurationMs` | number                                                                         |                                                                          |
-| `sort`          | `startedAt` \| `durationMs` \| `totalEstimatedCost` \| `totalTokens` \| `name` | default `startedAt`                                                      |
-| `order`         | `asc` \| `desc`                                                                | default `desc`                                                           |
-| `format`        | `json` \| `csv`                                                                | `csv` returns one document for spreadsheets (see below)                  |
+| Name            | Type                                                                                                          | Notes                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `cursor`        | string                                                                                                        | from a previous `nextCursor`                                             |
+| `limit`         | 1–200 (default 50)                                                                                            |                                                                          |
+| `project`       | project slug                                                                                                  |                                                                          |
+| `agent`         | agent slug                                                                                                    |                                                                          |
+| `status`        | `running` \| `completed` \| `failed`                                                                          |                                                                          |
+| `tag`           | string                                                                                                        | exact tag match                                                          |
+| `tool`          | string                                                                                                        | traces that called this tool                                             |
+| `toolError`     | string                                                                                                        | traces in which this tool raised an error (on any branch)                |
+| `q`             | string                                                                                                        | free text over ids, names, tags, metadata, tools                         |
+| `meta`          | `key=value` or `key`                                                                                          | exact top-level metadata match (JSON values understood), or key presence |
+| `from`, `to`    | ISO timestamp                                                                                                 | `startedAt` range                                                        |
+| `minCost`       | number                                                                                                        | `metrics.totalEstimatedCost >=`                                          |
+| `minDurationMs` | number                                                                                                        |                                                                          |
+| `sort`          | `startedAt` \| `durationMs` \| `totalEstimatedCost` \| `totalTokens` \| `toolCalls` \| `toolErrors` \| `name` | default `startedAt`                                                      |
+| `order`         | `asc` \| `desc`                                                                                               | default `desc`                                                           |
+| `format`        | `json` \| `csv`                                                                                               | `csv` returns one document for spreadsheets (see below)                  |
 
 Response: `{ items: TraceSummary[], nextCursor, total }`. `TraceSummary` is a `Trace` plus
 `projectSlug`, `projectName`, `agentSlug`, `agentName`.

@@ -286,7 +286,15 @@ export function TraceExplorer() {
                 <Th>Status</Th>
                 <Th>Outcome</Th>
                 <Th align="right">Model</Th>
-                <Th align="right">Tools</Th>
+                <Th
+                  sortable
+                  active={filters.sort === "toolCalls" || filters.sort === "toolErrors"}
+                  order={filters.order}
+                  onClick={() => toggleSort("toolCalls")}
+                  align="right"
+                >
+                  Tools
+                </Th>
                 <Th
                   sortable
                   active={filters.sort === "totalTokens"}

@@ -130,6 +130,10 @@ function sortColumn(sort: TraceListQuery["sort"]) {
       return sql`coalesce((${traces.metrics}->>'totalEstimatedCost')::float, 0)`;
     case "totalTokens":
       return sql`coalesce((${traces.metrics}->>'totalTokens')::float, 0)`;
+    case "toolCalls":
+      return sql`coalesce((${traces.metrics}->>'toolCalls')::float, 0)`;
+    case "toolErrors":
+      return sql`coalesce((${traces.metrics}->>'toolErrors')::float, 0)`;
     case "name":
       return traces.name;
     case "startedAt":

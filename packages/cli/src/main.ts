@@ -258,9 +258,17 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
     .option(
       "--sort <field>",
-      "startedAt | durationMs | totalEstimatedCost | totalTokens | name",
+      "startedAt | durationMs | totalEstimatedCost | totalTokens | toolCalls | toolErrors | name",
       (value: string) => {
-        const fields = ["startedAt", "durationMs", "totalEstimatedCost", "totalTokens", "name"];
+        const fields = [
+          "startedAt",
+          "durationMs",
+          "totalEstimatedCost",
+          "totalTokens",
+          "toolCalls",
+          "toolErrors",
+          "name",
+        ];
         if (!fields.includes(value))
           throw new InvalidArgumentError(`expected one of ${fields.join(", ")}`);
         return value;

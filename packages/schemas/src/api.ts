@@ -79,7 +79,15 @@ export const traceListQuerySchema = z.object({
    */
   meta: z.string().min(1).max(256).optional(),
   sort: z
-    .enum(["startedAt", "durationMs", "totalEstimatedCost", "totalTokens", "name"])
+    .enum([
+      "startedAt",
+      "durationMs",
+      "totalEstimatedCost",
+      "totalTokens",
+      "toolCalls",
+      "toolErrors",
+      "name",
+    ])
     .default("startedAt"),
   order: z.enum(["asc", "desc"]).default("desc"),
   /** `csv` returns every matching trace (up to 10,000) as one CSV document for spreadsheets. */

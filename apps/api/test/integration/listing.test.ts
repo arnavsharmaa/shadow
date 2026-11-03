@@ -291,6 +291,18 @@ describe("trace listing", () => {
 
     const names = (await list("sort=name&order=asc")).items.map((i) => i.name);
     expect(names).toEqual([...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+
+    const toolErrors = (await list("sort=toolErrors&order=desc")).items.map(
+      (i) => i.metrics.toolErrors,
+    );
+    expect(toolErrors[0]).toBeGreaterThan(0);
+    for (let i = 1; i < toolErrors.length; i++)
+      expect(toolErrors[i - 1]).toBeGreaterThanOrEqual(toolErrors[i] ?? 0);
+    const toolCalls = (await list("sort=toolCalls&order=asc")).items.map(
+      (i) => i.metrics.toolCalls,
+    );
+    for (let i = 1; i < toolCalls.length; i++)
+      expect(toolCalls[i - 1]).toBeLessThanOrEqual(toolCalls[i] ?? 0);
     expect(
       (await t.app.inject({ method: "GET", url: "/api/v1/traces?sort=color" })).statusCode,
     ).toBe(400);

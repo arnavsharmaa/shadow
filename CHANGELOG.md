@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Trace listings sort by `toolCalls` and `toolErrors` as well (`sort=` on the API, `shadow
+  traces list --sort toolErrors`, the explorer's Tools column, saved views), so the runs that
+  leaned on tools the most, or failed in them the most, come first.
 - The Agents page lists an agent's tools under its trend: calls, errors, calls blocked by a
   guard policy and p95 latency over all of its runs, so a flaky integration is visible next to
   the agent it belongs to.

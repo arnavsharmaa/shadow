@@ -2237,11 +2237,21 @@ describe("shadow cli", () => {
       "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
     });
     expect(
-      await runWith(api, ["traces", "list", "--tool-error", "refund_order", "--status", "failed"]),
+      await runWith(api, [
+        "traces",
+        "list",
+        "--tool-error",
+        "refund_order",
+        "--status",
+        "failed",
+        "--sort",
+        "toolErrors",
+      ]),
     ).toBe(0);
     const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
     expect(params.get("toolError")).toBe("refund_order");
     expect(params.get("status")).toBe("failed");
+    expect(params.get("sort")).toBe("toolErrors");
     expect(api.captured.out.join("\n")).toContain("no traces found");
   });
 
