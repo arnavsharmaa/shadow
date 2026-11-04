@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The trace page shows which collections the trace is in, as chips under the title that link
+  to the explorer filtered to the collection.
 - SDK: `collections` on the `Shadow` client (or `SHADOW_COLLECTIONS=exp-42`) puts every trace
   it starts in those collections, ahead of the trace's own, so an experiment or batch run is
   grouped without changing every `startTrace` call.

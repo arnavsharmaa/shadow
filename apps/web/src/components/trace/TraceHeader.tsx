@@ -3,6 +3,7 @@
 import { api } from "@/lib/api";
 import { compact, dateTime, duration, money } from "@/lib/format";
 import type { Branch, JsonValue, TraceSummary } from "@shadow/schemas";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Kbd, outcomeTone, statusTone } from "../ui/primitives";
@@ -94,6 +95,7 @@ export function TraceHeader({
           <TagEditor tags={trace.tags} onChange={onUpdateTags} />
         </div>
         <MetadataChips metadata={trace.metadata} />
+        <CollectionChips traceId={trace.id} />
       </div>
       <dl className="ml-auto flex flex-wrap items-center gap-x-4 text-[11px]">
         <Stat label="Duration" value={duration(metrics.durationMs)} />
@@ -218,6 +220,34 @@ const METADATA_CHIPS = 4;
 
 function chipValue(value: JsonValue): string {
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** The collections this trace is in, each linking to the explorer filtered to it. */
+function CollectionChips({ traceId }: { traceId: string }) {
+  const collections = useQuery({
+    queryKey: ["collections", traceId],
+    queryFn: () => api.collections(traceId),
+  });
+  const items = collections.data?.items ?? [];
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="trace-collections">
+      <span className="text-[11px] text-fg-faint">in</span>
+      {items.map((c) => (
+        <Link
+          key={c.id}
+          href={`/?collection=${encodeURIComponent(c.name)}`}
+          className="inline-flex h-5 max-w-[280px] items-center gap-1 rounded border border-border bg-bg px-1.5 text-[11px] text-fg-muted hover:bg-hover hover:text-fg"
+          title={`Show every trace in ${c.name} (${c.traceCount} trace${c.traceCount === 1 ? "" : "s"})`}
+          data-testid="collection-chip"
+          data-collection={c.name}
+        >
+          <span className="truncate">{c.name}</span>
+          <span className="text-fg-faint">{c.traceCount}</span>
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 /**

@@ -938,6 +938,14 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await expect(page).toHaveURL(/collection=e2e-collection-/);
       await expect(rows).toHaveCount(2);
       for (const text of await rows.allInnerTexts()) expect(text).toContain("refund");
+      // The trace page says which collections the trace is in.
+      const traceId = await rows.first().getAttribute("data-trace-id");
+      await page.goto(`/traces/${traceId}`);
+      const chip = page.locator(`[data-testid="collection-chip"][data-collection="${name}"]`);
+      await expect(chip).toBeVisible();
+      await expect(chip).toContainText("2");
+      await chip.click();
+      await expect(page).toHaveURL(/collection=e2e-collection-/);
 
       // The Collections page lists it, shows its traces and manages it.
       await page.getByTestId("nav-collections").click();
