@@ -180,7 +180,7 @@ Per-agent aggregates over traces started in the range (both bounds optional, ISO
 Sorted by trace count, then slug. Computed from the stored trace metrics, so the cost stays
 constant in the number of events. CLI: `shadow agents --from 7d`.
 
-### `GET /api/v1/stats/models?from=&to=&project=&agent=`
+### `GET /api/v1/stats/models?from=&to=&project=&agent=&collection=`
 
 Model requests grouped by provider and model over the traces in range (every branch, replays
 included): `{ from, to, items: [{ provider, model, calls, traces, inputTokens, outputTokens,
@@ -190,14 +190,16 @@ responses had no price, so the model should be added with `SHADOW_PRICING_FILE`.
 `shadow models [--project] [--agent] [--from] [--to]`; the Overview page lists the models of
 its window.
 
-### `GET /api/v1/stats/tools?from=&to=&project=&agent=`
+### `GET /api/v1/stats/tools?from=&to=&project=&agent=&collection=`
 
 Finished tool calls (`tool.response` and `tool.error` events of every branch, replays included)
 grouped by tool over the traces in range: `{ from, to, items: [{ tool, calls, traces, errors,
 blocked, errorRate, avgDurationMs, p95DurationMs, estimatedCost, lastUsedAt }] }`, busiest
 first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a subset of
-`errors`; a call still waiting for its result is not counted. CLI: `shadow tools [--project]
-[--agent] [--from] [--to]`; the Overview page lists the tools of its window, each linking to
+`errors`; a call still waiting for its result is not counted. Both usage views take
+`collection=<name>` to cover only the traces of that collection, so two experiments' tool
+and model usage can be compared. CLI: `shadow tools [--project] [--agent] [--collection]
+[--from] [--to]`; the Overview page lists the tools of its window, each linking to
 the explorer filtered by that tool, and each error count to the traces in which it failed; the
 Agents page lists an agent's tools under its trend.
 

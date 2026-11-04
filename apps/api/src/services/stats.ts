@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
-import { agents, events, projects, traces } from "../db/schema.js";
+import { agents, collectionTraces, collections, events, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import { isoOrNull } from "./mappers.js";
@@ -241,6 +241,13 @@ export interface ModelStatsQuery {
   to?: string;
   project?: string;
   agent?: string;
+  /** Only traces in the collection with this name. */
+  collection?: string;
+}
+
+/** Traces that are in the named collection (an unknown name matches nothing). */
+function inCollection(name: string): SQL {
+  return sql`exists (select 1 from ${collectionTraces} inner join ${collections} on ${collections.id} = ${collectionTraces.collectionId} where ${collectionTraces.traceId} = ${traces.id} and ${collections.name} = ${name})`;
 }
 
 /** Usage of one model across the matching traces (every branch, replays included). */
@@ -275,6 +282,7 @@ export async function modelStats(
   if (query.to) filters.push(lte(traces.startedAt, query.to));
   if (query.project) filters.push(eq(projects.slug, query.project));
   if (query.agent) filters.push(eq(agents.slug, query.agent));
+  if (query.collection) filters.push(inCollection(query.collection));
   const provider = sql<string>`coalesce(${events.input}->>'provider', 'unknown')`;
   const model = sql<string>`coalesce(${events.input}->>'model', 'unknown')`;
   const response = sql`(
@@ -362,6 +370,7 @@ export async function toolStats(ctx: ServiceContext, query: ToolStatsQuery): Pro
   if (query.to) filters.push(lte(traces.startedAt, query.to));
   if (query.project) filters.push(eq(projects.slug, query.project));
   if (query.agent) filters.push(eq(agents.slug, query.agent));
+  if (query.collection) filters.push(inCollection(query.collection));
   const isError = sql`${events.eventType} = 'tool.error'`;
   const rows = await ctx.handle.db
     .select({

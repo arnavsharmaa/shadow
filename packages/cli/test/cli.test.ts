@@ -2465,11 +2465,20 @@ describe("shadow cli", () => {
         },
       }),
     });
-    expect(await runWith(api, ["tools", "--project", "demo", "--to", "2026-10-29T00:00:00Z"])).toBe(
-      0,
-    );
+    expect(
+      await runWith(api, [
+        "tools",
+        "--project",
+        "demo",
+        "--to",
+        "2026-10-29T00:00:00Z",
+        "--collection",
+        "exp-1",
+      ]),
+    ).toBe(0);
     const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
     expect(params.get("project")).toBe("demo");
+    expect(params.get("collection")).toBe("exp-1");
     expect(params.get("to")).toBe("2026-10-29T00:00:00.000Z");
     const text = api.captured.out.join("\n");
     expect(text).toMatch(/read_customer\s+20\s+10\s+0\s+0\s+42ms\s+80ms\s+2026-10-29/);

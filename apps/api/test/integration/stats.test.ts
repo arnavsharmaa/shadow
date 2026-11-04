@@ -92,6 +92,30 @@ describe("GET /stats/tools", () => {
     expect(refund.items.every((item) => body.items.some((all) => all.tool === item.tool))).toBe(
       true,
     );
+    // A collection narrows both usage views to its traces.
+    const created = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections",
+      payload: { name: "stats-usage", traceIds: ["trc_demo_refund_violation"] },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const collected = json<{ items: ToolStats[] }>(
+      await t.app.inject({ url: "/api/v1/stats/tools?collection=stats-usage" }),
+    ).items;
+    expect(collected.some((item) => item.tool === "refund_order")).toBe(true);
+    expect(collected.every((item) => item.traces === 1)).toBe(true);
+    expect(collected.length).toBeLessThan(body.items.length);
+    const collectedModels = json<{ items: ModelStats[] }>(
+      await t.app.inject({ url: "/api/v1/stats/models?collection=stats-usage" }),
+    ).items;
+    expect(collectedModels.length).toBeGreaterThan(0);
+    expect(collectedModels.every((item) => item.traces === 1)).toBe(true);
+    expect(
+      json<{ items: ToolStats[] }>(
+        await t.app.inject({ url: "/api/v1/stats/tools?collection=no-such-collection" }),
+      ).items,
+    ).toEqual([]);
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/stats-usage" });
     expect(
       json<{ items: ToolStats[] }>(
         await t.app.inject({ url: "/api/v1/stats/tools?project=no-such-project" }),

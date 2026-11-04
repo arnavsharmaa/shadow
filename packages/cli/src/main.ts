@@ -1869,6 +1869,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .description("usage per model: calls, traces, tokens and estimated cost, most expensive first")
     .option("--project <slug>", "only this project")
     .option("--agent <slug>", "only this agent")
+    .option("--collection <name>", "only traces in this collection")
     .option(
       "--from <cutoff>",
       "traces started at or after (ISO timestamp or age such as 7d)",
@@ -1880,6 +1881,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       async (opts: {
         project?: string;
         agent?: string;
+        collection?: string;
         from?: string;
         to?: string;
         json?: boolean;
@@ -1900,6 +1902,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }>("/api/v1/stats/models", {
           project: opts.project,
           agent: opts.agent,
+          collection: opts.collection,
           from: opts.from,
           to: opts.to,
         });
@@ -2063,6 +2066,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .description("usage per tool: calls, traces, errors, blocked calls and latency, busiest first")
     .option("--project <slug>", "only this project")
     .option("--agent <slug>", "only this agent")
+    .option("--collection <name>", "only traces in this collection")
     .option(
       "--from <cutoff>",
       "traces started at or after (ISO timestamp or age such as 7d)",
@@ -2074,6 +2078,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       async (opts: {
         project?: string;
         agent?: string;
+        collection?: string;
         from?: string;
         to?: string;
         json?: boolean;
@@ -2094,6 +2099,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         }>("/api/v1/stats/tools", {
           project: opts.project,
           agent: opts.agent,
+          collection: opts.collection,
           from: opts.from,
           to: opts.to,
         });

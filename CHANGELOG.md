@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Per-tool and per-model usage take `collection=<name>` (`shadow tools --collection`,
+  `shadow models --collection`) to cover only the traces of that collection, so two
+  experiments' tool and model usage can be compared.
 - The trace page shows which collections the trace is in, as chips under the title that link
   to the explorer filtered to the collection.
 - SDK: `collections` on the `Shadow` client (or `SHADOW_COLLECTIONS=exp-42`) puts every trace

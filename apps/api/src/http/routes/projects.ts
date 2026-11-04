@@ -11,7 +11,11 @@ const agentStatsQuerySchema = z.object({
   project: z.string().max(64).optional(),
 });
 
-const usageQuerySchema = agentStatsQuerySchema.extend({ agent: z.string().max(64).optional() });
+const usageQuerySchema = agentStatsQuerySchema.extend({
+  agent: z.string().max(64).optional(),
+  /** Only traces in the collection with this name. */
+  collection: z.string().max(64).optional(),
+});
 const agentTrendQuerySchema = agentStatsQuerySchema.extend({
   bucket: z.enum(["hour", "day"]).default("day"),
 });
