@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
-import { classNames, dateTime, money, relativeTime } from "@/lib/format";
+import { classNames, dateTime, money, percent, relativeTime } from "@/lib/format";
 import type { Collection, TraceSummary } from "@shadow/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -158,6 +158,7 @@ export function Collections() {
           {current ? (
             <CollectionDetail
               collection={current}
+              others={items.filter((c) => c.id !== current.id)}
               onChanged={refresh}
               onDeleted={() => {
                 select(null);
@@ -176,13 +177,97 @@ export function Collections() {
   );
 }
 
+/** `current` relative to `previous` as a signed percentage; "new" when there was nothing before. */
+function relativeChange(current: number, previous: number): string {
+  if (previous === 0) return current === 0 ? "0.0%" : "new";
+  return percent((current - previous) / previous);
+}
+
+/** Two collections' totals side by side, the change being `left` relative to `right`. */
+function CollectionComparison({ left, right }: { left: Collection; right: Collection }) {
+  const finished = (c: Collection) => c.stats.completed + c.stats.failed;
+  const failureRate = (c: Collection) => (finished(c) === 0 ? null : c.stats.failed / finished(c));
+  const avgCost = (c: Collection) =>
+    c.traceCount === 0 ? 0 : c.stats.totalEstimatedCost / c.traceCount;
+  const rate = (value: number | null) => (value === null ? "n/a" : `${(value * 100).toFixed(1)}%`);
+  const rows: { key: string; label: string; left: string; right: string; change: string }[] = [
+    {
+      key: "traces",
+      label: "Traces",
+      left: String(left.traceCount),
+      right: String(right.traceCount),
+      change: relativeChange(left.traceCount, right.traceCount),
+    },
+    {
+      key: "failed",
+      label: "Failed",
+      left: String(left.stats.failed),
+      right: String(right.stats.failed),
+      change: relativeChange(left.stats.failed, right.stats.failed),
+    },
+    {
+      key: "failureRate",
+      label: "Failure rate",
+      left: rate(failureRate(left)),
+      right: rate(failureRate(right)),
+      change: "",
+    },
+    {
+      key: "cost",
+      label: "Est. cost",
+      left: money(left.stats.totalEstimatedCost),
+      right: money(right.stats.totalEstimatedCost),
+      change: relativeChange(left.stats.totalEstimatedCost, right.stats.totalEstimatedCost),
+    },
+    {
+      key: "avgCost",
+      label: "Avg cost / trace",
+      left: money(avgCost(left)),
+      right: money(avgCost(right)),
+      change: relativeChange(avgCost(left), avgCost(right)),
+    },
+    {
+      key: "tokens",
+      label: "Tokens",
+      left: left.stats.totalTokens.toLocaleString(),
+      right: right.stats.totalTokens.toLocaleString(),
+      change: relativeChange(left.stats.totalTokens, right.stats.totalTokens),
+    },
+  ];
+  return (
+    <table className="mt-2 w-full max-w-xl border-collapse" data-testid="collection-comparison">
+      <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+        <tr>
+          <th className="py-1 pr-3">Metric</th>
+          <th className="py-1 pr-3 text-right">{left.name}</th>
+          <th className="py-1 pr-3 text-right">{right.name}</th>
+          <th className="py-1 text-right">Change</th>
+        </tr>
+      </thead>
+      <tbody className="tabular">
+        {rows.map((row) => (
+          <tr key={row.key} className="border-t border-border" data-metric={row.key}>
+            <td className="py-1 pr-3">{row.label}</td>
+            <td className="py-1 pr-3 text-right">{row.left}</td>
+            <td className="py-1 pr-3 text-right">{row.right}</td>
+            <td className="py-1 text-right text-fg-muted">{row.change}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function CollectionDetail({
   collection,
+  others,
   onChanged,
   onDeleted,
   onError,
 }: {
   collection: Collection;
+  /** The other collections, offered for a side-by-side comparison. */
+  others: Collection[];
   onChanged: () => void;
   onDeleted: () => void;
   onError: (error: unknown) => void;
@@ -196,6 +281,8 @@ function CollectionDetail({
   const [draftName, setDraftName] = useState(collection.name);
   const [draftDescription, setDraftDescription] = useState(collection.description ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [compareWith, setCompareWith] = useState("");
+  const other = others.find((c) => c.name === compareWith) ?? null;
   const refreshTraces = () =>
     queryClient.invalidateQueries({ queryKey: ["collection-traces", collection.name] });
 
@@ -343,6 +430,30 @@ function CollectionDetail({
           )}
         </div>
       </header>
+      {others.length > 0 && (
+        <div className="border-b border-border px-3 py-2 text-[11px]">
+          <div className="flex items-center gap-2">
+            <label htmlFor="collection-compare" className="text-fg-muted">
+              Compare with
+            </label>
+            <select
+              id="collection-compare"
+              value={compareWith}
+              onChange={(e) => setCompareWith(e.target.value)}
+              className="h-6 rounded border border-border bg-bg px-1"
+              data-testid="collection-compare"
+            >
+              <option value="">(none)</option>
+              {others.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {other && <CollectionComparison left={collection} right={other} />}
+        </div>
+      )}
       {traces.isError ? (
         <ErrorState error={traces.error} retry={() => traces.refetch()} />
       ) : !traces.data ? (

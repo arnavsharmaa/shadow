@@ -956,6 +956,17 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await item.click();
       const detail = page.getByTestId("collection-detail");
       await expect(detail.getByTestId("collection-title")).toHaveText(name);
+      // Another collection can be put next to it, the change being relative to that one.
+      const baseline = await request.post(`${apiUrl}/api/v1/collections`, {
+        data: { name: `${name}-baseline`, traceIds: [traceId] },
+      });
+      expect(baseline.status()).toBe(201);
+      await page.reload();
+      await item.click();
+      await detail.getByTestId("collection-compare").selectOption(`${name}-baseline`);
+      const comparison = detail.getByTestId("collection-comparison");
+      await expect(comparison.locator('[data-metric="traces"]')).toContainText("+100.0%");
+      await expect(comparison.locator('[data-metric="cost"]')).toContainText("$");
       await expect(detail.locator('[data-testid="collection-trace"]')).toHaveCount(2);
       // The Export link serves every trace of the collection as one bundle per line.
       const exportHref = await detail.getByTestId("collection-export").getAttribute("href");
@@ -985,6 +996,9 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await expect(page.getByTestId("collection-detail")).toHaveCount(0);
     } finally {
       await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(name)}`);
+      await request.delete(
+        `${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-baseline`)}`,
+      );
     }
   });
 

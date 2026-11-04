@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Collections page compares a collection with any other: a Compare with select puts
+  their totals side by side (traces, failures and the failure rate, cost, average cost per
+  trace, tokens) with the change relative to the other, like `shadow collections compare`.
 - Per-tool and per-model usage take `collection=<name>` (`shadow tools --collection`,
   `shadow models --collection`) to cover only the traces of that collection, so two
   experiments' tool and model usage can be compared.
