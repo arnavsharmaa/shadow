@@ -944,6 +944,13 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       const chip = page.locator(`[data-testid="collection-chip"][data-collection="${name}"]`);
       await expect(chip).toBeVisible();
       await expect(chip).toContainText("2");
+      // The trace can be put in another collection from its page, created when new.
+      await page.getByTestId("trace-collect").click();
+      await page.getByTestId("trace-collect-name").fill(`${name}-page`);
+      await page.getByTestId("trace-collect-submit").click();
+      await expect(
+        page.locator(`[data-testid="collection-chip"][data-collection="${name}-page"]`),
+      ).toContainText("1");
       await chip.click();
       await expect(page).toHaveURL(/collection=e2e-collection-/);
 
@@ -999,6 +1006,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await request.delete(
         `${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-baseline`)}`,
       );
+      await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-page`)}`);
     }
   });
 

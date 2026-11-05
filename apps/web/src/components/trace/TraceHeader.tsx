@@ -3,7 +3,7 @@
 import { api } from "@/lib/api";
 import { compact, dateTime, duration, money } from "@/lib/format";
 import type { Branch, JsonValue, TraceSummary } from "@shadow/schemas";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Kbd, outcomeTone, statusTone } from "../ui/primitives";
@@ -222,17 +222,41 @@ function chipValue(value: JsonValue): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-/** The collections this trace is in, each linking to the explorer filtered to it. */
+/**
+ * The collections this trace is in, each linking to the explorer filtered to it, and a way to
+ * put the trace in another one (created when the name is new).
+ */
 function CollectionChips({ traceId }: { traceId: string }) {
+  const queryClient = useQueryClient();
   const collections = useQuery({
     queryKey: ["collections", traceId],
     queryFn: () => api.collections(traceId),
   });
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const all = useQuery({
+    queryKey: ["collections"],
+    queryFn: () => api.collections(),
+    enabled: adding,
+  });
+  const add = useMutation({
+    mutationFn: async (target: string) => {
+      const exists = (all.data?.items ?? []).some((c) => c.name === target);
+      return exists
+        ? api.addToCollection(target, [traceId])
+        : api.createCollection(target, [traceId]);
+    },
+    onSuccess: async () => {
+      setName("");
+      setAdding(false);
+      await queryClient.invalidateQueries({ queryKey: ["collections"] });
+    },
+  });
   const items = collections.data?.items ?? [];
-  if (items.length === 0) return null;
+  const inOther = (all.data?.items ?? []).filter((c) => !items.some((i) => i.id === c.id));
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="trace-collections">
-      <span className="text-[11px] text-fg-faint">in</span>
+      {items.length > 0 && <span className="text-[11px] text-fg-faint">in</span>}
       {items.map((c) => (
         <Link
           key={c.id}
@@ -246,6 +270,67 @@ function CollectionChips({ traceId }: { traceId: string }) {
           <span className="text-fg-faint">{c.traceCount}</span>
         </Link>
       ))}
+      {adding ? (
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) add.mutate(name.trim());
+          }}
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            list="trace-collection-names"
+            placeholder="collection name"
+            maxLength={64}
+            aria-label="Collection name"
+            autoFocus
+            className="h-5 w-40 rounded border border-border bg-bg px-1.5 text-[11px]"
+            data-testid="trace-collect-name"
+          />
+          <datalist id="trace-collection-names">
+            {inOther.map((c) => (
+              <option key={c.id} value={c.name} />
+            ))}
+          </datalist>
+          <Button
+            type="submit"
+            size="xs"
+            variant="primary"
+            disabled={!name.trim() || add.isPending}
+            data-testid="trace-collect-submit"
+          >
+            Add
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              setAdding(false);
+              setName("");
+            }}
+          >
+            Cancel
+          </Button>
+          {add.isError && (
+            <span className="text-[11px] text-err" role="alert">
+              {add.error instanceof Error ? add.error.message : String(add.error)}
+            </span>
+          )}
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="inline-flex h-5 items-center rounded border border-dashed border-border px-1.5 text-[11px] text-fg-muted hover:bg-hover hover:text-fg"
+          title="Put this trace in a collection (created when the name is new)"
+          data-testid="trace-collect"
+        >
+          + collection
+        </button>
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- A trace can be put in a collection from its own page: the chips under the title end with
+  a "+ collection" control that takes an existing name or a new one.
 - `shadow traces import --collection <name>` puts the imported bundles (a file, a directory,
   an `.ndjson` export or a share link) into a collection as they land, creating it when it
   does not exist, so a handed-over incident arrives already grouped.
