@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Collections page shows what a collection's traces called and spent: a Tools table
+  (calls, errors, p95 latency) and a Models table (calls, tokens, estimated cost) under the
+  trace list, from the usage views narrowed to the collection.
 - A trace can be put in a collection from its own page: the chips under the title end with
   a "+ collection" control that takes an existing name or a new one.
 - `shadow traces import --collection <name>` puts the imported bundles (a file, a directory,

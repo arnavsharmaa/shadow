@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
-import { classNames, dateTime, money, percent, relativeTime } from "@/lib/format";
+import { classNames, dateTime, duration, money, percent, relativeTime } from "@/lib/format";
 import type { Collection, TraceSummary } from "@shadow/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -277,6 +277,14 @@ function CollectionDetail({
     queryKey: ["collection-traces", collection.name],
     queryFn: () => api.listTraces({ collection: collection.name, limit: 100 }),
   });
+  const tools = useQuery({
+    queryKey: ["collection-tools", collection.name],
+    queryFn: () => api.toolStats({ collection: collection.name }),
+  });
+  const models = useQuery({
+    queryKey: ["collection-models", collection.name],
+    queryFn: () => api.modelStats({ collection: collection.name }),
+  });
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(collection.name);
   const [draftDescription, setDraftDescription] = useState(collection.description ?? "");
@@ -521,6 +529,85 @@ function CollectionDetail({
             ))}
           </tbody>
         </table>
+      )}
+      {collection.traceCount > 0 && (
+        <div className="grid gap-3 border-t border-border p-3 text-[12px] md:grid-cols-2">
+          <section data-testid="collection-tools">
+            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+              Tools
+            </h3>
+            {tools.isError ? (
+              <ErrorState error={tools.error} retry={() => tools.refetch()} />
+            ) : !tools.data ? (
+              <Skeleton className="h-12 w-full" />
+            ) : tools.data.items.length === 0 ? (
+              <p className="text-fg-muted">No tool calls in this collection.</p>
+            ) : (
+              <table className="w-full border-collapse">
+                <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+                  <tr>
+                    <th className="py-1 pr-3">Tool</th>
+                    <th className="py-1 pr-3 text-right">Calls</th>
+                    <th className="py-1 pr-3 text-right">Errors</th>
+                    <th className="py-1 text-right">p95</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular">
+                  {tools.data.items.map((t) => (
+                    <tr key={t.tool} className="border-t border-border" data-tool={t.tool}>
+                      <td className="py-1 pr-3 font-mono text-[11px]">{t.tool}</td>
+                      <td className="py-1 pr-3 text-right">{t.calls}</td>
+                      <td className={`py-1 pr-3 text-right ${t.errors > 0 ? "text-err" : ""}`}>
+                        {t.errors}
+                      </td>
+                      <td className="py-1 text-right">{duration(t.p95DurationMs)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+          <section data-testid="collection-models">
+            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+              Models
+            </h3>
+            {models.isError ? (
+              <ErrorState error={models.error} retry={() => models.refetch()} />
+            ) : !models.data ? (
+              <Skeleton className="h-12 w-full" />
+            ) : models.data.items.length === 0 ? (
+              <p className="text-fg-muted">No model calls in this collection.</p>
+            ) : (
+              <table className="w-full border-collapse">
+                <thead className="text-left text-[11px] uppercase tracking-wide text-fg-muted">
+                  <tr>
+                    <th className="py-1 pr-3">Model</th>
+                    <th className="py-1 pr-3 text-right">Calls</th>
+                    <th className="py-1 pr-3 text-right">Tokens</th>
+                    <th className="py-1 text-right">Est. cost</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular">
+                  {models.data.items.map((m) => (
+                    <tr
+                      key={`${m.provider}:${m.model}`}
+                      className="border-t border-border"
+                      data-model={m.model}
+                    >
+                      <td className="py-1 pr-3">
+                        <span className="font-mono text-[11px]">{m.model}</span>
+                        <span className="ml-2 text-fg-faint">{m.provider}</span>
+                      </td>
+                      <td className="py-1 pr-3 text-right">{m.calls}</td>
+                      <td className="py-1 pr-3 text-right">{m.totalTokens.toLocaleString()}</td>
+                      <td className="py-1 text-right">{money(m.estimatedCost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

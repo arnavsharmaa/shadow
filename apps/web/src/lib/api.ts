@@ -326,13 +326,29 @@ export const api = {
   overview: (filter: { days?: number; project?: string; to?: string } = {}) =>
     request<Overview>("GET", `/api/v1/stats/overview${query(filter)}`),
   /** Usage per provider and model, most expensive first. */
-  modelStats: (filter: { from?: string; to?: string; project?: string; agent?: string } = {}) =>
+  modelStats: (
+    filter: {
+      from?: string;
+      to?: string;
+      project?: string;
+      agent?: string;
+      collection?: string;
+    } = {},
+  ) =>
     request<{ from: string | null; to: string | null; items: ModelStatsRow[] }>(
       "GET",
       `/api/v1/stats/models${query(filter)}`,
     ),
   /** Usage per tool, busiest first. */
-  toolStats: (filter: { from?: string; to?: string; project?: string; agent?: string } = {}) =>
+  toolStats: (
+    filter: {
+      from?: string;
+      to?: string;
+      project?: string;
+      agent?: string;
+      collection?: string;
+    } = {},
+  ) =>
     request<{ from: string | null; to: string | null; items: ToolStatsRow[] }>(
       "GET",
       `/api/v1/stats/tools${query(filter)}`,

@@ -975,6 +975,9 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await expect(comparison.locator('[data-metric="traces"]')).toContainText("+100.0%");
       await expect(comparison.locator('[data-metric="cost"]')).toContainText("$");
       await expect(detail.locator('[data-testid="collection-trace"]')).toHaveCount(2);
+      // What the collection's traces called and spent.
+      await expect(detail.getByTestId("collection-tools")).toContainText("read_customer");
+      await expect(detail.getByTestId("collection-models")).toContainText("sim-");
       // The Export link serves every trace of the collection as one bundle per line.
       const exportHref = await detail.getByTestId("collection-export").getAttribute("href");
       expect(exportHref).toMatch(/\/api\/v1\/collections\/col_[^/]+\/export$/);
