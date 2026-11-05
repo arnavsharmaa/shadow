@@ -715,7 +715,8 @@ where `stats` sums up its traces: `{ completed, failed, running, totalEstimatedC
 totalTokens }`, so two experiments or incidents can be compared at a glance (`shadow
 collections list` shows the failed count and the cost, `shadow collections show <name>` the
 totals and the traces, and `shadow collections compare <a> <b>` two collections side by side
-with the change).
+with the change). `shadow traces import … --collection <name>` puts imported bundles straight
+into a collection, creating it when it is new.
 
 ### `POST /api/v1/collections`
 

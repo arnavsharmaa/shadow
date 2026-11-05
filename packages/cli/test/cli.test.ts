@@ -490,6 +490,25 @@ describe("shadow cli", () => {
           branchCount: 1,
         },
       }),
+      "POST /api/v1/collections/incident-7/traces": () => ({
+        status: 404,
+        body: { error: { code: "not_found", message: "collection incident-7 not found" } },
+      }),
+      "POST /api/v1/collections": (body) => ({
+        status: 201,
+        body: {
+          collection: { id: "col_7", name: "incident-7", traceCount: 1 },
+          added: (body as { traceIds: string[] }).traceIds,
+          missing: [],
+        },
+      }),
+      "POST /api/v1/collections/incident-8/traces": (body) => ({
+        body: {
+          collection: { id: "col_8", name: "incident-8", traceCount: 3 },
+          added: (body as { traceIds: string[] }).traceIds,
+          missing: [],
+        },
+      }),
     });
     expect(await runWith(api, ["traces", "export", "trc_1", "--out", file])).toBe(0);
     expect(JSON.parse(await readFile(file, "utf8")).format).toBe("shadow.trace");
@@ -536,6 +555,27 @@ describe("shadow cli", () => {
     expect((api.captured.calls.at(-1)?.body as { idStrategy: string }).idStrategy).toBe(
       "regenerate",
     );
+    // --collection puts the imported trace in a collection, creating it when it is new.
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, [
+        "traces",
+        "import",
+        file,
+        "--regenerate-ids",
+        "--collection",
+        "incident-7",
+      ]),
+    ).toBe(0);
+    expect(
+      api.captured.calls.slice(-2).map((c) => `${c.method} ${new URL(c.url).pathname}`),
+    ).toEqual(["POST /api/v1/collections/incident-7/traces", "POST /api/v1/collections"]);
+    expect(api.captured.calls.at(-1)?.body).toEqual({ name: "incident-7", traceIds: ["trc_copy"] });
+    expect(api.captured.out.join("\n")).toContain("created collection incident-7 with 1 trace(s)");
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["traces", "import", file, "--collection", "incident-8"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({ traceIds: ["trc_1"] });
+    expect(api.captured.out.join("\n")).toContain("added 1 trace(s) to incident-8; it now holds 3");
     await writeFile(file, "not json");
     expect(await runWith(api, ["traces", "import", file])).toBe(2);
   });

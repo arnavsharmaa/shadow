@@ -706,150 +706,189 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "path to a .json bundle, a .ndjson file of bundles (shadow collections export), a directory of bundles (such as SHADOW_EXPORT_DIR), or a share URL (…/api/v1/shared/shs_…)",
     )
     .option("--regenerate-ids", "assign fresh ids (import a copy)")
+    .option(
+      "--collection <name>",
+      "put the imported traces in this collection (created when it does not exist)",
+    )
     .option("--json", "print JSON (directory imports)")
-    .action(async (file: string, opts: { regenerateIds?: boolean; json?: boolean }) => {
-      const idStrategy = opts.regenerateIds ? "regenerate" : "keep";
-      const isUrl = /^https?:\/\//i.test(file);
-      const isDirectory = !isUrl && ((await stat(file).catch(() => null))?.isDirectory() ?? false);
-      if (isDirectory || (!isUrl && file.endsWith(".ndjson"))) {
-        // Many bundles (a directory, or one bundle per line): import each, skip what already
-        // exists, report the rest.
-        const entries: { label: string; raw: unknown; failure?: string }[] = [];
-        if (isDirectory) {
-          const files = await bundleFiles(file);
-          if (files.length === 0) throw new CliError(`no .json files under ${file}`, EXIT.usage);
-          for (const bundleFile of files) {
-            try {
-              entries.push({
-                label: path.relative(file, bundleFile),
-                raw: JSON.parse(await readFile(bundleFile, "utf8")),
-              });
-            } catch (error) {
-              entries.push({
-                label: path.relative(file, bundleFile),
-                raw: undefined,
-                failure: `could not read: ${error instanceof Error ? error.message : String(error)}`,
-              });
-            }
-          }
-        } else {
-          const lines = (await readFile(file, "utf8")).split("\n").filter((l) => l.length > 0);
-          if (lines.length === 0) throw new CliError(`no bundles in ${file}`, EXIT.usage);
-          lines.forEach((line, index) => {
-            try {
-              entries.push({ label: `line ${index + 1}`, raw: JSON.parse(line) });
-            } catch (error) {
-              entries.push({
-                label: `line ${index + 1}`,
-                raw: undefined,
-                failure: `could not parse: ${error instanceof Error ? error.message : String(error)}`,
-              });
-            }
-          });
-        }
-        const results: {
-          file: string;
-          status: "imported" | "exists" | "skipped" | "failed";
-          traceId?: string;
-          reason?: string;
-        }[] = [];
-        for (const entry of entries) {
-          if (entry.failure) {
-            results.push({ file: entry.label, status: "failed", reason: entry.failure });
-            continue;
-          }
-          const raw = entry.raw;
-          if (!(
-            typeof raw === "object" &&
-            raw !== null &&
-            (raw as { format?: unknown }).format === "shadow.trace"
-          )) {
-            results.push({
-              file: entry.label,
-              status: "skipped",
-              reason: "not a shadow.trace bundle",
-            });
-            continue;
-          }
+    .action(
+      async (
+        file: string,
+        opts: { regenerateIds?: boolean; collection?: string; json?: boolean },
+      ) => {
+        const idStrategy = opts.regenerateIds ? "regenerate" : "keep";
+        /** Put the imported (or already present) traces in the collection, creating it if needed. */
+        const collect = async (traceIds: string[]) => {
+          if (!opts.collection || traceIds.length === 0) return;
+          const api = client();
           try {
-            const trace = await client().post<{ id: string }>("/api/v1/traces/import", {
-              bundle: raw,
-              idStrategy,
-            });
-            results.push({ file: entry.label, status: "imported", traceId: trace.id });
-          } catch (error) {
-            if (error instanceof CliError && error.status === 409) {
-              results.push({
-                file: entry.label,
-                status: "exists",
-                traceId: (raw as { trace?: { id?: string } }).trace?.id,
-              });
-            } else if (error instanceof CliError && error.exitCode === EXIT.connection) {
-              throw error;
-            } else {
-              results.push({
-                file: entry.label,
-                status: "failed",
-                reason: error instanceof Error ? error.message : String(error),
-              });
-            }
-          }
-        }
-        const count = (status: string) => results.filter((r) => r.status === status).length;
-        const summary = {
-          directory: file,
-          files: entries.length,
-          imported: count("imported"),
-          exists: count("exists"),
-          skipped: count("skipped"),
-          failed: count("failed"),
-          results,
-        };
-        if (opts.json) json(summary);
-        else {
-          for (const r of results) {
+            const result = await api.post<CollectionChange>(
+              `/api/v1/collections/${encodeURIComponent(opts.collection)}/traces`,
+              { traceIds },
+            );
             out(
-              `${r.status.padEnd(8)} ${r.file}${r.traceId ? ` (${r.traceId})` : ""}${r.reason ? `: ${r.reason}` : ""}`,
+              `added ${result.added.length} trace(s) to ${result.collection.name}; it now holds ${result.collection.traceCount}`,
+            );
+          } catch (error) {
+            if (!(error instanceof CliError && error.status === 404)) throw error;
+            const result = await api.post<CollectionChange>("/api/v1/collections", {
+              name: opts.collection,
+              traceIds,
+            });
+            out(
+              `created collection ${result.collection.name} with ${result.added.length} trace(s)`,
             );
           }
-          out(
-            `imported ${summary.imported} of ${summary.files} bundle(s); ${summary.exists} already present, ${summary.skipped} skipped, ${summary.failed} failed`,
+        };
+        const isUrl = /^https?:\/\//i.test(file);
+        const isDirectory =
+          !isUrl && ((await stat(file).catch(() => null))?.isDirectory() ?? false);
+        if (isDirectory || (!isUrl && file.endsWith(".ndjson"))) {
+          // Many bundles (a directory, or one bundle per line): import each, skip what already
+          // exists, report the rest.
+          const entries: { label: string; raw: unknown; failure?: string }[] = [];
+          if (isDirectory) {
+            const files = await bundleFiles(file);
+            if (files.length === 0) throw new CliError(`no .json files under ${file}`, EXIT.usage);
+            for (const bundleFile of files) {
+              try {
+                entries.push({
+                  label: path.relative(file, bundleFile),
+                  raw: JSON.parse(await readFile(bundleFile, "utf8")),
+                });
+              } catch (error) {
+                entries.push({
+                  label: path.relative(file, bundleFile),
+                  raw: undefined,
+                  failure: `could not read: ${error instanceof Error ? error.message : String(error)}`,
+                });
+              }
+            }
+          } else {
+            const lines = (await readFile(file, "utf8")).split("\n").filter((l) => l.length > 0);
+            if (lines.length === 0) throw new CliError(`no bundles in ${file}`, EXIT.usage);
+            lines.forEach((line, index) => {
+              try {
+                entries.push({ label: `line ${index + 1}`, raw: JSON.parse(line) });
+              } catch (error) {
+                entries.push({
+                  label: `line ${index + 1}`,
+                  raw: undefined,
+                  failure: `could not parse: ${error instanceof Error ? error.message : String(error)}`,
+                });
+              }
+            });
+          }
+          const results: {
+            file: string;
+            status: "imported" | "exists" | "skipped" | "failed";
+            traceId?: string;
+            reason?: string;
+          }[] = [];
+          for (const entry of entries) {
+            if (entry.failure) {
+              results.push({ file: entry.label, status: "failed", reason: entry.failure });
+              continue;
+            }
+            const raw = entry.raw;
+            if (!(
+              typeof raw === "object" &&
+              raw !== null &&
+              (raw as { format?: unknown }).format === "shadow.trace"
+            )) {
+              results.push({
+                file: entry.label,
+                status: "skipped",
+                reason: "not a shadow.trace bundle",
+              });
+              continue;
+            }
+            try {
+              const trace = await client().post<{ id: string }>("/api/v1/traces/import", {
+                bundle: raw,
+                idStrategy,
+              });
+              results.push({ file: entry.label, status: "imported", traceId: trace.id });
+            } catch (error) {
+              if (error instanceof CliError && error.status === 409) {
+                results.push({
+                  file: entry.label,
+                  status: "exists",
+                  traceId: (raw as { trace?: { id?: string } }).trace?.id,
+                });
+              } else if (error instanceof CliError && error.exitCode === EXIT.connection) {
+                throw error;
+              } else {
+                results.push({
+                  file: entry.label,
+                  status: "failed",
+                  reason: error instanceof Error ? error.message : String(error),
+                });
+              }
+            }
+          }
+          const count = (status: string) => results.filter((r) => r.status === status).length;
+          const summary = {
+            directory: file,
+            files: entries.length,
+            imported: count("imported"),
+            exists: count("exists"),
+            skipped: count("skipped"),
+            failed: count("failed"),
+            results,
+          };
+          if (opts.json) json(summary);
+          else {
+            for (const r of results) {
+              out(
+                `${r.status.padEnd(8)} ${r.file}${r.traceId ? ` (${r.traceId})` : ""}${r.reason ? `: ${r.reason}` : ""}`,
+              );
+            }
+            out(
+              `imported ${summary.imported} of ${summary.files} bundle(s); ${summary.exists} already present, ${summary.skipped} skipped, ${summary.failed} failed`,
+            );
+          }
+          await collect(
+            results.flatMap((r) =>
+              (r.status === "imported" || r.status === "exists") && r.traceId ? [r.traceId] : [],
+            ),
+          );
+          if (summary.failed > 0)
+            throw new CliError(`${summary.failed} bundle(s) failed to import`, EXIT.error);
+          return;
+        }
+        let raw: unknown;
+        try {
+          if (/^https?:\/\//i.test(file)) {
+            // Share links are capability URLs: fetched without this API's token.
+            const response = await (options.fetch ?? globalThis.fetch)(file, {
+              headers: { accept: "application/json" },
+            });
+            if (!response.ok) {
+              throw new CliError(
+                `the share link answered ${response.status}${response.status === 404 ? " (expired, revoked or unknown)" : ""}`,
+                response.status === 404 ? EXIT.notFound : EXIT.error,
+              );
+            }
+            raw = await response.json();
+          } else {
+            raw = JSON.parse(await readFile(file, "utf8"));
+          }
+        } catch (error) {
+          if (error instanceof CliError) throw error;
+          throw new CliError(
+            `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
+            EXIT.usage,
           );
         }
-        if (summary.failed > 0)
-          throw new CliError(`${summary.failed} bundle(s) failed to import`, EXIT.error);
-        return;
-      }
-      let raw: unknown;
-      try {
-        if (/^https?:\/\//i.test(file)) {
-          // Share links are capability URLs: fetched without this API's token.
-          const response = await (options.fetch ?? globalThis.fetch)(file, {
-            headers: { accept: "application/json" },
-          });
-          if (!response.ok) {
-            throw new CliError(
-              `the share link answered ${response.status}${response.status === 404 ? " (expired, revoked or unknown)" : ""}`,
-              response.status === 404 ? EXIT.notFound : EXIT.error,
-            );
-          }
-          raw = await response.json();
-        } else {
-          raw = JSON.parse(await readFile(file, "utf8"));
-        }
-      } catch (error) {
-        if (error instanceof CliError) throw error;
-        throw new CliError(
-          `could not read ${file}: ${error instanceof Error ? error.message : String(error)}`,
-          EXIT.usage,
+        const trace = await client().post<{ id: string; branchCount: number }>(
+          "/api/v1/traces/import",
+          { bundle: raw, idStrategy },
         );
-      }
-      const trace = await client().post<{ id: string; branchCount: number }>(
-        "/api/v1/traces/import",
-        { bundle: raw, idStrategy },
-      );
-      out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
-    });
+        out(`imported trace ${trace.id} (${trace.branchCount} branches)`);
+        await collect([trace.id]);
+      },
+    );
 
   traces
     .command("share")

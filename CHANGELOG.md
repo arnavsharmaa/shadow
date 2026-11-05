@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces import --collection <name>` puts the imported bundles (a file, a directory,
+  an `.ndjson` export or a share link) into a collection as they land, creating it when it
+  does not exist, so a handed-over incident arrives already grouped.
 - The Collections page compares a collection with any other: a Compare with select puts
   their totals side by side (traces, failures and the failure rate, cost, average cost per
   trace, tokens) with the change relative to the other, like `shadow collections compare`.
