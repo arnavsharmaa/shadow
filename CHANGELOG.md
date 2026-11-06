@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_WEBHOOK_FORMAT=discord` sends notifications as a Discord incoming webhook expects
+  them: the headline as `content` and the trace, alert, replay or job details as one embed
+  with Markdown links, next to the existing `json` and `slack` formats.
 - SDK: with `webUrl` (or `SHADOW_WEB_URL`) set to the web app's public base URL, every trace
   exposes `trace.url`, the page that shows it, for log lines and tickets.
 - `shadow alerts history [--rule <name>]` lists when rules fired and resolved, newest first,

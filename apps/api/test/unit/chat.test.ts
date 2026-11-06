@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { escapeMrkdwn, formatChatMessage } from "../../src/notify/chat.js";
+import {
+  escapeMrkdwn,
+  formatChatMessage,
+  formatDiscordMessage,
+  mrkdwnToMarkdown,
+} from "../../src/notify/chat.js";
 import type {
   AlertNotification,
   JobFinishedNotification,
@@ -23,6 +28,35 @@ const finished: TraceFinishedNotification = {
     tags: ["refund", "vip"],
   },
 };
+
+describe("Discord rendering", () => {
+  it("turns mrkdwn into Markdown", () => {
+    expect(mrkdwnToMarkdown("<https://x.test/t|a &amp; b> *bold* &lt;x&gt;")).toBe(
+      "[a & b](https://x.test/t) **bold** <x>",
+    );
+    expect(mrkdwnToMarkdown("$1.5000 vs 2*baseline")).toBe("$1.5000 vs 2*baseline");
+  });
+
+  it("puts the headline in content and the blocks in one embed", () => {
+    const message = formatDiscordMessage(finished, "https://shadow.example.com");
+    expect(message.content).toContain(":rotating_light: refund-agent: Policy violation");
+    expect(message.embeds).toHaveLength(1);
+    const embed = message.embeds[0];
+    expect(embed?.title).toBe(":rotating_light: refund-agent: Policy violation");
+    expect(embed?.fields?.map((f) => f.name)).toEqual([
+      "Trace",
+      "Outcome",
+      "Project / agent",
+      "Duration",
+      "Tags",
+    ]);
+    expect(embed?.fields?.[0]?.value).toBe(
+      "[refund <defective> headphones & more](https://shadow.example.com/traces/trc_1)",
+    );
+    expect(embed?.footer?.text).toContain("trc_1");
+    expect(embed?.description).toBeUndefined();
+  });
+});
 
 const alert: AlertNotification = {
   type: "alert.firing",

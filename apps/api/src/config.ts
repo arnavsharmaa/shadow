@@ -82,7 +82,7 @@ const configSchema = z.object({
   /** Only finished traces carrying one of these tags notify (comma-separated; unset = any). */
   SHADOW_WEBHOOK_TAGS: csvList,
   /** Body shape: Shadow's JSON notification, or a Slack-compatible chat message. */
-  SHADOW_WEBHOOK_FORMAT: z.enum(["json", "slack"]).default("json"),
+  SHADOW_WEBHOOK_FORMAT: z.enum(["json", "slack", "discord"]).default("json"),
   /** Public base URL of the web app, used for links in chat notifications. */
   SHADOW_WEB_URL: optionalHttpUrl,
   /** Project slug for OTLP traces whose resource has no `service.namespace`. */

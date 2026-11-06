@@ -120,6 +120,47 @@ describe("webhook", () => {
     expect(second.text).toContain(":red_circle: Alert firing: refund failures");
   });
 
+  it("sends a Discord message with an embed in discord format", async () => {
+    const calls: { init: RequestInit }[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      // Discord answers 204 with no body.
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+    const webhook = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://discord.com/api/webhooks/1/x",
+        SHADOW_WEBHOOK_SECRET: undefined,
+        SHADOW_WEBHOOK_EVENTS: "failures",
+        SHADOW_WEBHOOK_FORMAT: "discord",
+        SHADOW_WEB_URL: "https://shadow.example.com",
+      },
+      logger,
+      fetch: fetchImpl,
+    });
+    await webhook.traceFinished({ trace });
+    await webhook.settle();
+    expect(calls).toHaveLength(1);
+    const body = JSON.parse(String(calls[0]?.init.body)) as {
+      content: string;
+      embeds: {
+        title: string;
+        fields: { name: string; value: string }[];
+        footer: { text: string };
+      }[];
+      text?: string;
+    };
+    expect(body.text).toBeUndefined();
+    expect(body.content).toContain(":rotating_light: a: Policy violation");
+    expect(body.embeds).toHaveLength(1);
+    expect(body.embeds[0]?.title).toContain("Policy violation");
+    const traceField = body.embeds[0]?.fields.find((f) => f.name === "Trace");
+    expect(traceField?.value).toBe("[refund](https://shadow.example.com/traces/trc_1)");
+    expect(body.embeds[0]?.footer.text).toContain("trc_1");
+    const probe = await webhook.test();
+    expect(probe).toMatchObject({ delivered: true, status: 204, format: "discord" });
+  });
+
   it("does not retry client rejections, skips filtered traces and never throws", async () => {
     const rejected = vi.fn(
       async () => new Response("nope", { status: 400 }),

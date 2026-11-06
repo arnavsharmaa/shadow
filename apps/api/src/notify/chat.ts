@@ -219,6 +219,62 @@ export function formatJobFinished(
   };
 }
 
+/** A Discord webhook message: plain `content` plus one embed carrying the same fields. */
+export interface DiscordMessage {
+  content: string;
+  embeds: {
+    title?: string;
+    description?: string;
+    fields?: { name: string; value: string; inline: boolean }[];
+    footer?: { text: string };
+  }[];
+}
+
+/** Slack mrkdwn to the Markdown Discord renders: links, bold and the escaped characters. */
+export function mrkdwnToMarkdown(text: string): string {
+  return text
+    .replace(/<([^|>]+)\|([^>]+)>/g, "[$2]($1)")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?![*\w])/g, "$1**$2**")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * The chat message as a Discord incoming webhook expects it: the headline as `content`, the
+ * fields, text and context of the blocks as one embed. Discord renders the same emoji
+ * shortcodes and Markdown links, so nothing is lost.
+ */
+export function formatDiscordMessage(notification: Notification, webUrl?: string): DiscordMessage {
+  const message = formatChatMessage(notification, webUrl);
+  const embed: DiscordMessage["embeds"][number] = {};
+  const fields: { name: string; value: string; inline: boolean }[] = [];
+  const paragraphs: string[] = [];
+  for (const block of message.blocks) {
+    if (block.type === "header") {
+      embed.title = block.text.text.slice(0, 256);
+    } else if (block.type === "section" && "fields" in block) {
+      for (const field of block.fields) {
+        const [name = "", ...rest] = field.text.split("\n");
+        fields.push({
+          name: mrkdwnToMarkdown(name).replace(/\*\*/g, "").slice(0, 256) || "-",
+          value: mrkdwnToMarkdown(rest.join("\n")).slice(0, 1024) || "-",
+          inline: true,
+        });
+      }
+    } else if (block.type === "section") {
+      paragraphs.push(mrkdwnToMarkdown(block.text.text));
+    } else {
+      embed.footer = {
+        text: mrkdwnToMarkdown(block.elements.map((e) => e.text).join(" · ")).slice(0, 2048),
+      };
+    }
+  }
+  if (fields.length > 0) embed.fields = fields.slice(0, 25);
+  if (paragraphs.length > 0) embed.description = paragraphs.join("\n").slice(0, 4096);
+  return { content: mrkdwnToMarkdown(message.text).slice(0, 2000), embeds: [embed] };
+}
+
 export function formatChatMessage(notification: Notification, webUrl?: string): ChatMessage {
   switch (notification.type) {
     case "trace.finished":

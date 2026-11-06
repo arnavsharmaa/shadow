@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import type { Outcome } from "@shadow/schemas";
 import type { Logger } from "pino";
 import type { ApiConfig } from "../config.js";
-import { formatChatMessage } from "./chat.js";
+import { formatChatMessage, formatDiscordMessage } from "./chat.js";
 
 export interface TraceFinishedNotification {
   type: "trace.finished";
@@ -108,7 +108,7 @@ export interface WebhookProbe {
   /** HTTP status the receiver answered, `null` when the request never completed. */
   status: number | null;
   error: string | null;
-  format: "json" | "slack";
+  format: "json" | "slack" | "discord";
   durationMs: number;
 }
 
@@ -207,7 +207,11 @@ export function createWebhook(options: WebhookOptions): Webhook {
     notification: Notification,
   ): { body: string; headers: Record<string, string> } => {
     const body = JSON.stringify(
-      format === "slack" ? formatChatMessage(notification, webUrl) : notification,
+      format === "slack"
+        ? formatChatMessage(notification, webUrl)
+        : format === "discord"
+          ? formatDiscordMessage(notification, webUrl)
+          : notification,
     );
     const headers: Record<string, string> = {
       "content-type": "application/json",

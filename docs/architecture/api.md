@@ -563,7 +563,7 @@ for a job that has already finished. CLI: `shadow batch … --background` (print
 With `SHADOW_WEBHOOK_URL` set, every job that ends posts a `job.finished` notification
 regardless of `SHADOW_WEBHOOK_EVENTS`, with `job.status` `completed`, `failed` or `cancelled`,
 the agent, project and fork point, the progress counts, the error if any and the start and
-finish times (as JSON, or as a chat message with `SHADOW_WEBHOOK_FORMAT=slack`).
+finish times (as JSON, or as a chat message with `SHADOW_WEBHOOK_FORMAT=slack` or `discord`).
 
 ### `GET /api/v1/traces/:traceId/replays`
 
@@ -1074,7 +1074,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_EXPORT_S3_PREFIX`           | unset                                         | key prefix inside the bucket                              |
 | `SHADOW_EXPORT_S3_ACCESS_KEY_ID`    | unset                                         | credentials for the bucket (plus `_SECRET_ACCESS_KEY`,    |
 | `SHADOW_EXPORT_S3_SESSION_TOKEN`    | unset                                         | optional STS session token)                               |
-| `SHADOW_WEBHOOK_FORMAT`             | `json`                                        | `json` notification or a `slack` chat message             |
+| `SHADOW_WEBHOOK_FORMAT`             | `json`                                        | `json` notification, a `slack` or a `discord` message     |
 | `SHADOW_WEB_URL`                    | unset                                         | public web app URL used for links in chat notifications   |
 | `SHADOW_OTLP_EXPORT_HEADERS`        | unset                                         | `name=value` headers for the collector, comma separated   |
 | `SHADOW_OTLP_EXPORT_ENCODING`       | `protobuf`                                    | `protobuf` \| `json`                                      |
@@ -1190,8 +1190,10 @@ trace, outcome, project and agent, duration and tags, for alerts the metric agai
 threshold or baseline, the window and the scope, and for failed replays the branch, mode and
 error. With `SHADOW_WEB_URL` set (the public base URL
 of the web app) the trace name links to its page and alert rules link to the Agents page. The
-`x-shadow-*` headers and the signature are sent with either format. The JSON format remains
-the contract for programmatic receivers.
+`x-shadow-*` headers and the signature are sent with every format. `SHADOW_WEBHOOK_FORMAT=discord`
+sends the same message as a Discord incoming webhook expects it: the headline as `content` and
+the fields, text and context as one embed, with Markdown links. The JSON format remains the
+contract for programmatic receivers.
 
 ### Authentication and API keys
 
