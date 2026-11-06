@@ -2325,6 +2325,79 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toContain("no traces found");
   });
 
+  it("prints when alert rules fired and resolved", async () => {
+    const entry = (id: string, action: string, at: string, details: Record<string, unknown>) => ({
+      id,
+      at,
+      actor: "system:alerts",
+      action,
+      targetType: "alert",
+      targetId: "alr_1",
+      traceId: null,
+      requestId: null,
+      details: {
+        name: "refund failures",
+        metric: "failure_rate",
+        threshold: 0.25,
+        windowMinutes: 60,
+        traces: 8,
+        agent: "refund-agent",
+        tag: "prod",
+        ...details,
+      },
+    });
+    const api = fakeApi({
+      "GET /api/v1/audit": () => ({
+        body: {
+          items: [
+            entry("aud_3", "alert.resolved", "2026-11-06T10:00:00.000Z", {
+              value: 0.1,
+              baseline: null,
+            }),
+            entry("aud_2", "alert.fired", "2026-11-06T09:00:00.000Z", {
+              value: 0.5,
+              baseline: null,
+            }),
+            {
+              ...entry("aud_1", "alert.fired", "2026-11-06T08:00:00.000Z", {
+                name: "cost spike",
+                metric: "total_cost",
+                threshold: 2,
+                value: 3.5,
+                baseline: 1.5,
+                agent: undefined,
+                tag: undefined,
+              }),
+              targetId: "alr_2",
+            },
+          ],
+          nextCursor: null,
+        },
+      }),
+    });
+    expect(await runWith(api, ["alerts", "history", "--limit", "20"])).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("actor")).toBe("system:alerts");
+    expect(params.get("limit")).toBe("20");
+    const text = api.captured.out.join("\n");
+    expect(text).toMatch(
+      /2026-11-06T10:00:00.000Z\s+refund failures\s+resolved\s+failure_rate\s+10\.0%\s+25\.0%\s+-\s+8\s+refund-agent #prod/,
+    );
+    expect(text).toMatch(/refund failures\s+fired\s+failure_rate\s+50\.0%/);
+    expect(text).toMatch(
+      /cost spike\s+fired\s+total_cost\s+\$3\.5000\s+\$2\.0000\s+\$1\.5000\s+8\s+all agents/,
+    );
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["alerts", "history", "--rule", "cost spike"])).toBe(0);
+    expect(api.captured.out.join("\n")).not.toContain("refund failures");
+    expect(api.captured.out.join("\n")).toContain("cost spike");
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["alerts", "history", "--rule", "alr_9"])).toBe(0);
+    expect(api.captured.out.join("\n")).toContain("no alert transitions recorded");
+  });
+
   it("pauses and resumes alert rules by name or id", async () => {
     const rule = {
       id: "alr_9",

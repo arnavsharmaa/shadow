@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow alerts history [--rule <name>]` lists when rules fired and resolved, newest first,
+  with the measured value, threshold, baseline, trace count and scope of each transition,
+  from the audit log.
 - The Collections page shows what a collection's traces called and spent: a Tools table
   (calls, errors, p95 latency) and a Models table (calls, tokens, estimated cost) under the
   trace list, from the usage views narrowed to the collection.

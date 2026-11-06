@@ -1754,6 +1754,60 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
 
   alerts
+    .command("history")
+    .description("when rules fired and resolved, newest first (from the audit log)")
+    .option("--rule <nameOrId>", "only this rule")
+    .option("--limit <n>", "maximum entries to fetch", positiveInt, 50)
+    .option("--json", "print JSON")
+    .action(async (opts: { rule?: string; limit: number; json?: boolean }) => {
+      const page = await client().get<{ items: AuditEntry[]; nextCursor: string | null }>(
+        "/api/v1/audit",
+        { actor: "system:alerts", limit: opts.limit },
+      );
+      const items = page.items.filter(
+        (e) =>
+          (e.action === "alert.fired" || e.action === "alert.resolved") &&
+          (!opts.rule || e.targetId === opts.rule || e.details.name === opts.rule),
+      );
+      if (opts.json) return json({ items, nextCursor: page.nextCursor });
+      if (items.length === 0) return out("no alert transitions recorded");
+      const text = (metric: unknown, value: unknown): string => {
+        if (typeof value !== "number") return "-";
+        const m = String(metric);
+        if (m.endsWith("_rate")) return `${(value * 100).toFixed(1)}%`;
+        if (m.endsWith("_ms")) return duration(value);
+        if (m.includes("cost")) return money(value);
+        return String(value);
+      };
+      out(
+        table(
+          ["AT", "RULE", "EVENT", "METRIC", "VALUE", "THRESHOLD", "BASELINE", "TRACES", "SCOPE"],
+          items.map((e) => {
+            const d = e.details;
+            const scope = [
+              d.project !== undefined ? String(d.project) : undefined,
+              d.agent !== undefined ? String(d.agent) : undefined,
+              d.tag !== undefined ? `#${String(d.tag)}` : undefined,
+              d.tool !== undefined ? `tool:${String(d.tool)}` : undefined,
+            ].filter((s): s is string => s !== undefined);
+            return [
+              e.at,
+              String(d.name ?? e.targetId),
+              e.action === "alert.fired" ? "fired" : "resolved",
+              String(d.metric ?? "-"),
+              text(d.metric, d.value),
+              text(d.metric, d.threshold),
+              text(d.metric, d.baseline),
+              typeof d.traces === "number" ? String(d.traces) : "-",
+              scope.join(" ") || "all agents",
+            ];
+          }),
+        ),
+      );
+      if (page.nextCursor) out("(older transitions exist; raise --limit to see them)");
+    });
+
+  alerts
     .command("check")
     .description("evaluate every rule now; exits 1 when any rule is firing (useful in CI)")
     .option("--json", "print JSON")
