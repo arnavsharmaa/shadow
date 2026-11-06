@@ -32,6 +32,8 @@ export interface TraceOptions {
   metadata?: JsonObject;
   tags?: string[];
   startedAt?: string;
+  /** Public base URL of the web app, for `trace.url`. */
+  webUrl?: string;
   /** Milliseconds between automatic flushes (0 disables the timer). */
   flushIntervalMs: number;
   maxBatchSize: number;
@@ -132,11 +134,16 @@ export class Trace implements AgentHost {
   private ended = false;
   private readonly startedAtMs: number;
   readonly id: string;
+  /** The web page that shows this trace, or `null` when the client has no `webUrl`. */
+  readonly url: string | null;
 
   constructor(transport: Transport, options: TraceOptions) {
     this.transport = transport;
     this.options = options;
     this.id = options.id ?? newId("trc");
+    this.url = options.webUrl
+      ? `${options.webUrl.replace(/\/+$/, "")}/traces/${encodeURIComponent(this.id)}`
+      : null;
     for (const collection of options.collections ?? []) this.collect(collection);
     this.agentSpanId = newId("spn");
     this.spanId = this.agentSpanId;

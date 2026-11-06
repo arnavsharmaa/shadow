@@ -23,6 +23,11 @@ export interface ShadowOptions {
   collections?: string[];
   /** Shadow API base URL. Defaults to `SHADOW_ENDPOINT` or http://localhost:4000. */
   endpoint?: string;
+  /**
+   * Public base URL of the web app (default: `SHADOW_WEB_URL` env). When known, every trace
+   * exposes `trace.url`, the page that shows it, for logs and tickets.
+   */
+  webUrl?: string;
   /** Custom transport (tests, file export, future async transports). */
   transport?: Transport;
   /**
@@ -171,6 +176,7 @@ export class Shadow {
       ...options,
       project,
       agent: options.agent ?? readEnv("SHADOW_AGENT"),
+      webUrl: options.webUrl ?? readEnv("SHADOW_WEB_URL"),
       tags: options.tags ?? envList("SHADOW_TAGS"),
       collections: options.collections ?? envList("SHADOW_COLLECTIONS"),
       enabled: options.enabled ?? envEnabled(),
@@ -242,6 +248,7 @@ export class Shadow {
       tags: mergeTags(this.options.tags, input.tags),
       startedAt: input.startedAt,
       collections: mergeTags(this.options.collections, input.collections),
+      webUrl: this.options.webUrl,
       flushIntervalMs: this.options.flushIntervalMs ?? 1000,
       maxBatchSize: this.options.maxBatchSize ?? 100,
       snapshotEvery: this.options.snapshotEvery ?? 25,

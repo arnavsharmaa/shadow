@@ -565,6 +565,24 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("knows the web page of a trace when the web app's URL is configured", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport, { webUrl: "https://shadow.example.com/" }).startTrace({
+      name: "t",
+      id: "trc_known",
+    });
+    expect(trace.url).toBe("https://shadow.example.com/traces/trc_known");
+    expect(client(transport).startTrace({ name: "t" }).url).toBeNull();
+    const saved = { ...process.env };
+    try {
+      process.env.SHADOW_WEB_URL = "http://localhost:3000";
+      const fromEnv = client(transport).startTrace({ name: "t", id: "trc_env" });
+      expect(fromEnv.url).toBe("http://localhost:3000/traces/trc_env");
+    } finally {
+      process.env = saved;
+    }
+  });
+
   it("puts every trace in the client's default collections", async () => {
     const transport = new MemoryTransport();
     const trace = client(transport, { collections: ["exp-42"] }).startTrace({

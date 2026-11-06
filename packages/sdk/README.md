@@ -178,6 +178,8 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   own tags, and `metadata` (a build id, a host name) is merged under the trace's own entries,
   so alert rules scoped to a tag and saved views can tell deployments apart without touching
   every `startTrace` call.
+- `webUrl` (or `SHADOW_WEB_URL`), the public base URL of the web app, gives every trace a
+  `trace.url`: the page that shows it, ready for a log line or a ticket; `null` when unset.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.

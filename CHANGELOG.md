@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: with `webUrl` (or `SHADOW_WEB_URL`) set to the web app's public base URL, every trace
+  exposes `trace.url`, the page that shows it, for log lines and tickets.
 - `shadow alerts history [--rule <name>]` lists when rules fired and resolved, newest first,
   with the measured value, threshold, baseline, trace count and scope of each transition,
   from the audit log.
