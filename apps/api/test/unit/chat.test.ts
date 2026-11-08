@@ -26,6 +26,14 @@ const finished: TraceFinishedNotification = {
     startedAt: "2026-09-01T09:00:00.000Z",
     completedAt: "2026-09-01T09:01:05.500Z",
     tags: ["refund", "vip"],
+    metrics: {
+      durationMs: 65_500,
+      modelCalls: 2,
+      toolCalls: 3,
+      toolErrors: 1,
+      totalTokens: 1234,
+      estimatedCost: 0.0123,
+    },
   },
 };
 
@@ -48,8 +56,12 @@ describe("Discord rendering", () => {
       "Outcome",
       "Project / agent",
       "Duration",
+      "Usage",
       "Tags",
     ]);
+    expect(embed?.fields?.[4]?.value).toBe(
+      "2 model calls, 1,234 tokens · 3 tool calls (1 failed) · $0.0123",
+    );
     expect(embed?.fields?.[0]?.value).toBe(
       "[refund <defective> headphones & more](https://shadow.example.com/traces/trc_1)",
     );
@@ -84,7 +96,7 @@ describe("chat formatting", () => {
   it("renders a finished trace with a link when the web URL is known", () => {
     const message = formatChatMessage(finished, "https://shadow.example.com/");
     expect(message.text).toBe(
-      ":rotating_light: refund-agent: Policy violation - refund <defective> headphones & more (support-agent, 1 min 6 s)",
+      ":rotating_light: refund-agent: Policy violation - refund <defective> headphones & more (support-agent, 1 min 6 s, $0.0123)",
     );
     expect(message.blocks[0]).toEqual({
       type: "header",
@@ -100,6 +112,7 @@ describe("chat formatting", () => {
       "*Outcome*\nPolicy violation",
       "*Project / agent*\nsupport-agent / refund-agent",
       "*Duration*\n1 min 6 s",
+      "*Usage*\n2 model calls, 1,234 tokens · 3 tool calls (1 failed) · $0.0123",
       "*Tags*\nrefund, vip",
     ]);
     expect((message.blocks[2] as { elements: { text: string }[] }).elements[0]?.text).toBe(
@@ -117,14 +130,23 @@ describe("chat formatting", () => {
         outcome: null,
         tags: [],
         completedAt: "2026-09-01T09:00:00.250Z",
+        metrics: {
+          durationMs: 250,
+          modelCalls: 1,
+          toolCalls: 0,
+          toolErrors: 0,
+          totalTokens: 80,
+          estimatedCost: 0,
+        },
       },
     };
     const message = formatChatMessage(completed);
     expect(message.text).toContain(":white_check_mark: refund-agent: Completed");
-    expect(message.text).toContain("250 ms");
+    expect(message.text).toContain("250 ms, $0.0000");
     const fields = (message.blocks[1] as { fields: { text: string }[] }).fields.map((f) => f.text);
     expect(fields[0]).toBe("*Trace*\n*refund &lt;defective&gt; headphones &amp; more*");
-    expect(fields).toHaveLength(4);
+    expect(fields[4]).toBe("*Usage*\n1 model call, 80 tokens · 0 tool calls · $0.0000");
+    expect(fields).toHaveLength(5);
     const failed = formatChatMessage({
       ...completed,
       reason: "failed",

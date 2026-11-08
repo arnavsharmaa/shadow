@@ -83,6 +83,11 @@ describe("webhook on ingestion", () => {
     expect(notification?.type === "trace.finished" ? notification.trace.completedAt : "").toMatch(
       /^2026-/,
     );
+    const metrics = notification?.type === "trace.finished" ? notification.trace.metrics : null;
+    expect(metrics?.toolCalls).toBeGreaterThan(0);
+    expect(metrics?.modelCalls).toBeGreaterThan(0);
+    expect(metrics?.durationMs).toBeGreaterThan(0);
+    expect(typeof metrics?.estimatedCost).toBe("number");
 
     // A trace that completes normally does not match the policy_violations filter.
     const plain = await t.app.inject({

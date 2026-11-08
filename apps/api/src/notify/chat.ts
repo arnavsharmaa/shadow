@@ -1,4 +1,5 @@
 import type {
+  TraceFinishedMetrics,
   AlertNotification,
   JobFinishedNotification,
   Notification,
@@ -57,6 +58,19 @@ function metricValue(metric: string, value: number | null): string {
   return String(value);
 }
 
+/** `2 model calls, 1,234 tokens · 3 tool calls (1 failed) · $0.0123`. */
+function formatUsage(metrics: TraceFinishedMetrics): string {
+  const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+  const tools =
+    plural(metrics.toolCalls, "tool call") +
+    (metrics.toolErrors > 0 ? ` (${metrics.toolErrors} failed)` : "");
+  return [
+    `${plural(metrics.modelCalls, "model call")}, ${metrics.totalTokens.toLocaleString("en-US")} tokens`,
+    tools,
+    `$${metrics.estimatedCost.toFixed(4)}`,
+  ].join(" · ");
+}
+
 /** Where the web app shows the subject of a notification, when its base URL is known. */
 function traceUrl(webUrl: string | undefined, traceId: string): string | undefined {
   return webUrl ? `${webUrl.replace(/\/$/, "")}/traces/${encodeURIComponent(traceId)}` : undefined;
@@ -80,12 +94,13 @@ export function formatTraceFinished(
         : ":white_check_mark:";
   const headline = `${icon} ${trace.agentSlug}: ${outcome}`;
   const duration = formatDuration(Date.parse(trace.completedAt) - Date.parse(trace.startedAt));
-  const text = `${headline} - ${trace.name} (${trace.projectSlug}, ${duration})`;
+  const text = `${headline} - ${trace.name} (${trace.projectSlug}, ${duration}, $${trace.metrics.estimatedCost.toFixed(4)})`;
   const fields = [
     `*Trace*\n${link(traceUrl(webUrl, trace.id), trace.name)}`,
     `*Outcome*\n${escapeMrkdwn(outcome)}`,
     `*Project / agent*\n${escapeMrkdwn(trace.projectSlug)} / ${escapeMrkdwn(trace.agentSlug)}`,
     `*Duration*\n${duration}`,
+    `*Usage*\n${formatUsage(trace.metrics)}`,
   ];
   if (trace.tags.length > 0) fields.push(`*Tags*\n${escapeMrkdwn(trace.tags.join(", "))}`);
   return {

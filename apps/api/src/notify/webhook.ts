@@ -4,6 +4,17 @@ import type { Logger } from "pino";
 import type { ApiConfig } from "../config.js";
 import { formatChatMessage, formatDiscordMessage } from "./chat.js";
 
+/** The totals a finished trace is reported with: how much it did and what it cost. */
+export interface TraceFinishedMetrics {
+  durationMs: number;
+  modelCalls: number;
+  toolCalls: number;
+  toolErrors: number;
+  totalTokens: number;
+  /** Estimated model plus tool cost in USD. */
+  estimatedCost: number;
+}
+
 export interface TraceFinishedNotification {
   type: "trace.finished";
   sentAt: string;
@@ -17,6 +28,8 @@ export interface TraceFinishedNotification {
     startedAt: string;
     completedAt: string;
     tags: string[];
+    /** What the root branch recorded by the time it finished. */
+    metrics: TraceFinishedMetrics;
   };
   /** Why this trace matched the configured filter. */
   reason: "failed" | "policy_violation" | "all";

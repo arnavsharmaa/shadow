@@ -301,6 +301,7 @@ export async function ingestEvents(
     await applyLifecycle(tx, trace, branchRow, prepared);
     return prepared;
   });
+  const metrics = mergeMetrics(toMetrics(branchRow.metrics), aggregateMetrics(inserted));
   if (
     branchId === trace.rootBranchId &&
     (ctx.webhook.enabled ||
@@ -336,15 +337,20 @@ export async function ingestEvents(
           startedAt: summary.startedAt,
           completedAt: end.timestamp,
           tags: summary.tags,
+          // The totals this batch brings the root branch to; the stored metrics are written below.
+          metrics: {
+            durationMs: metrics.durationMs,
+            modelCalls: metrics.modelCalls,
+            toolCalls: metrics.toolCalls,
+            toolErrors: metrics.toolErrors,
+            totalTokens: metrics.totalTokens,
+            estimatedCost: metrics.totalEstimatedCost,
+          },
         },
       });
     }
   }
-  const branch = await writeBranchMetrics(
-    ctx,
-    branchId,
-    mergeMetrics(toMetrics(branchRow.metrics), aggregateMetrics(inserted)),
-  );
+  const branch = await writeBranchMetrics(ctx, branchId, metrics);
   await updateSearchText(ctx, trace, inserted);
   for (const event of inserted) ctx.metrics.eventsIngested.inc({ source: event.source });
   return { events: inserted, branch };

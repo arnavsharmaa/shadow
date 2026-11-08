@@ -1168,10 +1168,23 @@ not filtered this way: alert rules carry their own scope. The body is:
     "outcome": { "kind": "policy_violation", "label": "Policy violation" },
     "startedAt": "…",
     "completedAt": "…",
-    "tags": ["refund"]
+    "tags": ["refund"],
+    "metrics": {
+      "durationMs": 65500,
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "toolErrors": 1,
+      "totalTokens": 1234,
+      "estimatedCost": 0.0123
+    }
   }
 }
 ```
+
+`metrics` are the root branch's totals when it finished (the same numbers the trace page
+shows): how many model and tool calls it made, how many tool calls failed, the tokens used and
+the estimated cost in USD, so a receiver can route an expensive failure differently from a
+cheap one without a second request.
 
 Headers: `x-shadow-event` (the notification type: `trace.finished` here, `alert.firing` /
 `alert.resolved` for [alerts](#alerts), `replay.failed` for failed replays, `job.finished` for
@@ -1186,7 +1199,8 @@ whether the webhook is enabled and its format.
 `SHADOW_WEBHOOK_FORMAT=slack` sends a chat message instead: `{ text, blocks }` as a Slack
 incoming webhook expects (Mattermost and Rocket.Chat incoming webhooks accept the same `text`),
 with a header line such as `:rotating_light: refund-agent: Policy violation`, fields for the
-trace, outcome, project and agent, duration and tags, for alerts the metric against its
+trace, outcome, project and agent, duration, usage (model calls and tokens, tool calls and
+failures, estimated cost) and tags, for alerts the metric against its
 threshold or baseline, the window and the scope, and for failed replays the branch, mode and
 error. With `SHADOW_WEB_URL` set (the public base URL
 of the web app) the trace name links to its page and alert rules link to the Agents page. The

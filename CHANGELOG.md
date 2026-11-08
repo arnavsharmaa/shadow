@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `trace.finished` webhook notifications carry the trace's `metrics` (duration, model and
+  tool calls, failed tool calls, tokens and estimated cost) as it finished, and the Slack and
+  Discord messages show them as a Usage field with the cost in the headline, so a receiver can
+  tell an expensive failure from a cheap one without a second request.
 - `SHADOW_WEBHOOK_FORMAT=discord` sends notifications as a Discord incoming webhook expects
   them: the headline as `content` and the trace, alert, replay or job details as one embed
   with Markdown links, next to the existing `json` and `slack` formats.

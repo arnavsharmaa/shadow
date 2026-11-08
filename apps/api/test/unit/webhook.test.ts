@@ -14,6 +14,14 @@ const trace = {
   startedAt: "2026-09-01T09:00:00.000Z",
   completedAt: "2026-09-01T09:00:05.000Z",
   tags: ["refund"],
+  metrics: {
+    durationMs: 5000,
+    modelCalls: 2,
+    toolCalls: 3,
+    toolErrors: 1,
+    totalTokens: 1234,
+    estimatedCost: 0.0123,
+  },
 };
 
 describe("webhook", () => {
@@ -62,11 +70,19 @@ describe("webhook", () => {
     const body = JSON.parse(String(init.body)) as {
       type: string;
       reason: string;
-      trace: { id: string };
+      trace: { id: string; metrics: { toolErrors: number; estimatedCost: number } };
     };
     expect(body.type).toBe("trace.finished");
     expect(body.reason).toBe("policy_violation");
     expect(body.trace.id).toBe("trc_1");
+    expect(body.trace.metrics).toEqual({
+      durationMs: 5000,
+      modelCalls: 2,
+      toolCalls: 3,
+      toolErrors: 1,
+      totalTokens: 1234,
+      estimatedCost: 0.0123,
+    });
     const expected = `sha256=${createHmac("sha256", "s3cret").update(String(init.body)).digest("hex")}`;
     expect(headers["x-shadow-signature-256"]).toBe(expected);
     expect(sign("s3cret", String(init.body))).toBe(expected);
