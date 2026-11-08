@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `trace.stats` tallies what a trace has recorded so far (events, model and tool calls,
+  failed or blocked tool calls, tokens, estimated cost and duration) in the process, so an
+  agent can log its own usage, stop at a budget or assert on it in a test without asking the API.
 - The Alert rules dialog ends with a History section: the last twenty times a rule fired or
   resolved, newest first, with the measured value against its threshold or baseline, the trace
   count and the scope, read from the audit log like `shadow alerts history`.

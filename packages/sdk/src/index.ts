@@ -1,5 +1,5 @@
 export { Shadow, type ShadowOptions, type StartTraceOptions } from "./shadow.js";
-export { Trace, ToolError, PolicyBlocked, type TraceOptions } from "./trace.js";
+export { Trace, ToolError, PolicyBlocked, type TraceOptions, type TraceStats } from "./trace.js";
 export {
   HttpTransport,
   MemoryTransport,

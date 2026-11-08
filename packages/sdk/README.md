@@ -180,6 +180,10 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   every `startTrace` call.
 - `webUrl` (or `SHADOW_WEB_URL`), the public base URL of the web app, gives every trace a
   `trace.url`: the page that shows it, ready for a log line or a ticket; `null` when unset.
+- `trace.stats` tallies what the trace has recorded so far, in the process and without waiting
+  for the API: events, model calls, tool calls and how many failed or were blocked, input,
+  output and total tokens, the estimated cost the calls reported and the duration (frozen when
+  the trace ends), for a log line, a budget check or a test assertion.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.

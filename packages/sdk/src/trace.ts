@@ -48,6 +48,23 @@ export interface TraceOptions {
   collections?: string[];
 }
 
+/** What a trace has recorded so far, tallied in the process; `trace.stats` reads it. */
+export interface TraceStats {
+  /** Events recorded, flushed or not. */
+  events: number;
+  modelCalls: number;
+  toolCalls: number;
+  /** Tool calls that threw or were blocked by a guard. */
+  toolErrors: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** The estimated costs that model and tool calls reported, summed, in USD. */
+  estimatedCost: number;
+  /** Milliseconds since the trace started, frozen when it ends. */
+  durationMs: number;
+}
+
 interface EmitInput {
   eventType: string;
   name: string;
@@ -131,6 +148,17 @@ export class Trace implements AgentHost {
   private readonly agentSpanId: string;
   private spanId: string | null;
   private readonly toolCounts = new Map<string, number>();
+  private readonly tally: Omit<TraceStats, "durationMs"> = {
+    events: 0,
+    modelCalls: 0,
+    toolCalls: 0,
+    toolErrors: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    estimatedCost: 0,
+  };
+  private endedAtMs: number | null = null;
   private ended = false;
   private readonly startedAtMs: number;
   readonly id: string;
@@ -191,6 +219,18 @@ export class Trace implements AgentHost {
     return this.handle?.rootBranchId ?? "main";
   }
 
+  /**
+   * Totals of what this trace has recorded so far, for a log line, a test assertion or a budget
+   * check, without waiting for the API: model and tool calls, failures, tokens and the estimated
+   * cost that the calls reported.
+   */
+  get stats(): TraceStats {
+    return {
+      ...this.tally,
+      durationMs: (this.endedAtMs ?? this.options.now()) - this.startedAtMs,
+    };
+  }
+
   /** Attach the original request to the agent span (replays read it from here). */
   setInput(input: JsonValue): void {
     const started = this.queue.find((e) => e.eventType === "agent.started");
@@ -218,9 +258,24 @@ export class Trace implements AgentHost {
       estimatedCost: partial.estimatedCost ?? undefined,
     };
     this.queue.push(event);
+    this.count(event);
     this.lastEmittedId = event.id;
     if (this.queue.length >= this.options.maxBatchSize) void this.flush();
     return event;
+  }
+
+  private count(event: PendingEvent): void {
+    const tally = this.tally;
+    tally.events += 1;
+    if (event.eventType === "model.request") tally.modelCalls += 1;
+    else if (event.eventType === "tool.request") tally.toolCalls += 1;
+    else if (event.eventType === "tool.error") tally.toolErrors += 1;
+    if (event.tokenUsage) {
+      tally.inputTokens += event.tokenUsage.inputTokens;
+      tally.outputTokens += event.tokenUsage.outputTokens;
+      tally.totalTokens += event.tokenUsage.totalTokens;
+    }
+    if (event.estimatedCost) tally.estimatedCost += event.estimatedCost.amount;
   }
 
   /** Send buffered events. Never throws; failures go to `onError`. */
@@ -763,6 +818,7 @@ export class Trace implements AgentHost {
   async end(options: { outcome?: Outcome } = {}): Promise<void> {
     if (this.ended) return;
     this.ended = true;
+    this.endedAtMs = this.options.now();
     const outcome = options.outcome ?? { kind: "completed", label: "Completed" };
     this.emit({
       eventType: "agent.completed",
@@ -786,6 +842,7 @@ export class Trace implements AgentHost {
   async fail(error: unknown): Promise<void> {
     if (this.ended) return;
     this.ended = true;
+    this.endedAtMs = this.options.now();
     const err =
       error instanceof Error
         ? { message: error.message, name: error.name }

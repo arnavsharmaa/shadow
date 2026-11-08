@@ -565,6 +565,71 @@ describe("Shadow SDK", () => {
     }
   });
 
+  it("tallies calls, tokens and cost as a trace records them", async () => {
+    const transport = new MemoryTransport();
+    const trace = client(transport).startTrace({ name: "budget" });
+    expect(trace.stats).toMatchObject({
+      events: 2,
+      modelCalls: 0,
+      toolCalls: 0,
+      toolErrors: 0,
+      totalTokens: 0,
+      estimatedCost: 0,
+    });
+    expect(trace.stats.durationMs).toBeGreaterThanOrEqual(0);
+    await trace.model({
+      provider: "test",
+      model: "test-1",
+      messages: [{ role: "user", content: "plan" }],
+      execute: async () => ({
+        message: { role: "assistant", content: "ok" },
+        tokenUsage: { inputTokens: 120, outputTokens: 30, totalTokens: 150 },
+        estimatedCost: 0.002,
+      }),
+    });
+    await trace.tool({
+      name: "lookup",
+      arguments: {},
+      execute: async () => ({ result: { hit: true }, estimatedCost: 0.0005 }),
+    });
+    await expect(
+      trace.tool({
+        name: "charge",
+        arguments: {},
+        execute: async () => {
+          throw new ToolError("declined", { code: "card_declined" });
+        },
+      }),
+    ).rejects.toThrow("declined");
+    await expect(
+      trace.tool({
+        name: "refund",
+        arguments: { amount: 900 },
+        guard: {
+          policy: "refund-limit",
+          subject: { amount: 900 },
+          evaluate: () => ({ decision: "deny", reason: "over" }),
+        },
+        execute: async () => ({ result: null }),
+      }),
+    ).rejects.toBeInstanceOf(PolicyBlocked);
+    expect(trace.stats).toMatchObject({
+      modelCalls: 1,
+      toolCalls: 3,
+      toolErrors: 2,
+      inputTokens: 120,
+      outputTokens: 30,
+      totalTokens: 150,
+      estimatedCost: 0.0025,
+    });
+    await trace.end();
+    const frozen = trace.stats.durationMs;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(trace.stats.durationMs).toBe(frozen);
+    // Flushed and unflushed events count alike: the tally is local.
+    expect(trace.stats.events).toBe(transport.events.get(trace.id)?.length);
+  });
+
   it("knows the web page of a trace when the web app's URL is configured", async () => {
     const transport = new MemoryTransport();
     const trace = client(transport, { webUrl: "https://shadow.example.com/" }).startTrace({
