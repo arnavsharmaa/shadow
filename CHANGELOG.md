@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The Alert rules dialog ends with a History section: the last twenty times a rule fired or
+  resolved, newest first, with the measured value against its threshold or baseline, the trace
+  count and the scope, read from the audit log like `shadow alerts history`.
 - `trace.finished` webhook notifications carry the trace's `metrics` (duration, model and
   tool calls, failed tool calls, tokens and estimated cost) as it finished, and the Slack and
   Discord messages show them as a Usage field with the cost in the headline, so a receiver can

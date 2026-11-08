@@ -2,7 +2,7 @@
 
 import { api, type AlertRuleInput } from "@/lib/api";
 import { duration, money, relativeTime } from "@/lib/format";
-import type { AlertMetric, AlertRule } from "@shadow/schemas";
+import type { AlertMetric, AlertRule, AuditEntry } from "@shadow/schemas";
 import { ALERT_METRICS } from "@shadow/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -56,6 +56,63 @@ function windowLabel(minutes: number): string {
   return `${minutes}m`;
 }
 
+function isAlertMetric(value: unknown): value is AlertMetric {
+  return typeof value === "string" && (ALERT_METRICS as readonly string[]).includes(value);
+}
+
+/** One `alert.fired` or `alert.resolved` audit entry, read back into typed columns. */
+interface Transition {
+  id: string;
+  at: string;
+  fired: boolean;
+  name: string;
+  metric: AlertMetric | null;
+  baseline: boolean;
+  value: number | null;
+  threshold: number | null;
+  baselineValue: number | null;
+  traces: number | null;
+  scope: string;
+}
+
+function toTransition(entry: AuditEntry): Transition {
+  const d = entry.details;
+  const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
+  const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  const scope = [
+    str(d.project),
+    str(d.agent),
+    str(d.tag) !== null ? `#${String(d.tag)}` : null,
+    str(d.tool) !== null ? `calling ${String(d.tool)}` : null,
+  ].filter((s): s is string => s !== null);
+  return {
+    id: entry.id,
+    at: entry.at,
+    fired: entry.action === "alert.fired",
+    name: str(d.name) ?? entry.targetId,
+    metric: isAlertMetric(d.metric) ? d.metric : null,
+    baseline: d.mode === "baseline",
+    value: num(d.value),
+    threshold: num(d.threshold),
+    baselineValue: num(d.baseline),
+    traces: num(d.traces),
+    scope: scope.join(" ") || "every agent",
+  };
+}
+
+/** `failure rate 100% (threshold 50%)` or `… (2× the baseline of 10%)`. */
+function describeTransition(t: Transition): string {
+  const metric = t.metric;
+  const value = metric ? formatValue(metric, t.value) : String(t.value ?? "–");
+  const label = metric ? METRIC_LABEL[metric] : "value";
+  if (t.baseline) {
+    const base = metric ? formatValue(metric, t.baselineValue) : String(t.baselineValue ?? "–");
+    return `${label} ${value} (${t.threshold ?? "?"}× the baseline of ${base})`;
+  }
+  const limit = metric ? formatValue(metric, t.threshold) : String(t.threshold ?? "–");
+  return `${label} ${value} (threshold ${limit})`;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -67,6 +124,16 @@ interface Props {
 export function AlertRulesDialog({ open, onClose, agents }: Props) {
   const queryClient = useQueryClient();
   const rules = useQuery({ queryKey: ["alert-rules"], queryFn: api.alertRules, enabled: open });
+  // When rules fired and resolved: the API writes each transition to the audit log.
+  const history = useQuery({
+    queryKey: ["alert-history"],
+    queryFn: () => api.auditLog({ actor: "system:alerts", limit: 40 }),
+    enabled: open,
+  });
+  const transitions = (history.data?.items ?? [])
+    .filter((e) => e.action === "alert.fired" || e.action === "alert.resolved")
+    .slice(0, 20)
+    .map(toTransition);
   const [name, setName] = useState("");
   const [metric, setMetric] = useState<AlertMetric>("failure_rate");
   const [agent, setAgent] = useState("");
@@ -407,6 +474,61 @@ export function AlertRulesDialog({ open, onClose, agents }: Props) {
           </tbody>
         </table>
       )}
+      <section className="border-t border-border" aria-labelledby="alert-history-heading">
+        <h3
+          id="alert-history-heading"
+          className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-fg-muted uppercase"
+        >
+          History
+        </h3>
+        {history.isError ? (
+          <ErrorState error={history.error} retry={() => history.refetch()} />
+        ) : !history.data ? (
+          <div className="space-y-1 p-3" aria-busy="true">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-6 w-full" />
+            ))}
+          </div>
+        ) : transitions.length === 0 ? (
+          <p className="px-4 pb-3 text-[12px] text-fg-muted" data-testid="alert-history-empty">
+            No rule has fired yet. Each time one fires or resolves it is listed here, newest first.
+          </p>
+        ) : (
+          <table className="w-full border-collapse text-[12px]" data-testid="alert-history">
+            <thead className="text-left text-[11px] tracking-wide text-fg-muted uppercase">
+              <tr>
+                <th className="px-4 py-1">When</th>
+                <th className="px-3 py-1">Rule</th>
+                <th className="px-3 py-1">Event</th>
+                <th className="px-3 py-1">Measured</th>
+                <th className="px-3 py-1">Traces</th>
+                <th className="px-3 py-1">Scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transitions.map((t) => (
+                <tr
+                  key={t.id}
+                  className="border-t border-border"
+                  data-testid="alert-history-row"
+                  data-rule-name={t.name}
+                >
+                  <td className="px-4 py-1.5 whitespace-nowrap text-fg-muted" title={t.at}>
+                    {relativeTime(t.at)}
+                  </td>
+                  <td className="px-3 py-1.5 font-medium">{t.name}</td>
+                  <td className="px-3 py-1.5">
+                    <Badge tone={t.fired ? "err" : "ok"}>{t.fired ? "fired" : "resolved"}</Badge>
+                  </td>
+                  <td className="px-3 py-1.5">{describeTransition(t)}</td>
+                  <td className="px-3 py-1.5">{t.traces ?? "–"}</td>
+                  <td className="px-3 py-1.5">{t.scope}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </Dialog>
   );
 }

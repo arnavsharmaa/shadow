@@ -754,6 +754,16 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       const row = page.locator('[data-testid="alert-row"]', { hasText: name });
       await expect(row).toContainText("failure rate 100% (threshold 50%) over the last 1h");
       await expect(row).toContainText("for alert-bot");
+      // The transition is kept in the Alert rules dialog's history.
+      await page.getByTestId("manage-alerts").click();
+      const transition = page
+        .getByTestId("alert-history")
+        .locator('[data-testid="alert-history-row"]', { hasText: name })
+        .first();
+      await expect(transition).toContainText("fired");
+      await expect(transition).toContainText("failure rate 100% (threshold 50%)");
+      await expect(transition).toContainText("alert-bot");
+      await page.keyboard.press("Escape");
     } finally {
       await request.delete(`${apiUrl}/api/v1/alerts/rules/${ruleId}`);
       await request.delete(`${apiUrl}/api/v1/traces/${id}`);
