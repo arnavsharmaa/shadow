@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The top bar shows how many alert rules are firing on every page, with the rule names on
+  hover, and links to the Agents page where they are managed; it disappears when none fire.
 - `SHADOW_RETENTION_FAILED_DAYS` keeps failed traces (including policy violations) for their
   own number of days instead of their project's retention window, so what gets debugged later
   outlives routine successes (or noisy failures go first); `/health` and the Settings page

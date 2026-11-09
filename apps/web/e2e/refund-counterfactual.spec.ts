@@ -754,6 +754,10 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       const row = page.locator('[data-testid="alert-row"]', { hasText: name });
       await expect(row).toContainText("failure rate 100% (threshold 50%) over the last 1h");
       await expect(row).toContainText("for alert-bot");
+      // The top bar counts firing rules on every page and links to the Agents page.
+      const indicator = page.getByTestId("nav-alerts");
+      await expect(indicator).toContainText("firing");
+      await expect(indicator).toHaveAttribute("title", new RegExp(name));
       // The transition is kept in the Alert rules dialog's history.
       await page.getByTestId("manage-alerts").click();
       const transition = page
@@ -770,6 +774,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     }
     await page.reload();
     await expect(page.locator('[data-testid="alert-row"]', { hasText: name })).toHaveCount(0);
+    await expect(page.getByTestId("nav-alerts")).toHaveCount(0);
   });
 
   test("alert rules can be added, paused and deleted from the agents page", async ({ page }) => {

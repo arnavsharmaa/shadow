@@ -38,6 +38,14 @@ export function TopNav() {
     retry: 0,
   });
   const healthy = health.data?.status === "ok";
+  // Firing alert rules are shown on every page, not only where they are managed.
+  const alerts = useQuery({
+    queryKey: ["alert-rules"],
+    queryFn: api.alertRules,
+    refetchInterval: 60_000,
+    retry: 0,
+  });
+  const firing = (alerts.data?.items ?? []).filter((r) => r.enabled && r.state === "firing");
 
   return (
     <header className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-panel px-3">
@@ -115,6 +123,18 @@ export function TopNav() {
         </a>
       </nav>
       <div className="flex items-center gap-3 text-[11px] text-fg-muted">
+        {firing.length > 0 && (
+          <Link
+            href="/agents"
+            className="flex items-center gap-1 rounded border border-err/40 bg-err-bg px-2 py-0.5 font-medium text-err hover:bg-hover"
+            title={`Firing: ${firing.map((r) => r.name).join(", ")}`}
+            aria-label={`${firing.length} alert rule${firing.length === 1 ? "" : "s"} firing; open Agents`}
+            data-testid="nav-alerts"
+          >
+            <span aria-hidden="true">▲</span>
+            {firing.length} firing
+          </Link>
+        )}
         <span
           className="flex items-center gap-1.5"
           title={
