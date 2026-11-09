@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BudgetExceeded,
   HttpTransport,
   MemoryTransport,
   PolicyBlocked,
@@ -628,6 +629,60 @@ describe("Shadow SDK", () => {
     expect(trace.stats.durationMs).toBe(frozen);
     // Flushed and unflushed events count alike: the tally is local.
     expect(trace.stats.events).toBe(transport.events.get(trace.id)?.length);
+  });
+
+  it("refuses calls once a budget is spent and records the refusal once", async () => {
+    const transport = new MemoryTransport();
+    const shadow = client(transport, { budget: { maxToolCalls: 5, maxEstimatedCost: 0.003 } });
+    // The trace's limit wins over the client's; the client's other limits still apply.
+    const trace = shadow.startTrace({ name: "capped", budget: { maxToolCalls: 1 } });
+    const model = () =>
+      trace.model({
+        provider: "test",
+        model: "test-1",
+        messages: [{ role: "user", content: "go" }],
+        execute: async () => ({
+          message: { role: "assistant", content: "ok" },
+          tokenUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          estimatedCost: 0.002,
+        }),
+      });
+    await trace.tool({ name: "lookup", arguments: {}, execute: async () => ({ result: 1 }) });
+    const second = trace.tool({
+      name: "lookup",
+      arguments: {},
+      execute: async () => ({ result: 2 }),
+    });
+    await expect(second).rejects.toBeInstanceOf(BudgetExceeded);
+    await expect(second).rejects.toMatchObject({ limit: "maxToolCalls", value: 1, max: 1 });
+    expect(trace.budgetExceeded?.limit).toBe("maxToolCalls");
+    // Model calls have their own count and are still allowed.
+    await model();
+    expect(trace.stats.modelCalls).toBe(1);
+    // Cost is shared: 0.002 spent of 0.003 allows one more call, which brings it to 0.004.
+    await model();
+    await expect(model()).rejects.toMatchObject({ limit: "maxEstimatedCost", max: 0.003 });
+    await expect(
+      trace.tool({ name: "lookup", arguments: {}, execute: async () => ({ result: 3 }) }),
+    ).rejects.toBeInstanceOf(BudgetExceeded);
+    await trace.end();
+    const events = transport.events.get(trace.id) ?? [];
+    const notes = events.filter(
+      (e) => e.eventType === "agent.note" && e.name === "budget.exceeded",
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.output).toEqual({ limit: "maxToolCalls", value: 1, max: 1, refused: "tool" });
+    expect(notes[0]?.severity).toBe("warn");
+    // Refused calls never reached the trace: one tool request, two model requests.
+    expect(events.filter((e) => e.eventType === "tool.request")).toHaveLength(1);
+    expect(events.filter((e) => e.eventType === "model.request")).toHaveLength(2);
+    expect(trace.stats.toolCalls).toBe(1);
+    // Without a budget nothing is checked.
+    const free = client(transport).startTrace({ name: "free" });
+    await free.tool({ name: "a", arguments: {}, execute: async () => ({ result: 1 }) });
+    await free.tool({ name: "a", arguments: {}, execute: async () => ({ result: 2 }) });
+    expect(free.budgetExceeded).toBeNull();
+    await free.end();
   });
 
   it("knows the web page of a trace when the web app's URL is configured", async () => {

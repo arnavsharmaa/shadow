@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: a `budget` on the client or on `startTrace` caps a trace's estimated cost, tokens, model
+  calls or tool calls; once a tally reaches a limit the next call throws `BudgetExceeded`
+  before it runs, the trace records a `budget.exceeded` note and `trace.budgetExceeded` holds
+  the hit, so a runaway loop stops at a known cost.
 - The top bar shows how many alert rules are firing on every page, with the rule names on
   hover, and links to the Agents page where they are managed; it disappears when none fire.
 - `SHADOW_RETENTION_FAILED_DAYS` keeps failed traces (including policy violations) for their

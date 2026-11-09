@@ -184,6 +184,12 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   for the API: events, model calls, tool calls and how many failed or were blocked, input,
   output and total tokens, the estimated cost the calls reported and the duration (frozen when
   the trace ends), for a log line, a budget check or a test assertion.
+- `budget` on the client or on `startTrace` (`{ maxEstimatedCost, maxTotalTokens, maxModelCalls,
+maxToolCalls }`, the trace's limits overriding the client's one by one) caps what a trace may
+  spend: once a tally has reached a limit, the next model or tool call throws `BudgetExceeded`
+  (with `limit`, `value` and `max`) before it runs, the trace records one `budget.exceeded` note
+  and `trace.budgetExceeded` holds the hit, so a runaway loop stops at a known cost instead of
+  at the provider's rate limit.
 - `project`, `agent`, `endpoint` and `token` default to `SHADOW_PROJECT`, `SHADOW_AGENT`,
   `SHADOW_ENDPOINT` and `SHADOW_TOKEN`, so `new Shadow()` works with environment-only
   configuration.

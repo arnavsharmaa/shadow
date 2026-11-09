@@ -46,6 +46,23 @@ export interface TraceOptions {
   recorded?: boolean;
   /** Collections the trace is put in once it exists (created when missing). */
   collections?: string[];
+  /** Limits on what the trace may spend; see `TraceBudget`. */
+  budget?: TraceBudget;
+}
+
+/**
+ * Limits on what a trace may spend, checked against `trace.stats` before every model and tool
+ * call: once a tally has reached a limit, the next call of that kind (or any call, for cost and
+ * tokens) throws `BudgetExceeded` without running, and the trace records one `budget.exceeded`
+ * note. Nothing is undone; the agent decides how to stop.
+ */
+export interface TraceBudget {
+  /** Estimated cost in USD the trace's calls may report in total. */
+  maxEstimatedCost?: number;
+  /** Tokens (input plus output) the trace's model calls may use in total. */
+  maxTotalTokens?: number;
+  maxModelCalls?: number;
+  maxToolCalls?: number;
 }
 
 /** What a trace has recorded so far, tallied in the process; `trace.stats` reads it. */
@@ -104,6 +121,21 @@ export class ToolError extends Error {
   }
 }
 
+/** A model or tool call was refused because the trace's `budget` is spent. */
+export class BudgetExceeded extends Error {
+  constructor(
+    /** Which limit was reached. */
+    readonly limit: keyof TraceBudget,
+    /** The tally at the time. */
+    readonly value: number,
+    /** The configured limit. */
+    readonly max: number,
+  ) {
+    super(`budget exceeded: ${limit} is ${max}, the trace has reached ${value}`);
+    this.name = "BudgetExceeded";
+  }
+}
+
 export class PolicyBlocked extends Error {
   constructor(
     readonly tool: string,
@@ -159,11 +191,17 @@ export class Trace implements AgentHost {
     estimatedCost: 0,
   };
   private endedAtMs: number | null = null;
+  private budgetHit: BudgetExceeded | null = null;
   private ended = false;
   private readonly startedAtMs: number;
   readonly id: string;
   /** The web page that shows this trace, or `null` when the client has no `webUrl`. */
   readonly url: string | null;
+
+  /** The first budget limit this trace ran into, or `null` while it is within budget. */
+  get budgetExceeded(): BudgetExceeded | null {
+    return this.budgetHit;
+  }
 
   constructor(transport: Transport, options: TraceOptions) {
     this.transport = transport;
@@ -262,6 +300,32 @@ export class Trace implements AgentHost {
     this.lastEmittedId = event.id;
     if (this.queue.length >= this.options.maxBatchSize) void this.flush();
     return event;
+  }
+
+  /** Refuse the next call of `kind` once a budget limit is reached; records the first refusal. */
+  private checkBudget(kind: "model" | "tool"): void {
+    const budget = this.options.budget;
+    if (!budget) return;
+    const tally = this.tally;
+    const reached = (limit: keyof TraceBudget, value: number): BudgetExceeded | null => {
+      const max = budget[limit];
+      return max !== undefined && value >= max ? new BudgetExceeded(limit, value, max) : null;
+    };
+    const hit =
+      reached("maxEstimatedCost", tally.estimatedCost) ??
+      reached("maxTotalTokens", tally.totalTokens) ??
+      (kind === "model" ? reached("maxModelCalls", tally.modelCalls) : null) ??
+      (kind === "tool" ? reached("maxToolCalls", tally.toolCalls) : null);
+    if (!hit) return;
+    if (!this.budgetHit) {
+      this.budgetHit = hit;
+      this.note(
+        "budget.exceeded",
+        { limit: hit.limit, value: hit.value, max: hit.max, refused: kind },
+        { severity: "warn" },
+      );
+    }
+    throw hit;
   }
 
   private count(event: PendingEvent): void {
@@ -557,6 +621,7 @@ export class Trace implements AgentHost {
   async tool(call: ToolCall): Promise<JsonValue> {
     if (!call.execute)
       throw new Error(`tool '${call.name}' needs an execute() implementation when recording live`);
+    this.checkBudget("tool");
     const args = toJson(call.arguments);
     const occurrence = (this.toolCounts.get(call.name) ?? 0) + 1;
     this.toolCounts.set(call.name, occurrence);
@@ -653,6 +718,7 @@ export class Trace implements AgentHost {
       throw new Error(
         `model call '${call.name ?? call.model}' needs an execute() implementation when recording live`,
       );
+    this.checkBudget("model");
     const name = call.name ?? call.model;
     const request = {
       provider: call.provider,

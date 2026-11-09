@@ -1,6 +1,6 @@
 import type { JsonObject, JsonValue } from "@shadow/schemas";
 import { createRedactor, type RedactOptions } from "./redact.js";
-import { Trace } from "./trace.js";
+import { Trace, type TraceBudget } from "./trace.js";
 import { SpoolTransport } from "./spool.js";
 import { HttpTransport, NoopTransport, type Transport } from "./transport.js";
 
@@ -73,6 +73,11 @@ export interface ShadowOptions {
   sampleRate?: number;
   /** Custom sampling decision; overrides `sampleRate` (except for `sample` on startTrace). */
   sampler?: (input: StartTraceOptions) => boolean;
+  /**
+   * Spending limits for every trace this client starts (cost, tokens, model and tool calls);
+   * a trace's own `budget` overrides them limit by limit. See `TraceBudget`.
+   */
+  budget?: TraceBudget;
 }
 
 export interface StartTraceOptions {
@@ -86,6 +91,8 @@ export interface StartTraceOptions {
   sample?: boolean;
   /** Collections to put the trace in (created when missing), such as an experiment name. */
   collections?: string[];
+  /** Spending limits for this trace, over the client's; see `TraceBudget`. */
+  budget?: TraceBudget;
 }
 
 /** FNV-1a hash of a string mapped to [0, 1). */
@@ -248,6 +255,10 @@ export class Shadow {
       tags: mergeTags(this.options.tags, input.tags),
       startedAt: input.startedAt,
       collections: mergeTags(this.options.collections, input.collections),
+      budget:
+        this.options.budget || input.budget
+          ? { ...this.options.budget, ...input.budget }
+          : undefined,
       webUrl: this.options.webUrl,
       flushIntervalMs: this.options.flushIntervalMs ?? 1000,
       maxBatchSize: this.options.maxBatchSize ?? 100,
