@@ -1085,6 +1085,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_WEBHOOK_TAGS`               | unset (all)                                   | comma-separated tags, one of which a trace must carry     |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)               |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
+| `SHADOW_RETENTION_FAILED_DAYS`      | unset                                         | failed traces keep for N days instead (see below)         |
 | `SHADOW_RETENTION_PROJECT_DAYS`     | unset                                         | per-project windows, `slug=days` pairs (see below)        |
 | `SHADOW_ALERT_INTERVAL_MINUTES`     | `5`                                           | how often alert rules are evaluated (`0` disables)        |
 | `SHADOW_PRICING_FILE`               | unset                                         | JSON price list that adds to or overrides built-in prices |
@@ -1281,6 +1282,13 @@ large backlog drains over several intervals without blocking ingestion) and logs
 `retention sweep` line with the cutoff and count. Sweeps never overlap. Retention applies to the
 seeded demo traces too; with `SHADOW_AUTO_SEED` the demo is re-created only when the database is
 empty.
+
+`SHADOW_RETENTION_FAILED_DAYS` puts failed traces (which includes policy violations) on their
+own clock: they are deleted after that many days instead of the window that applies to their
+project, longer to keep what gets debugged later, or shorter to drop noisy failures first. Each
+sweep then makes two passes per window, one over everything else and one over failed traces,
+and the failed pass is audited with `status: "failed"`; `/health` reports the window as
+`features.retention.failedDays`.
 
 `SHADOW_RETENTION_PROJECT_DAYS` gives projects their own windows as `slug=days` pairs
 (`support=90,ci=7`): a listed project is swept with its own number of days on the same schedule,

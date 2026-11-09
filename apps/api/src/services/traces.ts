@@ -16,6 +16,7 @@ import {
   inArray,
   lt,
   lte,
+  ne,
   notInArray,
   or,
   sql,
@@ -308,13 +309,14 @@ export interface PruneResult {
 export async function pruneTraces(
   ctx: ServiceContext,
   body: PruneTracesBody,
-  options: { excludeProjects?: readonly string[] } = {},
+  options: { excludeProjects?: readonly string[]; excludeStatus?: Trace["status"] } = {},
 ): Promise<PruneResult> {
   const filters: SQL[] = [lt(traces.startedAt, body.before)];
   if (body.project) filters.push(eq(projects.slug, body.project));
   if (options.excludeProjects && options.excludeProjects.length > 0) {
     filters.push(notInArray(projects.slug, [...options.excludeProjects]));
   }
+  if (options.excludeStatus) filters.push(ne(traces.status, options.excludeStatus));
   if (body.agent) filters.push(eq(agents.slug, body.agent));
   if (body.status) filters.push(eq(traces.status, body.status));
   if (body.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([body.tag])}::jsonb`);

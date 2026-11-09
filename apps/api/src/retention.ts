@@ -23,9 +23,12 @@ export interface RetentionSweep {
     project: string;
     days: number;
     cutoff: string;
+    /** Includes the project's failed traces deleted under SHADOW_RETENTION_FAILED_DAYS. */
     deleted: number;
     truncated: boolean;
   }[];
+  /** The global pass over failed traces under SHADOW_RETENTION_FAILED_DAYS; `null` without it. */
+  failed: { days: number; cutoff: string; deleted: number; truncated: boolean } | null;
 }
 
 export interface Retention {
@@ -51,11 +54,19 @@ export function createRetention(input: {
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_AUDIT_RETENTION_DAYS"
   > &
-    Partial<Pick<ApiConfig, "SHADOW_RETENTION_PROJECT_DAYS" | "SHADOW_RETENTION_KEEP_COLLECTED">>;
+    Partial<
+      Pick<
+        ApiConfig,
+        | "SHADOW_RETENTION_PROJECT_DAYS"
+        | "SHADOW_RETENTION_KEEP_COLLECTED"
+        | "SHADOW_RETENTION_FAILED_DAYS"
+      >
+    >;
   logger: Logger;
 }): Retention {
   const { services, config, logger } = input;
   const days = config.SHADOW_RETENTION_DAYS;
+  const failedDays = config.SHADOW_RETENTION_FAILED_DAYS;
   const auditDays = config.SHADOW_AUDIT_RETENTION_DAYS;
   const perProject = Object.entries(config.SHADOW_RETENTION_PROJECT_DAYS ?? {});
   const keepCollected = config.SHADOW_RETENTION_KEEP_COLLECTED ?? true;
@@ -71,8 +82,16 @@ export function createRetention(input: {
       auditDeleted = await pruneAudit(services, before);
       if (auditDeleted > 0) logger.info({ before, auditDeleted }, "audit log pruned");
     }
-    /** One bounded, audited prune pass over traces older than `retentionDays`. */
-    const pass = async (retentionDays: number, project?: string) => {
+    /**
+     * One bounded, audited prune pass over traces older than `retentionDays`. With
+     * SHADOW_RETENTION_FAILED_DAYS set, `status` narrows a pass to failed traces (on their own
+     * clock) or to everything else.
+     */
+    const pass = async (
+      retentionDays: number,
+      project?: string,
+      status?: "failed" | "not_failed",
+    ) => {
       const cutoff = new Date(services.clock.now() - retentionDays * DAY_MS).toISOString();
       let deleted = 0;
       let truncated = false;
@@ -86,9 +105,13 @@ export function createRetention(input: {
             excludeTag: config.SHADOW_RETENTION_KEEP_TAG,
             keepCollected,
             ...(project ? { project } : {}),
+            ...(status === "failed" ? { status: "failed" as const } : {}),
           },
-          // The global pass leaves projects with their own retention alone.
-          project ? {} : { excludeProjects: perProject.map(([slug]) => slug) },
+          {
+            // The global pass leaves projects with their own retention alone.
+            ...(project ? {} : { excludeProjects: perProject.map(([slug]) => slug) }),
+            ...(status === "not_failed" ? { excludeStatus: "failed" as const } : {}),
+          },
         );
         deleted += result.matched;
         if (result.traceIds.length > 0) {
@@ -103,6 +126,7 @@ export function createRetention(input: {
               traceIds: result.traceIds.slice(0, 100),
               retentionDays,
               ...(project ? { project } : {}),
+              ...(status === "failed" ? { status: "failed" } : {}),
             },
           });
         }
@@ -117,6 +141,7 @@ export function createRetention(input: {
             truncated,
             retentionDays,
             ...(project ? { project } : {}),
+            ...(status === "failed" ? { status: "failed" } : {}),
             keepTag: config.SHADOW_RETENTION_KEEP_TAG,
             keepCollected,
           },
@@ -125,14 +150,30 @@ export function createRetention(input: {
       }
       return { cutoff, deleted, truncated };
     };
+    /** A project's or the global window, with failed traces on their own clock when configured. */
+    const window = async (retentionDays: number, project?: string) => {
+      if (failedDays === undefined) return pass(retentionDays, project);
+      const kept = await pass(retentionDays, project, "not_failed");
+      const failed = await pass(failedDays, project, "failed");
+      return {
+        cutoff: kept.cutoff,
+        deleted: kept.deleted + failed.deleted,
+        truncated: kept.truncated || failed.truncated,
+      };
+    };
     const projects: RetentionSweep["projects"] = [];
     for (const [project, projectDays] of perProject) {
-      projects.push({ project, days: projectDays, ...(await pass(projectDays, project)) });
+      projects.push({ project, days: projectDays, ...(await window(projectDays, project)) });
     }
     if (days === undefined) {
-      return { cutoff: null, deleted: 0, truncated: false, auditDeleted, projects };
+      return { cutoff: null, deleted: 0, truncated: false, auditDeleted, projects, failed: null };
     }
-    return { ...(await pass(days)), auditDeleted, projects };
+    if (failedDays === undefined) {
+      return { ...(await pass(days)), auditDeleted, projects, failed: null };
+    }
+    const kept = await pass(days, undefined, "not_failed");
+    const failed = await pass(failedDays, undefined, "failed");
+    return { ...kept, auditDeleted, projects, failed: { days: failedDays, ...failed } };
   };
 
   const runOnce = (): Promise<RetentionSweep | null> => {
@@ -159,6 +200,7 @@ export function createRetention(input: {
       logger.info(
         {
           retentionDays: days ?? null,
+          failedRetentionDays: failedDays ?? null,
           auditRetentionDays: auditDays ?? null,
           ...(perProject.length > 0 ? { projectDays: Object.fromEntries(perProject) } : {}),
           intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,

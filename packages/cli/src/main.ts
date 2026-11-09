@@ -176,7 +176,12 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         agents?: { replayable: string[] };
         features?: {
           auth: boolean;
-          retention: { enabled: boolean; days?: number; intervalMinutes?: number };
+          retention: {
+            enabled: boolean;
+            days?: number;
+            failedDays?: number;
+            intervalMinutes?: number;
+          };
           sampling?: { enabled: boolean; rate: number };
           otlp: {
             path: string;
@@ -223,7 +228,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         );
         if (summary.features) {
           const retention = summary.features.retention.enabled
-            ? `retention ${summary.features.retention.days}d every ${summary.features.retention.intervalMinutes}m`
+            ? `retention ${summary.features.retention.days}d${summary.features.retention.failedDays !== undefined ? ` (failed ${summary.features.retention.failedDays}d)` : ""} every ${summary.features.retention.intervalMinutes}m`
             : "retention off";
           const webhook = summary.features.webhook?.enabled
             ? `webhook on (${summary.features.webhook.events ?? "failures"}, ${summary.features.webhook.format ?? "json"})`

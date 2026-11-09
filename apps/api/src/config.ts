@@ -42,6 +42,20 @@ const optionalHttpUrl = z
     }
   });
 
+/** A positive number of days, or unset when empty. */
+const optionalDays = z
+  .union([z.string(), z.number()])
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined || (typeof v === "string" && v.trim() === "")) return undefined;
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n) || n <= 0) {
+      ctx.addIssue({ code: "custom", message: "must be a positive number of days" });
+      return z.NEVER;
+    }
+    return n;
+  });
+
 const configSchema = z.object({
   DATABASE_URL: z.string().optional(),
   SHADOW_DATA_DIR: z.string().default(".shadow/data"),
@@ -121,31 +135,15 @@ const configSchema = z.object({
   /** Temporary credentials (STS) carry a session token as well. */
   SHADOW_EXPORT_S3_SESSION_TOKEN: optionalText,
   /** Delete traces older than this many days (unset disables retention). */
-  SHADOW_RETENTION_DAYS: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((v, ctx) => {
-      if (v === undefined || (typeof v === "string" && v.trim() === "")) return undefined;
-      const n = typeof v === "number" ? v : Number(v);
-      if (!Number.isFinite(n) || n <= 0) {
-        ctx.addIssue({ code: "custom", message: "must be a positive number of days" });
-        return z.NEVER;
-      }
-      return n;
-    }),
+  SHADOW_RETENTION_DAYS: optionalDays,
+  /**
+   * Failed traces (including policy violations) are kept for this many days instead of the
+   * window that applies to their project, since failures are what gets debugged later. Unset
+   * keeps them on the same clock as every other trace.
+   */
+  SHADOW_RETENTION_FAILED_DAYS: optionalDays,
   /** Delete audit entries older than this many days (unset keeps them forever). */
-  SHADOW_AUDIT_RETENTION_DAYS: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((v, ctx) => {
-      if (v === undefined || (typeof v === "string" && v.trim() === "")) return undefined;
-      const n = typeof v === "number" ? v : Number(v);
-      if (!Number.isFinite(n) || n <= 0) {
-        ctx.addIssue({ code: "custom", message: "must be a positive number of days" });
-        return z.NEVER;
-      }
-      return n;
-    }),
+  SHADOW_AUDIT_RETENTION_DAYS: optionalDays,
   /**
    * Per-project retention, `slug=days` pairs separated by commas (`support=90,ci=7`). A listed
    * project keeps its traces for its own number of days instead of SHADOW_RETENTION_DAYS, and

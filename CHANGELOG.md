@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_RETENTION_FAILED_DAYS` keeps failed traces (including policy violations) for their
+  own number of days instead of their project's retention window, so what gets debugged later
+  outlives routine successes (or noisy failures go first); `/health` and the Settings page
+  report the window.
 - SDK: `trace.stats` tallies what a trace has recorded so far (events, model and tool calls,
   failed or blocked tool calls, tokens, estimated cost and duration) in the process, so an
   agent can log its own usage, stop at a budget or assert on it in a test without asking the API.

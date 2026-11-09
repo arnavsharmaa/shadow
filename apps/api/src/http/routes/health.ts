@@ -17,6 +17,8 @@ const healthSchema = z.object({
     retention: z.object({
       enabled: z.boolean(),
       days: z.number().optional(),
+      /** Window for failed traces when they have their own (SHADOW_RETENTION_FAILED_DAYS). */
+      failedDays: z.number().optional(),
       intervalMinutes: z.number().optional(),
       keepTag: z.string().optional(),
       /** Whether traces in a collection are left alone. */
@@ -61,6 +63,7 @@ export interface HealthRouteOptions {
     | "SHADOW_RETENTION_INTERVAL_MINUTES"
     | "SHADOW_RETENTION_KEEP_TAG"
     | "SHADOW_RETENTION_KEEP_COLLECTED"
+    | "SHADOW_RETENTION_FAILED_DAYS"
     | "SHADOW_RETENTION_PROJECT_DAYS"
     | "SHADOW_OTLP_DEFAULT_PROJECT"
     | "SHADOW_OTLP_BUFFER_SECONDS"
@@ -113,6 +116,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
               : {
                   enabled: true,
                   ...(retentionDays !== undefined ? { days: retentionDays } : {}),
+                  ...(config.SHADOW_RETENTION_FAILED_DAYS !== undefined
+                    ? { failedDays: config.SHADOW_RETENTION_FAILED_DAYS }
+                    : {}),
                   intervalMinutes: config.SHADOW_RETENTION_INTERVAL_MINUTES,
                   ...(config.SHADOW_RETENTION_KEEP_TAG
                     ? { keepTag: config.SHADOW_RETENTION_KEEP_TAG }

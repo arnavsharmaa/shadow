@@ -269,6 +269,7 @@ export interface HealthFeatures {
   retention: {
     enabled: boolean;
     days?: number;
+    failedDays?: number;
     intervalMinutes?: number;
     keepTag?: string;
     keepCollected?: boolean;

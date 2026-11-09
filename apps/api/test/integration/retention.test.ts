@@ -80,6 +80,7 @@ describe("retention", () => {
       truncated: false,
       auditDeleted: 0,
       projects: [],
+      failed: null,
     });
     // The kept trace survives although it is the oldest of all.
     expect(await listNames()).toEqual(["old-kept", "edge-30d", "fresh"]);
@@ -99,6 +100,69 @@ describe("retention", () => {
 
     // A second sweep finds nothing new.
     expect((await retention.runOnce())?.deleted).toBe(0);
+  });
+
+  it("keeps failed traces on their own clock when told to", async () => {
+    const failAt = async (name: string, startedAt: string) => {
+      const id = await createTrace(name, startedAt);
+      const posted = await t.app.inject({
+        method: "POST",
+        url: `/api/v1/traces/${id}/events`,
+        payload: {
+          events: [
+            {
+              eventType: "trace.failed",
+              name: "trace.failed",
+              severity: "error",
+              timestamp: startedAt,
+              output: { error: { message: "boom" } },
+            },
+          ],
+        },
+      });
+      expect(posted.statusCode).toBe(201);
+    };
+    await createTrace("fc-ok-40d", "2026-08-02T12:00:00.000Z");
+    await failAt("fc-failed-40d", "2026-08-02T12:00:00.000Z");
+    await failAt("fc-failed-100d", "2026-06-03T12:00:00.000Z");
+    const retention = createRetention({
+      services: t.services,
+      config: {
+        SHADOW_RETENTION_DAYS: 30,
+        SHADOW_RETENTION_FAILED_DAYS: 90,
+        SHADOW_RETENTION_INTERVAL_MINUTES: 60,
+        SHADOW_RETENTION_KEEP_TAG: "keep",
+        SHADOW_AUDIT_RETENTION_DAYS: undefined,
+      },
+      logger: t.services.logger,
+    });
+    const sweep = await retention.runOnce();
+    expect(sweep?.cutoff).toBe("2026-08-12T12:00:00.000Z");
+    expect(sweep?.deleted).toBeGreaterThanOrEqual(1);
+    expect(sweep?.failed).toEqual({
+      days: 90,
+      cutoff: "2026-06-13T12:00:00.000Z",
+      deleted: 1,
+      truncated: false,
+    });
+    // The 40-day-old failure outlives the 30-day window; the 100-day-old one does not.
+    expect((await listNames()).filter((n) => n.startsWith("fc-"))).toEqual(["fc-failed-40d"]);
+    // Leave nothing behind for the sweeps the other tests run.
+    const left = json<{ items: TraceSummary[] }>(
+      await t.app.inject({ url: "/api/v1/traces?q=fc-failed-40d" }),
+    ).items;
+    for (const trace of left) {
+      await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${trace.id}` });
+    }
+    const audited = await t.handle.db.select().from(auditLog);
+    expect(
+      audited.some(
+        (e) =>
+          e.action === "traces.pruned" &&
+          (e.details as { status?: string; retentionDays?: number }).status === "failed" &&
+          (e.details as { retentionDays?: number }).retentionDays === 90,
+      ),
+    ).toBe(true);
   });
 
   it("leaves traces in a collection alone unless told otherwise", async () => {
@@ -271,6 +335,7 @@ describe("audit retention", () => {
       truncated: false,
       auditDeleted: 1,
       projects: [],
+      failed: null,
     });
     const remaining = json<{ items: { id: string }[] }>(
       await t.app.inject({ url: "/api/v1/audit?limit=500" }),
