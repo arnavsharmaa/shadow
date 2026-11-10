@@ -947,6 +947,15 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await page.getByTestId("collection-name").fill(name);
     await page.getByTestId("add-to-collection").click();
     await expect(page.getByTestId("collection-message")).toHaveText(`Created ${name} (2 traces)`);
+    // Every trace the filters match can be collected too, not only the ticked ones.
+    const matching = (await (
+      await request.get(`${apiUrl}/api/v1/traces?agent=refund-agent&limit=1`)
+    ).json()) as { total: number };
+    await page.getByTestId("collection-name").fill(`${name}-all`);
+    await page.getByTestId("add-matching-to-collection").click();
+    await expect(page.getByTestId("collection-message")).toHaveText(
+      `Added ${matching.total} traces matching the filters to ${name}-all (now ${matching.total} traces)`,
+    );
     try {
       await page.goto("/");
       await page.locator("#filter-collection").selectOption(name);
@@ -1025,6 +1034,7 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
         `${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-baseline`)}`,
       );
       await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-page`)}`);
+      await request.delete(`${apiUrl}/api/v1/collections/${encodeURIComponent(`${name}-all`)}`);
     }
   });
 

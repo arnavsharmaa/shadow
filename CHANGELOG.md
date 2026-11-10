@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer's collection control gains "Add all N matching": every trace the current
+  filters match (the newest 500) goes into the named collection, not only the ticked rows, so
+  an incident is collected from a filtered view in one step.
 - Traces can be put in a collection by what they have in common: `POST
   /collections/:name/traces` takes a `query` with the trace list's filters next to (or instead
   of) `traceIds` and adds the newest 500 matches, and `shadow collections add <name> --agent

@@ -20,6 +20,7 @@ import type {
   TraceSummary,
   DiffEntry,
   TraceListQuery,
+  TraceSelection,
 } from "@shadow/schemas";
 
 import type { TrendPoint } from "./trend";
@@ -493,11 +494,12 @@ export const api = {
     ),
   collections: (traceId?: string) =>
     request<{ items: Collection[] }>("GET", `/api/v1/collections${query({ traceId })}`),
-  addToCollection: (collection: string, traceIds: string[]) =>
-    request<{ collection: Collection; added: string[]; missing: string[] }>(
+  /** Add traces by id and/or every trace a selection matches (the newest 500). */
+  addToCollection: (collection: string, traceIds: string[], query?: TraceSelection) =>
+    request<{ collection: Collection; added: string[]; missing: string[]; matched: number }>(
       "POST",
       `/api/v1/collections/${encodeURIComponent(collection)}/traces`,
-      { traceIds },
+      { traceIds, ...(query ? { query } : {}) },
     ),
   createCollection: (name: string, traceIds: string[], description?: string) =>
     request<{ collection: Collection; added: string[]; missing: string[] }>(

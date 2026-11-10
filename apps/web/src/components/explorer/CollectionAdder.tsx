@@ -1,38 +1,59 @@
 "use client";
 
 import { api } from "@/lib/api";
-import type { Collection } from "@shadow/schemas";
+import type { Collection, TraceSelection } from "@shadow/schemas";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "../ui/primitives";
 
-/** Add the ticked traces to a collection, creating the collection when the name is new. */
+/** The newest traces the API adds for one selection. */
+const SELECTION_LIMIT = 500;
+
+/**
+ * Add the ticked traces to a collection, creating the collection when the name is new; with a
+ * `matching` selection, every trace the current filters match can be added instead.
+ */
 export function CollectionAdder({
   traceIds,
   collections,
+  matching,
 }: {
   traceIds: string[];
   collections: Collection[];
+  /** The explorer's current filters and how many traces they match. */
+  matching?: { query: TraceSelection; total: number };
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const submit = async () => {
+  const submit = async (mode: "picked" | "matching") => {
     const target = name.trim();
-    if (!target || traceIds.length === 0) return;
+    if (!target) return;
+    if (mode === "picked" && traceIds.length === 0) return;
+    if (mode === "matching" && !matching) return;
     setBusy(true);
     setMessage(null);
     try {
       const exists = collections.some((c) => c.name === target);
-      const result = exists
-        ? await api.addToCollection(target, traceIds)
-        : await api.createCollection(target, traceIds);
-      setMessage({
-        text: `${exists ? "Added to" : "Created"} ${result.collection.name} (${result.collection.traceCount} trace${result.collection.traceCount === 1 ? "" : "s"})`,
-        error: false,
-      });
+      const plural = (n: number) => `${n} trace${n === 1 ? "" : "s"}`;
+      if (mode === "matching" && matching) {
+        if (!exists) await api.createCollection(target, []);
+        const result = await api.addToCollection(target, [], matching.query);
+        setMessage({
+          text: `Added ${plural(result.matched)} matching the filters to ${result.collection.name} (now ${plural(result.collection.traceCount)})`,
+          error: false,
+        });
+      } else {
+        const result = exists
+          ? await api.addToCollection(target, traceIds)
+          : await api.createCollection(target, traceIds);
+        setMessage({
+          text: `${exists ? "Added to" : "Created"} ${result.collection.name} (${plural(result.collection.traceCount)})`,
+          error: false,
+        });
+      }
       setName("");
       await queryClient.invalidateQueries({ queryKey: ["collections"] });
     } catch (e) {
@@ -47,7 +68,7 @@ export function CollectionAdder({
       className="flex items-center gap-1"
       onSubmit={(e) => {
         e.preventDefault();
-        void submit();
+        void submit("picked");
       }}
     >
       <label htmlFor="collection-name" className="text-fg-muted">
@@ -76,6 +97,23 @@ export function CollectionAdder({
       >
         Add to collection
       </Button>
+      {matching && matching.total > 0 && (
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={busy || !name.trim()}
+          onClick={() => void submit("matching")}
+          title={
+            matching.total > SELECTION_LIMIT
+              ? `Adds the newest ${SELECTION_LIMIT} of the ${matching.total.toLocaleString()} traces the current filters match`
+              : "Adds every trace the current filters match, not only the ticked ones"
+          }
+          data-testid="add-matching-to-collection"
+        >
+          Add all {Math.min(matching.total, SELECTION_LIMIT).toLocaleString()} matching
+        </Button>
+      )}
       {message && (
         <span
           className={message.error ? "text-err" : "text-fg-muted"}

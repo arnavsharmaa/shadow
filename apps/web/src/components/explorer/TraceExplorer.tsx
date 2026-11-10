@@ -2,7 +2,7 @@
 
 import { api, type TraceFilters } from "@/lib/api";
 import { classNames, compact, dateTime, duration, money, relativeTime } from "@/lib/format";
-import type { TraceSummary } from "@shadow/schemas";
+import type { TraceSelection, TraceSummary } from "@shadow/schemas";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -40,6 +40,25 @@ function readFilters(params: URLSearchParams): TraceFilters {
     order: (get("order") as TraceFilters["order"]) ?? "desc",
     cursor: get("cursor"),
     limit: 50,
+  };
+}
+
+/** The filters as the collections API takes them: which traces, without paging or sorting. */
+function toSelection(filters: TraceFilters): TraceSelection {
+  return {
+    project: filters.project,
+    agent: filters.agent,
+    status: filters.status,
+    tag: filters.tag,
+    tool: filters.tool,
+    toolError: filters.toolError,
+    q: filters.q,
+    from: filters.from,
+    to: filters.to,
+    minCost: filters.minCost,
+    minDurationMs: filters.minDurationMs,
+    collection: filters.collection,
+    meta: filters.meta,
   };
 }
 
@@ -375,6 +394,9 @@ export function TraceExplorer() {
           <CollectionAdder
             traceIds={picked.map((p) => p.id)}
             collections={collections.data?.items ?? []}
+            matching={
+              traces.data ? { query: toSelection(filters), total: traces.data.total } : undefined
+            }
           />
           <BulkActions
             traces={picked}
