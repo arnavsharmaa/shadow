@@ -173,6 +173,7 @@ export async function addTraces(
 ): Promise<{ added: string[]; missing: string[] }> {
   const collection = await getCollection(ctx, idOrName);
   const unique = [...new Set(traceIds)];
+  if (unique.length === 0) return { added: [], missing: [] };
   const found = await ctx.handle.db
     .select({ id: traces.id })
     .from(traces)

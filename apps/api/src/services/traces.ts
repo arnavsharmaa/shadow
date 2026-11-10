@@ -4,6 +4,7 @@ import {
   type PruneTracesBody,
   type Trace,
   type TraceListQuery,
+  type TraceSelection,
   type TraceSummary,
   type UpdateTraceBody,
 } from "@shadow/schemas";
@@ -172,10 +173,8 @@ export function metadataFilter(spec: string): SQL {
   return alternatives.length === 1 ? (alternatives[0] as SQL) : sql`(${or(...alternatives)})`;
 }
 
-export async function listTraces(
-  ctx: ServiceContext,
-  query: TraceListQuery,
-): Promise<{ items: TraceSummary[]; nextCursor: string | null; total: number }> {
+/** The `where` conditions a selection's filters translate to; shared by listing and selecting. */
+function selectionFilters(query: TraceSelection): SQL[] {
   const filters: SQL[] = [];
   if (query.project) filters.push(eq(projects.slug, query.project));
   if (query.agent) filters.push(eq(agents.slug, query.agent));
@@ -204,6 +203,33 @@ export async function listTraces(
       sql`exists (select 1 from ${collectionTraces} inner join ${collections} on ${collections.id} = ${collectionTraces.collectionId} where ${collectionTraces.traceId} = ${traces.id} and ${collections.name} = ${query.collection})`,
     );
   }
+  return filters;
+}
+
+/** Ids of the newest traces a selection matches, at most `limit` of them. */
+export async function selectTraceIds(
+  ctx: ServiceContext,
+  query: TraceSelection,
+  limit: number,
+): Promise<string[]> {
+  const filters = selectionFilters(query);
+  const where = filters.length > 0 ? and(...filters) : undefined;
+  const base = ctx.handle.db
+    .select({ id: traces.id })
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId));
+  const rows = await (where ? base.where(where) : base)
+    .orderBy(desc(traces.startedAt), desc(traces.id))
+    .limit(limit);
+  return rows.map((r) => r.id);
+}
+
+export async function listTraces(
+  ctx: ServiceContext,
+  query: TraceListQuery,
+): Promise<{ items: TraceSummary[]; nextCursor: string | null; total: number }> {
+  const filters = selectionFilters(query);
   const where = filters.length > 0 ? and(...filters) : undefined;
   const offset = decodeOffset(query.cursor);
   const orderBy =

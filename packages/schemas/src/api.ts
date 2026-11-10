@@ -344,9 +344,26 @@ export const updateCollectionBodySchema = z
   .refine((body) => Object.keys(body).length > 0, { message: "nothing to update" });
 export type UpdateCollectionBody = z.infer<typeof updateCollectionBodySchema>;
 
-export const collectionTracesBodySchema = z.object({
-  traceIds: z.array(idSchema).min(1).max(500),
+/** The explorer's filters without paging and sorting: which traces, not how many or in what order. */
+export const traceSelectionSchema = traceListQuerySchema.omit({
+  cursor: true,
+  limit: true,
+  sort: true,
+  order: true,
+  format: true,
 });
+export type TraceSelection = z.infer<typeof traceSelectionSchema>;
+
+export const collectionTracesBodySchema = z
+  .object({
+    traceIds: z.array(idSchema).max(500).default([]),
+    /** Also add every trace matching these filters (the newest 500), as the explorer lists them. */
+    query: traceSelectionSchema.optional(),
+  })
+  .refine((body) => body.traceIds.length > 0 || body.query !== undefined, {
+    message: "traceIds or query is required",
+  });
+export type CollectionTracesBody = z.infer<typeof collectionTracesBodySchema>;
 
 export const collectionListQuerySchema = z.object({
   /** Only collections that contain this trace. */

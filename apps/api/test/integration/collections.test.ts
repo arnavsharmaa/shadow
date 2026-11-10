@@ -122,6 +122,52 @@ describe("trace collections", () => {
     ).toBe(1);
   });
 
+  it("adds every trace matching a selection, the way the explorer lists them", async () => {
+    const created = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections",
+      payload: { name: "refund-failures" },
+    });
+    expect(created.statusCode).toBe(201);
+    const expected = await traceIds("agent=refund-agent&status=failed&limit=200");
+    expect(expected.length).toBeGreaterThan(0);
+    const added = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections/refund-failures/traces",
+      payload: { query: { agent: "refund-agent", status: "failed" } },
+    });
+    expect(added.statusCode).toBe(200);
+    const body = json<Created & { matched: number }>(added);
+    expect(body.matched).toBe(expected.length);
+    expect([...body.added].sort()).toEqual([...expected].sort());
+    expect(body.collection.traceCount).toBe(expected.length);
+    // Ids and a selection combine; traces already in the collection are left alone.
+    const again = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections/refund-failures/traces",
+      payload: { traceIds: ["trc_missing"], query: { agent: "refund-agent", status: "failed" } },
+    });
+    expect(json<Created & { matched: number }>(again)).toMatchObject({
+      added: [],
+      missing: ["trc_missing"],
+      matched: expected.length,
+    });
+    // A selection that matches nothing is fine; an empty body is not.
+    const none = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections/refund-failures/traces",
+      payload: { query: { agent: "no-such-agent" } },
+    });
+    expect(json<Created & { matched: number }>(none)).toMatchObject({ added: [], matched: 0 });
+    const empty = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/collections/refund-failures/traces",
+      payload: {},
+    });
+    expect(empty.statusCode).toBe(400);
+    await t.app.inject({ method: "DELETE", url: "/api/v1/collections/refund-failures" });
+  });
+
   it("exports every trace of a collection as newline-delimited bundles", async () => {
     const all = await traceIds("limit=50");
     const filled = await t.app.inject({

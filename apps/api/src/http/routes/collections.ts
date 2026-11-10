@@ -18,6 +18,7 @@ import {
   updateCollection,
 } from "../../services/collections.js";
 import { safePathComponent } from "../../export/file.js";
+import { selectTraceIds } from "../../services/traces.js";
 import { audit } from "../audit.js";
 
 /** `:collection` is a collection id (`col_…`) or its name. */
@@ -110,11 +111,14 @@ export const collectionRoutes: FastifyPluginAsyncZod = async (app) => {
     "/collections/:collection/traces",
     { schema: { tags: ["collections"], params, body: collectionTracesBodySchema } },
     async (request) => {
-      const result = await addTraces(
-        app.services,
-        request.params.collection,
-        request.body.traceIds,
-      );
+      // A selection adds what the explorer would list for the same filters, newest first.
+      const selected = request.body.query
+        ? await selectTraceIds(app.services, request.body.query, 500)
+        : [];
+      const result = await addTraces(app.services, request.params.collection, [
+        ...request.body.traceIds,
+        ...selected,
+      ]);
       const collection = await getCollection(app.services, request.params.collection);
       if (result.added.length > 0) {
         await audit(app, request, {
@@ -124,7 +128,7 @@ export const collectionRoutes: FastifyPluginAsyncZod = async (app) => {
           details: { name: collection.name, traceIds: result.added.slice(0, 100) },
         });
       }
-      return { collection, ...result };
+      return { collection, ...result, matched: selected.length };
     },
   );
 

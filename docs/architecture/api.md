@@ -742,8 +742,15 @@ page has an Export link.
 
 ### `POST /api/v1/collections/:collection/traces`
 
-Body `{ traceIds }` (1 to 500). Returns `{ collection, added, missing }`: traces already in the
-collection are left alone and unknown ids are reported in `missing` instead of failing the call.
+Body `{ traceIds?, query? }`, at least one of them. `traceIds` (up to 500) names traces; `query`
+takes the trace list's filters (`project`, `agent`, `status`, `tag`, `tool`, `toolError`, `q`,
+`from`, `to`, `minCost`, `minDurationMs`, `meta`, `collection`, without paging or sorting) and
+adds the newest 500 traces they match, the way the explorer lists them, so an incident's or an
+experiment's traces are collected by what they have in common rather than one id at a time.
+Returns `{ collection, added, missing, matched }`: traces already in the collection are left
+alone, unknown ids are reported in `missing` instead of failing the call, and `matched` is how
+many traces the selection found. CLI: `shadow collections add <name> [ids...] [--agent …
+--status … --from 7d …]`, which creates the collection when it does not exist.
 
 ### `DELETE /api/v1/collections/:collection/traces/:traceId`
 

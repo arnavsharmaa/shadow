@@ -1495,19 +1495,79 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
 
   collections
     .command("add")
-    .description("add traces to a collection")
+    .description(
+      "add traces to a collection by id or by the same filters as `traces list` (the newest 500 matches); the collection is created when it does not exist",
+    )
     .argument("<collection>", "collection name or id")
-    .argument("<traceId...>", "trace ids")
-    .action(async (collection: string, traceIds: string[]) => {
-      const result = await client().post<CollectionChange>(
-        `/api/v1/collections/${encodeURIComponent(collection)}/traces`,
-        { traceIds },
-      );
-      out(
-        `added ${result.added.length} trace(s) to ${result.collection.name}; it now holds ${result.collection.traceCount}`,
-      );
-      if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
-    });
+    .argument("[traceId...]", "trace ids")
+    .option("--project <slug>", "traces in this project")
+    .option("--agent <slug>", "traces of this agent")
+    .option("--status <status>", "running | completed | failed")
+    .option("--tag <tag>", "traces carrying this tag")
+    .option("--tool <name>", "traces that called a tool")
+    .option("--tool-error <name>", "traces in which a tool raised an error")
+    .option("-q, --query <text>", "free-text search")
+    .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
+    .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
+    .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option("--json", "print JSON")
+    .action(
+      async (
+        collection: string,
+        traceIds: string[],
+        opts: {
+          project?: string;
+          agent?: string;
+          status?: string;
+          tag?: string;
+          tool?: string;
+          toolError?: string;
+          query?: string;
+          from?: string;
+          to?: string;
+          minCost?: number;
+          minDuration?: number;
+          json?: boolean;
+        },
+      ) => {
+        const selection: Record<string, string | number> = {};
+        if (opts.project) selection.project = opts.project;
+        if (opts.agent) selection.agent = opts.agent;
+        if (opts.status) selection.status = opts.status;
+        if (opts.tag) selection.tag = opts.tag;
+        if (opts.tool) selection.tool = opts.tool;
+        if (opts.toolError) selection.toolError = opts.toolError;
+        if (opts.query) selection.q = opts.query;
+        if (opts.from) selection.from = opts.from;
+        if (opts.to) selection.to = opts.to;
+        if (opts.minCost !== undefined) selection.minCost = opts.minCost;
+        if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
+        const hasSelection = Object.keys(selection).length > 0;
+        if (traceIds.length === 0 && !hasSelection) {
+          throw new CliError(
+            "give trace ids, filters such as --agent or --status, or both",
+            EXIT.usage,
+          );
+        }
+        const body = { traceIds, ...(hasSelection ? { query: selection } : {}) };
+        const api = client();
+        const path = `/api/v1/collections/${encodeURIComponent(collection)}/traces`;
+        let result: CollectionChange & { matched?: number };
+        try {
+          result = await api.post<CollectionChange & { matched?: number }>(path, body);
+        } catch (error) {
+          if (!(error instanceof CliError && error.status === 404)) throw error;
+          await api.post<CollectionChange>("/api/v1/collections", { name: collection });
+          result = await api.post<CollectionChange & { matched?: number }>(path, body);
+        }
+        if (opts.json) return json(result);
+        out(
+          `added ${result.added.length} trace(s)${hasSelection ? ` (${result.matched ?? 0} matched the filters)` : ""} to ${result.collection.name}; it now holds ${result.collection.traceCount}`,
+        );
+        if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
+      },
+    );
 
   collections
     .command("export")

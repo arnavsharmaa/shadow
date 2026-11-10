@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Traces can be put in a collection by what they have in common: `POST
+  /collections/:name/traces` takes a `query` with the trace list's filters next to (or instead
+  of) `traceIds` and adds the newest 500 matches, and `shadow collections add <name> --agent
+  refund-agent --status failed --from 7d` does the same from the command line, creating the
+  collection when it does not exist.
 - Alert rules can watch `avg_cost`, the estimated cost per finished trace in the window, so a
   rule catches an agent whose runs got more expensive even while traffic, and the total, fell;
   in baseline mode it is compared over the whole baseline period like the rates.
