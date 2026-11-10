@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 function formatValue(rule: AlertRule, value: number | null): string {
   if (value === null) return "–";
   if (rule.metric === "failure_rate") return `${Math.round(value * 100)}%`;
-  if (rule.metric === "total_cost") return money(value);
+  if (rule.metric === "total_cost" || rule.metric === "avg_cost") return money(value);
   if (rule.metric === "p95_duration_ms") return duration(value);
   return String(value);
 }
@@ -18,6 +18,7 @@ const METRIC_LABEL: Record<AlertRule["metric"], string> = {
   policy_violations: "policy violations",
   tool_errors: "tool errors",
   total_cost: "estimated cost",
+  avg_cost: "cost per trace",
   p95_duration_ms: "p95 duration",
 };
 

@@ -379,10 +379,24 @@ describe("alert rules", () => {
       threshold: 1000,
       windowMinutes: 43_200,
     });
+    const perTrace = await createRule({
+      name: "per trace",
+      metric: "avg_cost",
+      threshold: 0.0001,
+      windowMinutes: 43_200,
+    });
     const items = await evaluate();
     const byName = new Map(items.map((e) => [e.rule.name, e]));
     expect(byName.get("cost")).toMatchObject({ transition: "fired", rule: { lastTraces: 2 } });
     expect(byName.get("cost")?.rule.lastValue).toBeGreaterThan(0.001);
+    // The average per finished trace is at most the total and above zero here.
+    const average = byName.get("per trace")?.rule.lastValue ?? null;
+    const total = byName.get("cost")?.rule.lastValue ?? 0;
+    expect(average).not.toBeNull();
+    expect(average ?? 0).toBeGreaterThan(0);
+    expect(average ?? 0).toBeLessThanOrEqual(total);
+    expect(byName.get("per trace")?.transition).toBe("fired");
+    await t.app.inject({ method: "DELETE", url: `/api/v1/alerts/rules/${perTrace.id}` });
     expect(byName.get("latency")?.rule.lastValue).toBeGreaterThan(1000);
 
     const disabled = await t.app.inject({

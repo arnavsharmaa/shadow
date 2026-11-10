@@ -767,6 +767,7 @@ and fires while the value is at or above its threshold.
 | `policy_violations` | traces whose outcome is a policy violation                |
 | `tool_errors`       | failed tool calls, summed                                 |
 | `total_cost`        | estimated cost, summed                                    |
+| `avg_cost`          | estimated cost per finished trace (mean)                  |
 | `p95_duration_ms`   | 95th percentile duration of finished traces, milliseconds |
 
 ### `GET /api/v1/alerts/rules`
@@ -798,7 +799,8 @@ recent history instead of a fixed number: `threshold` is then a multiplier (abov
 fires while the current window's value is at least `threshold` times the baseline. The baseline
 is the same metric over the `baselineWindows` windows (1 to 90, default 7) immediately before
 the current one: sums (`policy_violations`, `tool_errors`, `total_cost`) are averaged per
-window, while `failure_rate` and `p95_duration_ms` are taken over the whole baseline period. A
+window, while `failure_rate`, `avg_cost` and `p95_duration_ms` are taken over the whole baseline
+period. A
 rule with no baseline data, or a baseline of zero, stays `ok`, since there is nothing to
 compare against. The window plus its baseline may span at most 90 days. `lastBaseline` on the
 rule and `baseline` in the webhook payload carry the value used.

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Alert rules can watch `avg_cost`, the estimated cost per finished trace in the window, so a
+  rule catches an agent whose runs got more expensive even while traffic, and the total, fell;
+  in baseline mode it is compared over the whole baseline period like the rates.
 - SDK: a `budget` on the client or on `startTrace` caps a trace's estimated cost, tokens, model
   calls or tool calls; once a tally reaches a limit the next call throws `BudgetExceeded`
   before it runs, the trace records a `budget.exceeded` note and `trace.budgetExceeded` holds

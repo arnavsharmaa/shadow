@@ -316,6 +316,7 @@ export const ALERT_METRICS = [
   "policy_violations",
   "tool_errors",
   "total_cost",
+  "avg_cost",
   "p95_duration_ms",
 ] as const;
 export const alertMetricSchema = z.enum(ALERT_METRICS);

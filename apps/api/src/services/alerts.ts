@@ -264,6 +264,10 @@ export async function measure(
       policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
       toolErrors,
       totalCost: sql<number>`coalesce(sum((${traces.metrics}->>'totalEstimatedCost')::float), 0)`,
+      // Per finished trace: a running trace has not spent all it will.
+      avgCost: sql<
+        number | null
+      >`avg((${traces.metrics}->>'totalEstimatedCost')::float) filter (where ${traces.status} <> 'running')`,
       p95: sql<
         number | null
       >`percentile_cont(0.95) within group (order by ${durationMs}) filter (where ${traces.status} <> 'running')`,
@@ -283,6 +287,11 @@ export async function measure(
       return { value: Number(row?.toolErrors ?? 0), traces: count };
     case "total_cost":
       return { value: Number(row?.totalCost ?? 0), traces: count };
+    case "avg_cost":
+      return {
+        value: row?.avgCost === null || row?.avgCost === undefined ? null : Number(row.avgCost),
+        traces: count,
+      };
     case "p95_duration_ms":
       return {
         value: row?.p95 === null || row?.p95 === undefined ? null : Number(row.p95),

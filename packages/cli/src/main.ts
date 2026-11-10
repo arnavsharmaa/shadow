@@ -1615,7 +1615,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .argument("<name>", "rule name")
     .requiredOption(
       "--metric <metric>",
-      "failure_rate | policy_violations | tool_errors | total_cost | p95_duration_ms",
+      "failure_rate | policy_violations | tool_errors | total_cost | avg_cost | p95_duration_ms",
     )
     .requiredOption(
       "--threshold <n>",
@@ -3646,7 +3646,7 @@ interface CollectionChange {
 function alertValue(rule: AlertRule, value: number | null): string {
   if (value === null) return "-";
   if (rule.metric === "failure_rate") return `${Math.round(value * 100)}%`;
-  if (rule.metric === "total_cost") return money(value);
+  if (rule.metric === "total_cost" || rule.metric === "avg_cost") return money(value);
   if (rule.metric === "p95_duration_ms") return duration(value);
   return String(value);
 }

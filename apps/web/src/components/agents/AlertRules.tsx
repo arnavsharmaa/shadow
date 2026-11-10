@@ -13,6 +13,7 @@ const METRIC_LABEL: Record<AlertMetric, string> = {
   policy_violations: "policy violations",
   tool_errors: "tool errors",
   total_cost: "estimated cost",
+  avg_cost: "cost per trace",
   p95_duration_ms: "p95 duration",
 };
 
@@ -21,6 +22,7 @@ const METRIC_HELP: Record<AlertMetric, string> = {
   policy_violations: "a count of violations in the window",
   tool_errors: "a count of tool errors in the window",
   total_cost: "US dollars over the window",
+  avg_cost: "US dollars per finished trace in the window",
   p95_duration_ms: "milliseconds",
 };
 
@@ -45,7 +47,7 @@ const HOLDS: { minutes: number; label: string }[] = [
 function formatValue(metric: AlertMetric, value: number | null): string {
   if (value === null) return "–";
   if (metric === "failure_rate") return `${Math.round(value * 100)}%`;
-  if (metric === "total_cost") return money(value);
+  if (metric === "total_cost" || metric === "avg_cost") return money(value);
   if (metric === "p95_duration_ms") return duration(value);
   return String(value);
 }
