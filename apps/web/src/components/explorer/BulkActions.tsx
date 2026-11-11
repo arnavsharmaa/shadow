@@ -1,19 +1,28 @@
 "use client";
 
 import { api } from "@/lib/api";
-import type { TraceSummary } from "@shadow/schemas";
+import type { TraceSelection, TraceSummary } from "@shadow/schemas";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "../ui/primitives";
 
-/** Tag or delete the ticked traces in one go; each trace is its own API call. */
+/** The newest traces the API tags for one selection. */
+const SELECTION_LIMIT = 500;
+
+/**
+ * Tag or delete the ticked traces in one go; each trace is its own API call. With a `matching`
+ * selection, a tag can also go on every trace the current filters match, in one call.
+ */
 export function BulkActions({
   traces,
   onDone,
+  matching,
 }: {
   traces: TraceSummary[];
   /** Called after a change, with the ids that are now gone and a line describing what happened. */
   onDone: (removed: string[], notice: string) => void;
+  /** The explorer's current filters and how many traces they match. */
+  matching?: { query: TraceSelection; total: number };
 }) {
   const queryClient = useQueryClient();
   const [tag, setTag] = useState("");
@@ -36,6 +45,25 @@ export function BulkActions({
       URL.revokeObjectURL(url);
       const count = text.split("\n").filter((l) => l.length > 0).length;
       setMessage({ text: `Exported ${count} trace${count === 1 ? "" : "s"}`, error: false });
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const tagMatching = async () => {
+    const value = tag.trim();
+    if (!value || !matching) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.tagTraces({ query: matching.query, add: [value] });
+      await refresh();
+      const count = result.updated.length;
+      const text = `Tagged ${count} trace${count === 1 ? "" : "s"} matching the filters`;
+      setMessage({ text, error: false });
+      setTag("");
+      onDone([], text);
     } catch (e) {
       setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
     } finally {
@@ -95,6 +123,23 @@ export function BulkActions({
         <Button type="submit" size="xs" disabled={busy || !tag.trim()} data-testid="bulk-add-tag">
           Add tag
         </Button>
+        {matching && matching.total > 0 && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={busy || !tag.trim()}
+            onClick={() => void tagMatching()}
+            title={
+              matching.total > SELECTION_LIMIT
+                ? `Tags the newest ${SELECTION_LIMIT} of the ${matching.total.toLocaleString()} traces the current filters match`
+                : "Tags every trace the current filters match, not only the ticked ones"
+            }
+            data-testid="bulk-tag-matching"
+          >
+            Tag all {Math.min(matching.total, SELECTION_LIMIT).toLocaleString()} matching
+          </Button>
+        )}
       </form>
       <Button
         size="xs"

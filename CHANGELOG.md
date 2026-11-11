@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer's selection bar gains "Tag all N matching": the tag goes on every trace the
+  current filters match (the newest 500) in one call, whatever is ticked.
 - Tags can be added to or removed from many traces in one call: `POST /traces/tags` takes
   trace ids, a `query` with the trace list's filters (the newest 500 matches), or both, and
   is audited as `traces.tagged`; `shadow traces tag triage --agent refund-agent --status

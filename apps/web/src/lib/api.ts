@@ -495,6 +495,18 @@ export const api = {
     ),
   collections: (traceId?: string) =>
     request<{ items: Collection[] }>("GET", `/api/v1/collections${query({ traceId })}`),
+  /** Add or remove tags on traces by id and/or on every trace a selection matches. */
+  tagTraces: (body: {
+    traceIds?: string[];
+    query?: TraceSelection;
+    add?: string[];
+    remove?: string[];
+  }) =>
+    request<{ matched: number; updated: string[]; missing: string[] }>(
+      "POST",
+      "/api/v1/traces/tags",
+      body,
+    ),
   /** Add traces by id and/or every trace a selection matches (the newest 500). */
   addToCollection: (collection: string, traceIds: string[], query?: TraceSelection) =>
     request<{ collection: Collection; added: string[]; missing: string[]; matched: number }>(

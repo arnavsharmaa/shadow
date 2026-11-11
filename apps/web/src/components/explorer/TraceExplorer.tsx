@@ -400,6 +400,9 @@ export function TraceExplorer() {
           />
           <BulkActions
             traces={picked}
+            matching={
+              traces.data ? { query: toSelection(filters), total: traces.data.total } : undefined
+            }
             onDone={(removed, text) => {
               setPicked((current) => current.filter((t) => !removed.includes(t.id)));
               if (removed.length > 0) setNotice(text);

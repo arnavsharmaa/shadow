@@ -905,6 +905,17 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await page.getByTestId("bulk-add-tag").click();
       await expect(page.getByTestId("bulk-message")).toHaveText("Tagged 3 traces");
       for (const i of [0, 1, 2]) await expect(rows.nth(i)).toContainText(`reviewed-${stamp}`);
+      // A tag can go on everything the filters match, whatever is ticked.
+      await rows.nth(2).getByTestId("trace-select").uncheck();
+      await rows.nth(1).getByTestId("trace-select").uncheck();
+      await page.getByTestId("bulk-tag").fill(`all-${stamp}`);
+      await expect(page.getByTestId("bulk-tag-matching")).toHaveText("Tag all 3 matching");
+      await page.getByTestId("bulk-tag-matching").click();
+      await expect(page.getByTestId("bulk-message")).toHaveText(
+        "Tagged 3 traces matching the filters",
+      );
+      for (const i of [0, 1, 2]) await expect(rows.nth(i)).toContainText(`all-${stamp}`);
+      for (const i of [1, 2]) await rows.nth(i).getByTestId("trace-select").check();
       // Export downloads the ticked traces as one bundle per line.
       const [download] = await Promise.all([
         page.waitForEvent("download"),
