@@ -137,6 +137,7 @@ export interface WebhookOptions {
         | "SHADOW_WEB_URL"
         | "SHADOW_WEBHOOK_PROJECTS"
         | "SHADOW_WEBHOOK_TAGS"
+        | "SHADOW_WEBHOOK_MIN_COST"
       >
     >;
   logger: Logger;
@@ -150,7 +151,8 @@ export interface Webhook {
   enabled: boolean;
   /**
    * Decide and send; resolves after delivery (or after retries fail). Never throws. Subject to
-   * the SHADOW_WEBHOOK_EVENTS and SHADOW_WEBHOOK_PROJECTS filters.
+   * the SHADOW_WEBHOOK_EVENTS, SHADOW_WEBHOOK_PROJECTS, SHADOW_WEBHOOK_TAGS and
+   * SHADOW_WEBHOOK_MIN_COST filters.
    */
   traceFinished(
     input: Omit<TraceFinishedNotification, "type" | "sentAt" | "reason">,
@@ -199,6 +201,7 @@ export function createWebhook(options: WebhookOptions): Webhook {
   const webUrl = options.config.SHADOW_WEB_URL;
   const projects = options.config.SHADOW_WEBHOOK_PROJECTS;
   const tags = options.config.SHADOW_WEBHOOK_TAGS;
+  const minCost = options.config.SHADOW_WEBHOOK_MIN_COST ?? 0;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const maxAttempts = Math.max(1, options.maxAttempts ?? 3);
   const backoffMs = options.backoffMs ?? 250;
@@ -278,6 +281,8 @@ export function createWebhook(options: WebhookOptions): Webhook {
       // Alerts, failed replays and jobs are not project-filtered: they are configured per rule.
       if (projects && !projects.includes(input.trace.projectSlug)) return;
       if (tags && !input.trace.tags.some((tag) => tags.includes(tag))) return;
+      // A cost floor keeps cheap runs out of the channel, whatever their outcome.
+      if (minCost > 0 && input.trace.metrics.estimatedCost < minCost) return;
       const reason = classify(options.config.SHADOW_WEBHOOK_EVENTS, input.trace);
       if (!reason) return;
       const notification: TraceFinishedNotification = {

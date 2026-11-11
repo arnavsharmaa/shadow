@@ -88,6 +88,45 @@ describe("webhook", () => {
     expect(sign("s3cret", String(init.body))).toBe(expected);
   });
 
+  it("leaves traces under SHADOW_WEBHOOK_MIN_COST out", async () => {
+    const sent: string[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      sent.push((JSON.parse(String(init?.body)) as { trace: { id: string } }).trace.id);
+      return new Response("ok", { status: 200 });
+    }) as unknown as typeof fetch;
+    const webhook = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+        SHADOW_WEBHOOK_SECRET: undefined,
+        SHADOW_WEBHOOK_EVENTS: "all",
+        SHADOW_WEBHOOK_MIN_COST: 0.05,
+      },
+      logger,
+      fetch: fetchImpl,
+    });
+    // The fixture cost 0.0123: under the floor, although it failed with a policy violation.
+    await webhook.traceFinished({ trace });
+    await webhook.traceFinished({
+      trace: { ...trace, id: "trc_costly", metrics: { ...trace.metrics, estimatedCost: 0.05 } },
+    });
+    await webhook.settle();
+    expect(sent).toEqual(["trc_costly"]);
+
+    // Without a floor (the default) everything that matches the event filter is sent.
+    const open = createWebhook({
+      config: {
+        SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+        SHADOW_WEBHOOK_SECRET: undefined,
+        SHADOW_WEBHOOK_EVENTS: "all",
+      },
+      logger,
+      fetch: fetchImpl,
+    });
+    await open.traceFinished({ trace });
+    await open.settle();
+    expect(sent).toEqual(["trc_costly", "trc_1"]);
+  });
+
   it("sends a chat message instead of the JSON body in slack format", async () => {
     const calls: { init: RequestInit }[] = [];
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {

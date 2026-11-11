@@ -95,6 +95,11 @@ const configSchema = z.object({
   SHADOW_WEBHOOK_PROJECTS: csvList,
   /** Only finished traces carrying one of these tags notify (comma-separated; unset = any). */
   SHADOW_WEBHOOK_TAGS: csvList,
+  /**
+   * Only finished traces whose estimated cost reached this many US dollars notify (0, the
+   * default, notifies whatever they cost).
+   */
+  SHADOW_WEBHOOK_MIN_COST: z.coerce.number().min(0).default(0),
   /** Body shape: Shadow's JSON notification, or a Slack-compatible chat message. */
   SHADOW_WEBHOOK_FORMAT: z.enum(["json", "slack", "discord"]).default("json"),
   /** Public base URL of the web app, used for links in chat notifications. */

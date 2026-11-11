@@ -287,6 +287,7 @@ export interface HealthFeatures {
     format?: string;
     projects?: string[];
     tags?: string[];
+    minCost?: number;
   };
   fileExport?: { enabled: boolean; dir?: string };
   s3Export?: { enabled: boolean; bucket?: string; endpoint?: string; prefix?: string };

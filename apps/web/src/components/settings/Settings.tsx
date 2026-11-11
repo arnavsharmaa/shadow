@@ -64,7 +64,7 @@ function describeFeatures(f: HealthFeatures): { key: string; label: string; valu
       key: "webhook",
       label: "Webhook",
       value: f.webhook?.enabled
-        ? `${f.webhook.events ?? "failures"} as ${f.webhook.format ?? "json"}${f.webhook.projects ? ` for ${f.webhook.projects.join(", ")}` : ""}${f.webhook.tags ? ` tagged ${f.webhook.tags.join(" or ")}` : ""}`
+        ? `${f.webhook.events ?? "failures"} as ${f.webhook.format ?? "json"}${f.webhook.projects ? ` for ${f.webhook.projects.join(", ")}` : ""}${f.webhook.tags ? ` tagged ${f.webhook.tags.join(" or ")}` : ""}${f.webhook.minCost !== undefined ? ` costing at least $${f.webhook.minCost}` : ""}`
         : "off",
     },
     {

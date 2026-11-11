@@ -42,6 +42,8 @@ const healthSchema = z.object({
       projects: z.array(z.string()).optional(),
       /** Tags one of which a finished trace must carry to notify, when restricted. */
       tags: z.array(z.string()).optional(),
+      /** Estimated cost in USD a finished trace must have reached to notify, when set. */
+      minCost: z.number().optional(),
     }),
     /** Whether finished traces are written to a directory as bundles. */
     fileExport: z.object({ enabled: z.boolean(), dir: z.string().optional() }),
@@ -73,6 +75,7 @@ export interface HealthRouteOptions {
     | "SHADOW_WEBHOOK_URL"
     | "SHADOW_WEBHOOK_EVENTS"
     | "SHADOW_WEBHOOK_TAGS"
+    | "SHADOW_WEBHOOK_MIN_COST"
     | "SHADOW_WEBHOOK_PROJECTS"
     | "SHADOW_WEBHOOK_FORMAT"
     | "SHADOW_EXPORT_DIR"
@@ -149,6 +152,9 @@ export const healthRoutes: FastifyPluginAsyncZod<HealthRouteOptions> = async (ap
                   ? { projects: config.SHADOW_WEBHOOK_PROJECTS }
                   : {}),
                 ...(config.SHADOW_WEBHOOK_TAGS ? { tags: config.SHADOW_WEBHOOK_TAGS } : {}),
+                ...(config.SHADOW_WEBHOOK_MIN_COST > 0
+                  ? { minCost: config.SHADOW_WEBHOOK_MIN_COST }
+                  : {}),
               }
             : { enabled: false },
           fileExport: config.SHADOW_EXPORT_DIR

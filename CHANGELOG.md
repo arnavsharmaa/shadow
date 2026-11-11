@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_WEBHOOK_MIN_COST` gives finished-trace notifications a cost floor in US dollars: a
+  trace notifies only when its estimated cost reached it, so a channel can follow the
+  expensive runs (with `SHADOW_WEBHOOK_EVENTS=all`) or only the failures worth a look;
+  `/health` and the Settings page show the floor.
 - SDK: `shadow.withTrace(options, fn)` starts a trace, runs `fn` with it and closes it
   whichever way `fn` goes (`end()` on return, with an outcome derived from the result when
   asked; `fail(error)` on a throw, which is rethrown), so a handler is recorded without its
