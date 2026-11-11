@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "@shadow/schemas";
+import type { JsonObject, JsonValue, Outcome } from "@shadow/schemas";
 import { createRedactor, type RedactOptions } from "./redact.js";
 import { Trace, type TraceBudget } from "./trace.js";
 import { SpoolTransport } from "./spool.js";
@@ -270,6 +270,32 @@ export class Shadow {
     });
     if (recorded) this.active.add(trace);
     return trace;
+  }
+
+  /**
+   * Start a trace, run `fn` with it and close it whichever way `fn` goes: `end()` when it
+   * returns (with the outcome `outcome(result)` derives, when given), `fail(error)` when it
+   * throws, after which the error is rethrown. A trace that `fn` ended or failed itself is left
+   * as it is. Resolves to what `fn` returned.
+   */
+  async withTrace<T>(
+    input: StartTraceOptions & {
+      /** Derive the trace's outcome from what `fn` returned (default: Completed). */
+      outcome?: (result: T) => Outcome | undefined;
+    },
+    fn: (trace: Trace) => Promise<T> | T,
+  ): Promise<T> {
+    const { outcome, ...options } = input;
+    const trace = this.startTrace(options);
+    try {
+      const result = await fn(trace);
+      const derived = outcome?.(result);
+      await trace.end(derived ? { outcome: derived } : {});
+      return result;
+    } catch (error) {
+      await trace.fail(error);
+      throw error;
+    }
   }
 
   private shouldRecord(input: StartTraceOptions): boolean {

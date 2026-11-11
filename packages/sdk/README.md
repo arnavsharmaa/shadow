@@ -184,6 +184,11 @@ Details in [docs/integrations/mcp.md](../../docs/integrations/mcp.md).
   for the API: events, model calls, tool calls and how many failed or were blocked, input,
   output and total tokens, the estimated cost the calls reported and the duration (frozen when
   the trace ends), for a log line, a budget check or a test assertion.
+- `shadow.withTrace({ name }, async (trace) => { … })` starts a trace, runs the function with
+  it and closes it whichever way the function goes: `end()` when it returns (an `outcome:
+(result) => …` option derives the outcome from the result), `fail(error)` when it throws, the
+  error then reaching the caller. It resolves to what the function returned, so a handler can
+  be wrapped without a `try`/`finally` of its own.
 - `budget` on the client or on `startTrace` (`{ maxEstimatedCost, maxTotalTokens, maxModelCalls,
 maxToolCalls }`, the trace's limits overriding the client's one by one) caps what a trace may
   spend: once a tally has reached a limit, the next model or tool call throws `BudgetExceeded`

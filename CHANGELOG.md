@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- SDK: `shadow.withTrace(options, fn)` starts a trace, runs `fn` with it and closes it
+  whichever way `fn` goes (`end()` on return, with an outcome derived from the result when
+  asked; `fail(error)` on a throw, which is rethrown), so a handler is recorded without its
+  own `try`/`finally`.
 - The explorer's collection control gains "Add all N matching": every trace the current
   filters match (the newest 500) goes into the named collection, not only the ticked rows, so
   an incident is collected from a filtered view in one step.

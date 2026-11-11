@@ -631,6 +631,49 @@ describe("Shadow SDK", () => {
     expect(trace.stats.events).toBe(transport.events.get(trace.id)?.length);
   });
 
+  it("runs a function inside a trace and closes it whichever way it goes", async () => {
+    const transport = new MemoryTransport();
+    const shadow = client(transport);
+    let seen: string | null = null;
+    const result = await shadow.withTrace(
+      {
+        name: "wrapped",
+        id: "trc_wrapped",
+        outcome: (answer: number) => ({ kind: "answered", label: `Answered ${answer}` }),
+      },
+      async (trace) => {
+        seen = trace.id;
+        await trace.tool({ name: "lookup", arguments: {}, execute: async () => ({ result: 1 }) });
+        return 42;
+      },
+    );
+    expect(result).toBe(42);
+    expect(seen).toBe("trc_wrapped");
+    const events = transport.events.get("trc_wrapped") ?? [];
+    expect(events.at(-1)).toMatchObject({
+      eventType: "trace.completed",
+      output: { outcome: { kind: "answered", label: "Answered 42" } },
+    });
+
+    // A throw fails the trace and still reaches the caller.
+    await expect(
+      shadow.withTrace({ name: "broken", id: "trc_broken" }, () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    const failed = transport.events.get("trc_broken") ?? [];
+    expect(failed.at(-1)).toMatchObject({ eventType: "trace.failed" });
+    expect(JSON.stringify(failed.at(-1)?.output)).toContain("boom");
+
+    // A trace the function closed itself is left alone.
+    await shadow.withTrace({ name: "self", id: "trc_self" }, async (trace) => {
+      await trace.end({ outcome: { kind: "refunded", label: "Refund issued" } });
+    });
+    const own = transport.events.get("trc_self") ?? [];
+    expect(own.filter((e) => e.eventType === "trace.completed")).toHaveLength(1);
+    expect(own.at(-1)?.output).toMatchObject({ outcome: { kind: "refunded" } });
+  });
+
   it("refuses calls once a budget is spent and records the refusal once", async () => {
     const transport = new MemoryTransport();
     const shadow = client(transport, { budget: { maxToolCalls: 5, maxEstimatedCost: 0.003 } });
