@@ -999,6 +999,89 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     });
 
   traces
+    .command("tag")
+    .description(
+      "add tags to (or with --remove, take them off) traces picked by id or by the same filters as `traces list` (the newest 500 matches)",
+    )
+    .argument("<tag...>", "tags to add or remove")
+    .option("--remove", "remove the tags instead of adding them")
+    .option("--id <traceId...>", "trace ids")
+    .option("--project <slug>", "traces in this project")
+    .option("--agent <slug>", "traces of this agent")
+    .option("--status <status>", "running | completed | failed")
+    .option("--tagged <tag>", "traces already carrying this tag")
+    .option("--tool <name>", "traces that called a tool")
+    .option("--tool-error <name>", "traces in which a tool raised an error")
+    .option("-q, --query <text>", "free-text search")
+    .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
+    .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
+    .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option("--collection <name>", "traces in this collection")
+    .option("--json", "print JSON")
+    .action(
+      async (
+        tags: string[],
+        opts: {
+          remove?: boolean;
+          id?: string[];
+          project?: string;
+          agent?: string;
+          status?: string;
+          tagged?: string;
+          tool?: string;
+          toolError?: string;
+          query?: string;
+          from?: string;
+          to?: string;
+          minCost?: number;
+          minDuration?: number;
+          collection?: string;
+          json?: boolean;
+        },
+      ) => {
+        const selection: Record<string, string | number> = {};
+        if (opts.project) selection.project = opts.project;
+        if (opts.agent) selection.agent = opts.agent;
+        if (opts.status) selection.status = opts.status;
+        if (opts.tagged) selection.tag = opts.tagged;
+        if (opts.tool) selection.tool = opts.tool;
+        if (opts.toolError) selection.toolError = opts.toolError;
+        if (opts.query) selection.q = opts.query;
+        if (opts.from) selection.from = opts.from;
+        if (opts.to) selection.to = opts.to;
+        if (opts.minCost !== undefined) selection.minCost = opts.minCost;
+        if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
+        if (opts.collection) selection.collection = opts.collection;
+        const hasSelection = Object.keys(selection).length > 0;
+        const traceIds = opts.id ?? [];
+        if (traceIds.length === 0 && !hasSelection) {
+          throw new CliError(
+            "say which traces: --id, filters such as --agent or --status, or both",
+            EXIT.usage,
+          );
+        }
+        const result = await client().post<{
+          matched: number;
+          updated: string[];
+          missing: string[];
+        }>("/api/v1/traces/tags", {
+          traceIds,
+          ...(hasSelection ? { query: selection } : {}),
+          ...(opts.remove ? { remove: tags } : { add: tags }),
+        });
+        if (opts.json) return json(result);
+        const matched = hasSelection ? ` (${result.matched} matched the filters)` : "";
+        out(
+          opts.remove
+            ? `removed ${tags.join(", ")} from ${result.updated.length} trace(s)${matched}`
+            : `tagged ${result.updated.length} trace(s) with ${tags.join(", ")}${matched}`,
+        );
+        if (result.missing.length > 0) out(`not found: ${result.missing.join(", ")}`);
+      },
+    );
+
+  traces
     .command("prune")
     .description("delete traces that started before a cutoff (retention)")
     .requiredOption(

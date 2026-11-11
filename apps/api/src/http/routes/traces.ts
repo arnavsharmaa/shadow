@@ -10,6 +10,7 @@ import {
   importTraceBodySchema,
   ingestEventsBodySchema,
   pruneTracesBodySchema,
+  tagTracesBodySchema,
   traceListQuerySchema,
   updateTraceBodySchema,
   type TraceSummary,
@@ -39,6 +40,7 @@ import {
   getTraceSummary,
   listTraces,
   pruneTraces,
+  tagTraces,
   traceFacets,
   updateTrace,
 } from "../../services/traces.js";
@@ -221,6 +223,30 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
         details: { idStrategy: request.body.idStrategy ?? null, name: trace.name },
       });
       return reply.status(201).send(trace);
+    },
+  );
+
+  /** Add or remove tags on many traces: by id, by the trace list's filters, or both. */
+  app.post(
+    "/traces/tags",
+    { schema: { tags: ["traces"], body: tagTracesBodySchema } },
+    async (request) => {
+      const result = await tagTraces(app.services, request.body);
+      if (result.updated.length > 0) {
+        await audit(app, request, {
+          action: "traces.tagged",
+          targetType: "trace",
+          targetId: result.updated.length === 1 ? (result.updated[0] ?? "-") : "*",
+          details: {
+            ...(request.body.add.length > 0 ? { add: request.body.add } : {}),
+            ...(request.body.remove.length > 0 ? { remove: request.body.remove } : {}),
+            updated: result.updated.length,
+            traceIds: result.updated.slice(0, 100),
+            ...(request.body.query ? { matched: result.matched } : {}),
+          },
+        });
+      }
+      return result;
     },
   );
 

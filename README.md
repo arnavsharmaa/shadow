@@ -206,6 +206,7 @@ shadow traces inspect trc_demo_refund_violation --grep refund_order
 shadow traces tail trc_live_123            # follow a running trace until it finishes
 shadow events show trc_demo_refund_violation <eventId>
 shadow traces update trc_demo_refund_violation --tag triaged --meta owner=jordan
+shadow traces tag triage --agent refund-agent --status failed --from 7d   # every match at once
 shadow artifacts list trc_demo_refund_violation
 shadow views save "costly failures" "status=failed&sort=totalEstimatedCost"
 shadow traces list --view "costly failures"

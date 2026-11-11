@@ -5,6 +5,7 @@ const LABELS: Record<string, string> = {
   "trace.deleted": "deleted the trace",
   "trace.imported": "imported the trace",
   "traces.pruned": "pruned traces",
+  "traces.tagged": "tagged traces",
   "fork.created": "forked",
   "matrix.run": "ran a scenario matrix",
   "replay.run": "replayed",
@@ -53,6 +54,14 @@ export function describeAudit(entry: AuditEntry): string {
       return `attached ${String(d.kind ?? "an artifact")}${name ? ` "${name}"` : ""}`;
     case "traces.pruned":
       return `pruned ${String(d.deleted ?? "?")} trace(s) started before ${String(d.before ?? "?")}`;
+    case "traces.tagged": {
+      const list = (value: unknown) => (Array.isArray(value) ? value.map(String).join(", ") : "");
+      const changes = [
+        list(d.add) ? `added ${list(d.add)}` : "",
+        list(d.remove) ? `removed ${list(d.remove)}` : "",
+      ].filter((part) => part.length > 0);
+      return `${changes.join(" and ") || "edited tags"} on ${String(d.updated ?? "?")} trace(s)`;
+    }
     case "trace.deleted":
       return `deleted trace ${name ?? entry.targetId}`;
     case "key.created":

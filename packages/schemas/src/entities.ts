@@ -243,6 +243,7 @@ export const AUDIT_ACTIONS = [
   "trace.deleted",
   "trace.imported",
   "traces.pruned",
+  "traces.tagged",
   "fork.created",
   "matrix.run",
   "replay.run",

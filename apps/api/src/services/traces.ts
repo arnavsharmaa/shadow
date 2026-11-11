@@ -2,6 +2,7 @@ import {
   SCHEMA_VERSION,
   type CreateTraceBody,
   type PruneTracesBody,
+  type TagTracesBody,
   type Trace,
   type TraceListQuery,
   type TraceSelection,
@@ -310,6 +311,42 @@ export async function updateTrace(
     .where(eq(traces.id, traceId))
     .returning();
   return toTrace(updated as TraceRow);
+}
+
+export interface TagTracesResult {
+  /** How many traces the selection found (0 without a `query`). */
+  matched: number;
+  /** Traces whose tags were edited, selection first. */
+  updated: string[];
+  /** Ids from `traceIds` that do not exist. */
+  missing: string[];
+}
+
+/**
+ * Add and remove tags on the named traces and on every trace a selection matches. Each trace
+ * goes through `updateTrace`, so tags stay de-duplicated and searchable exactly as when they
+ * are edited one at a time.
+ */
+export async function tagTraces(
+  ctx: ServiceContext,
+  body: TagTracesBody,
+): Promise<TagTracesResult> {
+  const selected = body.query ? await selectTraceIds(ctx, body.query, 500) : [];
+  const named = [...new Set(body.traceIds)];
+  const found =
+    named.length > 0
+      ? await ctx.handle.db.select({ id: traces.id }).from(traces).where(inArray(traces.id, named))
+      : [];
+  const existing = new Set(found.map((f) => f.id));
+  const missing = named.filter((id) => !existing.has(id));
+  const ids = [...new Set([...selected, ...named.filter((id) => existing.has(id))])];
+  for (const id of ids) {
+    await updateTrace(ctx, id, {
+      ...(body.add.length > 0 ? { addTags: body.add } : {}),
+      ...(body.remove.length > 0 ? { removeTags: body.remove } : {}),
+    });
+  }
+  return { matched: selected.length, updated: ids, missing };
 }
 
 export async function deleteTrace(ctx: ServiceContext, traceId: string): Promise<void> {

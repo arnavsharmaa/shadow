@@ -365,6 +365,23 @@ export const collectionTracesBodySchema = z
   });
 export type CollectionTracesBody = z.infer<typeof collectionTracesBodySchema>;
 
+/** Add or remove tags on many traces at once: by id, by a selection, or both. */
+export const tagTracesBodySchema = z
+  .object({
+    traceIds: z.array(idSchema).max(500).default([]),
+    /** Also tag every trace matching these filters (the newest 500), as the explorer lists them. */
+    query: traceSelectionSchema.optional(),
+    add: z.array(z.string().min(1).max(64)).max(16).default([]),
+    remove: z.array(z.string().min(1).max(64)).max(16).default([]),
+  })
+  .refine((body) => body.traceIds.length > 0 || body.query !== undefined, {
+    message: "traceIds or query is required",
+  })
+  .refine((body) => body.add.length > 0 || body.remove.length > 0, {
+    message: "add or remove is required",
+  });
+export type TagTracesBody = z.infer<typeof tagTracesBodySchema>;
+
 export const collectionListQuerySchema = z.object({
   /** Only collections that contain this trace. */
   traceId: idSchema.optional(),

@@ -27,6 +27,12 @@ describe("describeAudit", () => {
     expect(describeAudit(entry("traces.pruned", { deleted: 3, before: "2026-01-01" }))).toBe(
       "pruned 3 trace(s) started before 2026-01-01",
     );
+    expect(
+      describeAudit(entry("traces.tagged", { add: ["triage"], remove: ["new"], updated: 12 })),
+    ).toBe("added triage and removed new on 12 trace(s)");
+    expect(describeAudit(entry("traces.tagged", { add: ["triage", "urgent"], updated: 1 }))).toBe(
+      "added triage, urgent on 1 trace(s)",
+    );
     expect(describeAudit(entry("key.created", { name: "ci", scope: "ingest" }))).toBe(
       "created API key ci (ingest)",
     );

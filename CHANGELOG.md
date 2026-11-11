@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Tags can be added to or removed from many traces in one call: `POST /traces/tags` takes
+  trace ids, a `query` with the trace list's filters (the newest 500 matches), or both, and
+  is audited as `traces.tagged`; `shadow traces tag triage --agent refund-agent --status
+  failed` does it from the command line, with `--remove` to take tags off.
 - `SHADOW_WEBHOOK_MIN_COST` gives finished-trace notifications a cost floor in US dollars: a
   trace notifies only when its estimated cost reached it, so a channel can follow the
   expensive runs (with `SHADOW_WEBHOOK_EVENTS=all`) or only the failures worth a look;

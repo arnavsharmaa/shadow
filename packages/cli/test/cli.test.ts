@@ -2398,6 +2398,86 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toContain("no alert transitions recorded");
   });
 
+  it("tags traces by filter and collects them by filter", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/tags": (body) => {
+        const b = body as { traceIds: string[]; query?: unknown };
+        return {
+          body: {
+            matched: b.query ? 2 : 0,
+            updated: b.query ? ["trc_1", "trc_2"] : b.traceIds.filter((id) => id !== "trc_gone"),
+            missing: b.traceIds.filter((id) => id === "trc_gone"),
+          },
+        };
+      },
+      "POST /api/v1/collections/incident-9/traces": (body) => ({
+        body: {
+          collection: { id: "col_9", name: "incident-9", traceCount: 4 },
+          added: ["trc_1", "trc_2", ...(body as { traceIds: string[] }).traceIds],
+          missing: [],
+          matched: 2,
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "traces",
+        "tag",
+        "triage",
+        "urgent",
+        "--agent",
+        "refund-agent",
+        "--status",
+        "failed",
+        "--min-cost",
+        "0.5",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { agent: "refund-agent", status: "failed", minCost: 0.5 },
+      add: ["triage", "urgent"],
+    });
+    expect(api.captured.out.join("\n")).toContain(
+      "tagged 2 trace(s) with triage, urgent (2 matched the filters)",
+    );
+
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, ["traces", "tag", "triage", "--remove", "--id", "trc_1", "trc_gone"]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: ["trc_1", "trc_gone"],
+      remove: ["triage"],
+    });
+    expect(api.captured.out.join("\n")).toContain("removed triage from 1 trace(s)");
+    expect(api.captured.out.join("\n")).toContain("not found: trc_gone");
+
+    // Neither ids nor filters: nothing is sent.
+    const before = api.captured.calls.length;
+    expect(await runWith(api, ["traces", "tag", "triage"])).not.toBe(0);
+    expect(api.captured.calls).toHaveLength(before);
+
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, [
+        "collections",
+        "add",
+        "incident-9",
+        "trc_7",
+        "--tool-error",
+        "refund_order",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: ["trc_7"],
+      query: { toolError: "refund_order" },
+    });
+    expect(api.captured.out.join("\n")).toContain(
+      "added 3 trace(s) (2 matched the filters) to incident-9; it now holds 4",
+    );
+  });
+
   it("pauses and resumes alert rules by name or id", async () => {
     const rule = {
       id: "alr_9",

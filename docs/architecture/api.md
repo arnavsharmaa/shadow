@@ -341,6 +341,18 @@ earlier than the cutoff and that match every given filter, oldest first, up to `
 --dry-run`, then add `--yes`; `--archive <dir>` exports each trace to
 `<dir>/<traceId>.shadow.json` before deleting it, so pruned data can be re-imported later.
 
+### `POST /api/v1/traces/tags`
+
+Adds or removes tags on many traces in one call. Body `{ traceIds?, query?, add?, remove? }`:
+`traceIds` (up to 500) names traces, `query` takes the trace list's filters and selects the
+newest 500 traces they match (as in `POST /collections/:collection/traces`), and at least one
+of the two is required, as is at least one of `add` and `remove` (up to 16 tags each). Returns
+`{ matched, updated, missing }`: how many traces the selection found, the ids whose tags were
+edited, and the named ids that do not exist. Tags stay de-duplicated and searchable as with
+`PATCH /traces/:traceId`, and a call that changed something is audited as `traces.tagged`.
+CLI: `shadow traces tag triage --agent refund-agent --status failed`, or
+`shadow traces tag triage --remove --id <traceId>`.
+
 ### `GET /api/v1/traces/:traceId`
 
 `{ trace: TraceSummary, branches: Branch[] }`.
