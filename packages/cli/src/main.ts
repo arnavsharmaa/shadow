@@ -25,6 +25,7 @@ import type {
   ShadowEvent,
   TraceExport,
   TraceSummary,
+  TraceTotals,
 } from "@shadow/schemas";
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { ApiClient, CliError, EXIT } from "./client.js";
@@ -997,6 +998,81 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         );
       }
     });
+
+  traces
+    .command("summary")
+    .description(
+      "what the traces matching the same filters as `traces list` add up to: counts, failures, cost, tokens, calls and latency",
+    )
+    .option("--project <slug>", "traces in this project")
+    .option("--agent <slug>", "traces of this agent")
+    .option("--status <status>", "running | completed | failed")
+    .option("--tag <tag>", "traces carrying this tag")
+    .option("--tool <name>", "traces that called a tool")
+    .option("--tool-error <name>", "traces in which a tool raised an error")
+    .option("-q, --query <text>", "free-text search")
+    .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
+    .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
+    .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option("--collection <name>", "traces in this collection")
+    .option(
+      "--meta <key=value>",
+      "metadata entry to match exactly; a bare key matches its presence",
+    )
+    .option("--json", "print JSON")
+    .action(
+      async (opts: {
+        project?: string;
+        agent?: string;
+        status?: string;
+        tag?: string;
+        tool?: string;
+        toolError?: string;
+        query?: string;
+        from?: string;
+        to?: string;
+        minCost?: number;
+        minDuration?: number;
+        collection?: string;
+        meta?: string;
+        json?: boolean;
+      }) => {
+        const totals = await client().get<TraceTotals>("/api/v1/traces/summary", {
+          project: opts.project,
+          agent: opts.agent,
+          status: opts.status,
+          tag: opts.tag,
+          tool: opts.tool,
+          toolError: opts.toolError,
+          q: opts.query,
+          from: opts.from,
+          to: opts.to,
+          minCost: opts.minCost,
+          minDurationMs: opts.minDuration,
+          collection: opts.collection,
+          meta: opts.meta,
+        });
+        if (opts.json) return json(totals);
+        if (totals.traces === 0) return out("no traces match");
+        const n = (value: number) => value.toLocaleString("en-US");
+        const rate =
+          totals.failureRate === null
+            ? "none finished yet"
+            : `${(totals.failureRate * 100).toFixed(1)}% of finished traces failed`;
+        out(
+          [
+            `traces    ${n(totals.traces)} (${n(totals.completed)} completed, ${n(totals.failed)} failed, ${n(totals.running)} running)`,
+            `failures  ${rate}; ${n(totals.policyViolations)} policy violation(s)`,
+            `cost      ${money(totals.totalEstimatedCost)} total, ${totals.avgEstimatedCost === null ? "-" : money(totals.avgEstimatedCost)} per trace`,
+            `tokens    ${n(totals.totalTokens)}`,
+            `calls     ${n(totals.modelCalls)} model, ${n(totals.toolCalls)} tool (${n(totals.toolErrors)} failed)`,
+            `duration  avg ${totals.avgDurationMs === null ? "-" : duration(totals.avgDurationMs)}, p95 ${totals.p95DurationMs === null ? "-" : duration(totals.p95DurationMs)}`,
+            `started   ${totals.firstStartedAt ?? "-"} to ${totals.lastStartedAt ?? "-"}`,
+          ].join("\n"),
+        );
+      },
+    );
 
   traces
     .command("tag")

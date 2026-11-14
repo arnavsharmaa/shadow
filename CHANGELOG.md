@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces summary` prints what the traces matching the same filters as `traces list`
+  add up to (counts by status, failure rate, cost in total and per trace, tokens, calls,
+  average and p95 duration, time span), with `--json` for scripts.
 - `GET /traces/summary` answers what the traces matching the list's filters add up to: counts
   by status, policy violations, failure rate, estimated cost in total and per trace, tokens,
   model and tool calls, tool errors, average and p95 duration and the time span, from one

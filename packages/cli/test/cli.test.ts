@@ -2398,6 +2398,66 @@ describe("shadow cli", () => {
     expect(api.captured.out.join("\n")).toContain("no alert transitions recorded");
   });
 
+  it("sums up the traces matching a set of filters", async () => {
+    const totals = {
+      traces: 143,
+      running: 3,
+      completed: 120,
+      failed: 20,
+      policyViolations: 4,
+      failureRate: 20 / 140,
+      totalEstimatedCost: 4.21,
+      avgEstimatedCost: 4.21 / 143,
+      totalTokens: 1_234_567,
+      modelCalls: 310,
+      toolCalls: 540,
+      toolErrors: 12,
+      avgDurationMs: 2100,
+      p95DurationMs: 3400,
+      firstStartedAt: "2026-11-01T00:00:00.000Z",
+      lastStartedAt: "2026-11-07T23:59:00.000Z",
+    };
+    const api = fakeApi({ "GET /api/v1/traces/summary": () => ({ body: totals }) });
+    expect(
+      await runWith(api, [
+        "traces",
+        "summary",
+        "--agent",
+        "refund-agent",
+        "--tool-error",
+        "refund_order",
+        "--min-cost",
+        "0.01",
+      ]),
+    ).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(Object.fromEntries(params)).toEqual({
+      agent: "refund-agent",
+      toolError: "refund_order",
+      minCost: "0.01",
+    });
+    const text = api.captured.out.join("\n");
+    expect(text).toContain("traces    143 (120 completed, 20 failed, 3 running)");
+    expect(text).toContain("failures  14.3% of finished traces failed; 4 policy violation(s)");
+    expect(text).toContain("cost      $4.2100 total, $0.0294 per trace");
+    expect(text).toContain("tokens    1,234,567");
+    expect(text).toContain("calls     310 model, 540 tool (12 failed)");
+    expect(text).toMatch(/duration {2}avg \S+, p95 \S+/);
+    expect(text).toContain("started   2026-11-01T00:00:00.000Z to 2026-11-07T23:59:00.000Z");
+
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["traces", "summary", "--json"])).toBe(0);
+    expect(JSON.parse(api.captured.out.join("\n"))).toEqual(totals);
+
+    const empty = fakeApi({
+      "GET /api/v1/traces/summary": () => ({
+        body: { ...totals, traces: 0, failureRate: null, avgEstimatedCost: null },
+      }),
+    });
+    expect(await runWith(empty, ["traces", "summary", "--status", "failed"])).toBe(0);
+    expect(empty.captured.out.join("\n")).toBe("no traces match");
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {

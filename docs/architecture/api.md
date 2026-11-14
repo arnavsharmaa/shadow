@@ -281,6 +281,7 @@ durations cover finished traces only; they, `avgEstimatedCost` and the two times
 `null` when there is nothing to compute them from. The totals come from one aggregate query
 over the same conditions as the list, so "what did last week's failed refund runs cost" is
 one request instead of a page-through. A project-pinned key gets its own project's totals.
+CLI: `shadow traces summary [--agent … --status … --from 7d …]`, with `--json` for scripts.
 
 ### `GET /api/v1/traces/facets`
 
