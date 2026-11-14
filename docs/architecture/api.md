@@ -283,6 +283,12 @@ over the same conditions as the list, so "what did last week's failed refund run
 one request instead of a page-through. A project-pinned key gets its own project's totals.
 CLI: `shadow traces summary [--agent … --status … --from 7d …]`, with `--json` for scripts.
 
+With `groupBy=agent|project|status|day` the answer also carries `groups`: the same totals for
+each agent slug, project slug, status or UTC day the traces started on, each under its `key`
+and inside the same filters. Groups come largest first, days oldest first, and stop at 200
+(for days, the most recent 200). "Which agent's failures cost the most last week" is
+`?status=failed&from=…&groupBy=agent`. Without `groupBy` there is no `groups` field.
+
 ### `GET /api/v1/traces/facets`
 
 Distinct filter values for the explorer:

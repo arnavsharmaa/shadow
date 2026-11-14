@@ -12,7 +12,7 @@ import {
   pruneTracesBodySchema,
   tagTracesBodySchema,
   traceListQuerySchema,
-  traceSelectionSchema,
+  traceSummaryQuerySchema,
   updateTraceBodySchema,
   type TraceSummary,
   exportTracesBodySchema,
@@ -167,10 +167,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  /** What the traces matching the list's filters add up to (counts, cost, tokens, latency). */
+  /**
+   * What the traces matching the list's filters add up to (counts, cost, tokens, latency), and
+   * with `groupBy` the same per agent, project, status or day.
+   */
   app.get(
     "/traces/summary",
-    { schema: { tags: ["traces"], querystring: traceSelectionSchema } },
+    { schema: { tags: ["traces"], querystring: traceSummaryQuerySchema } },
     async (request) => summarizeTraces(app.services, request.query),
   );
 

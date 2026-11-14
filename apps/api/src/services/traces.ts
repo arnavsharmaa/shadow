@@ -5,9 +5,12 @@ import {
   type TagTracesBody,
   type Trace,
   type TraceListQuery,
+  type TraceGroupBy,
   type TraceSelection,
   type TraceSummary,
+  type TraceSummaryQuery,
   type TraceTotals,
+  type TraceTotalsBreakdown,
   type UpdateTraceBody,
 } from "@shadow/schemas";
 import {
@@ -228,44 +231,51 @@ export async function selectTraceIds(
   return rows.map((r) => r.id);
 }
 
-/**
- * What the traces a selection matches add up to: counts by status, cost, tokens, calls and
- * latency. One aggregate query over the same filters as the list, so the two always agree.
- */
-export async function summarizeTraces(
-  ctx: ServiceContext,
-  query: TraceSelection,
-): Promise<TraceTotals> {
-  const filters = selectionFilters(query);
-  const where = filters.length > 0 ? and(...filters) : undefined;
+/** The aggregates behind a set of totals: the same for the whole selection and for each group. */
+function totalsColumns() {
   const metric = (key: string) =>
     sql<number>`coalesce(sum((${traces.metrics}->>${key})::float), 0)`;
   const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
-  const base = ctx.handle.db
-    .select({
-      traces: sql<number>`count(*)`,
-      running: sql<number>`count(*) filter (where ${traces.status} = 'running')`,
-      completed: sql<number>`count(*) filter (where ${traces.status} = 'completed')`,
-      failed: sql<number>`count(*) filter (where ${traces.status} = 'failed')`,
-      policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
-      cost: metric("totalEstimatedCost"),
-      tokens: metric("totalTokens"),
-      modelCalls: metric("modelCalls"),
-      toolCalls: metric("toolCalls"),
-      toolErrors: metric("toolErrors"),
-      avgDuration: sql<
-        number | null
-      >`avg(${durationMs}) filter (where ${traces.status} <> 'running')`,
-      p95: sql<
-        number | null
-      >`percentile_cont(0.95) within group (order by ${durationMs}) filter (where ${traces.status} <> 'running')`,
-      first: sql<string | null>`min(${traces.startedAt})`,
-      last: sql<string | null>`max(${traces.startedAt})`,
-    })
-    .from(traces)
-    .innerJoin(projects, eq(projects.id, traces.projectId))
-    .innerJoin(agents, eq(agents.id, traces.agentId));
-  const [row] = await (where ? base.where(where) : base);
+  return {
+    traces: sql<number>`count(*)`,
+    running: sql<number>`count(*) filter (where ${traces.status} = 'running')`,
+    completed: sql<number>`count(*) filter (where ${traces.status} = 'completed')`,
+    failed: sql<number>`count(*) filter (where ${traces.status} = 'failed')`,
+    policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
+    cost: metric("totalEstimatedCost"),
+    tokens: metric("totalTokens"),
+    modelCalls: metric("modelCalls"),
+    toolCalls: metric("toolCalls"),
+    toolErrors: metric("toolErrors"),
+    avgDuration: sql<
+      number | null
+    >`avg(${durationMs}) filter (where ${traces.status} <> 'running')`,
+    p95: sql<
+      number | null
+    >`percentile_cont(0.95) within group (order by ${durationMs}) filter (where ${traces.status} <> 'running')`,
+    first: sql<string | null>`min(${traces.startedAt})`,
+    last: sql<string | null>`max(${traces.startedAt})`,
+  };
+}
+
+interface TotalsRow {
+  traces: number;
+  running: number;
+  completed: number;
+  failed: number;
+  policyViolations: number;
+  cost: number;
+  tokens: number;
+  modelCalls: number;
+  toolCalls: number;
+  toolErrors: number;
+  avgDuration: number | null;
+  p95: number | null;
+  first: string | null;
+  last: string | null;
+}
+
+function toTotals(row: TotalsRow | undefined): TraceTotals {
   const count = Number(row?.traces ?? 0);
   const failed = Number(row?.failed ?? 0);
   const finished = count - Number(row?.running ?? 0);
@@ -290,6 +300,54 @@ export async function summarizeTraces(
     firstStartedAt: isoOrNull(row?.first),
     lastStartedAt: isoOrNull(row?.last),
   };
+}
+
+/** The most groups a breakdown answers: the largest ones, or for days the most recent. */
+const TOTALS_GROUP_LIMIT = 200;
+
+/** What each `groupBy` groups on. Free of bound parameters, so SELECT and GROUP BY agree. */
+const GROUP_KEYS: Record<TraceGroupBy, SQL<string>> = {
+  agent: sql<string>`${agents.slug}`,
+  project: sql<string>`${projects.slug}`,
+  status: sql<string>`${traces.status}`,
+  day: sql<string>`to_char(${traces.startedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+};
+
+/**
+ * What the traces a selection matches add up to: counts by status, cost, tokens, calls and
+ * latency. One aggregate query over the same filters as the list, so the two always agree.
+ * With `groupBy`, a second query answers the same totals per agent, project, status or day.
+ */
+export async function summarizeTraces(
+  ctx: ServiceContext,
+  query: TraceSummaryQuery,
+): Promise<TraceTotalsBreakdown> {
+  const { groupBy, ...selection } = query;
+  const filters = selectionFilters(selection);
+  const where = filters.length > 0 ? and(...filters) : undefined;
+  const [row] = await ctx.handle.db
+    .select(totalsColumns())
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId))
+    .where(where);
+  const totals = toTotals(row);
+  if (!groupBy) return totals;
+
+  const key = GROUP_KEYS[groupBy];
+  const rows = await ctx.handle.db
+    .select({ key, ...totalsColumns() })
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId))
+    .where(where)
+    .groupBy(key)
+    .orderBy(...(groupBy === "day" ? [desc(key)] : [desc(sql`count(*)`), asc(key)]))
+    .limit(TOTALS_GROUP_LIMIT);
+  const groups = rows.map((group) => ({ key: String(group.key), ...toTotals(group) }));
+  // Days read oldest first, like the x axis of a chart; everything else largest first.
+  if (groupBy === "day") groups.reverse();
+  return { ...totals, groups };
 }
 
 export async function listTraces(

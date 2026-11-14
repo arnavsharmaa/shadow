@@ -378,6 +378,22 @@ export const traceTotalsSchema = z.object({
 });
 export type TraceTotals = z.infer<typeof traceTotalsSchema>;
 
+/** What `GET /traces/summary` can break its totals down by; `day` is the UTC day a trace started. */
+export const TRACE_GROUP_BYS = ["agent", "project", "status", "day"] as const;
+export type TraceGroupBy = (typeof TRACE_GROUP_BYS)[number];
+
+export const traceSummaryQuerySchema = traceSelectionSchema.extend({
+  /** Also answer the totals of each agent, project, status or day among the matching traces. */
+  groupBy: z.enum(TRACE_GROUP_BYS).optional(),
+});
+export type TraceSummaryQuery = z.infer<typeof traceSummaryQuerySchema>;
+
+export const traceTotalsBreakdownSchema = traceTotalsSchema.extend({
+  /** With `groupBy`: the same totals per group, each under its `key`. */
+  groups: z.array(traceTotalsSchema.extend({ key: z.string() })).optional(),
+});
+export type TraceTotalsBreakdown = z.infer<typeof traceTotalsBreakdownSchema>;
+
 export const collectionTracesBodySchema = z
   .object({
     traceIds: z.array(idSchema).max(500).default([]),

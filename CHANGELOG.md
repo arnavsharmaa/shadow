@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `GET /traces/summary?groupBy=agent|project|status|day` also answers the totals of each
+  group among the matching traces (`groups`, each with its `key`), largest first and days
+  oldest first, so one request says which agent, project or day the failures and the cost
+  come from.
 - The explorer shows a totals strip under the filters: for every trace they match, not only
   the page in view, how many failed and at what rate, policy violations, estimated cost in
   total and per trace, tokens, model and tool calls, and p95 and average duration.
