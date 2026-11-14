@@ -2458,6 +2458,112 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toBe("no traces match");
   });
 
+  it("breaks a summary down by agent, project, status or day", async () => {
+    const totals = {
+      traces: 30,
+      running: 0,
+      completed: 24,
+      failed: 6,
+      policyViolations: 1,
+      failureRate: 0.2,
+      totalEstimatedCost: 1.5,
+      avgEstimatedCost: 0.05,
+      totalTokens: 90_000,
+      modelCalls: 60,
+      toolCalls: 120,
+      toolErrors: 6,
+      avgDurationMs: 1500,
+      p95DurationMs: 2500,
+      firstStartedAt: "2026-11-01T00:00:00.000Z",
+      lastStartedAt: "2026-11-07T23:59:00.000Z",
+    };
+    const groups = [
+      {
+        ...totals,
+        key: "refund-agent",
+        traces: 20,
+        completed: 14,
+        failed: 6,
+        failureRate: 0.3,
+        totalEstimatedCost: 1.2,
+        avgEstimatedCost: 0.06,
+        totalTokens: 70_000,
+      },
+      {
+        ...totals,
+        key: "triage-agent",
+        traces: 10,
+        completed: 10,
+        failed: 0,
+        failureRate: 0,
+        totalEstimatedCost: 0.3,
+        avgEstimatedCost: 0.03,
+        totalTokens: 20_000,
+        p95DurationMs: null,
+      },
+    ];
+    const api = fakeApi({
+      "GET /api/v1/traces/summary": () => ({ body: { ...totals, groups } }),
+    });
+    expect(await runWith(api, ["traces", "summary", "--from", "7d", "--by", "agent"])).toBe(0);
+    const params = new URL(api.captured.calls[0]?.url ?? "").searchParams;
+    expect(params.get("groupBy")).toBe("agent");
+    expect(params.get("from")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const lines = api.captured.out.join("\n").split("\n");
+    expect(lines.some((line) => line.startsWith("traces    30 (24 completed, 6 failed"))).toBe(
+      true,
+    );
+    const header = lines.findIndex((line) => line.startsWith("AGENT"));
+    expect(header).toBeGreaterThan(0);
+    expect(lines[header]?.split(/\s{2,}/)).toEqual([
+      "AGENT",
+      "TRACES",
+      "FAILED",
+      "FAIL RATE",
+      "COST",
+      "PER TRACE",
+      "TOKENS",
+      "P95",
+    ]);
+    const cells = (line: string | undefined) => (line ?? "").split(/\s{2,}/);
+    expect(cells(lines[header + 2]).slice(0, 7)).toEqual([
+      "refund-agent",
+      "20",
+      "6",
+      "30.0%",
+      "$1.2000",
+      "$0.0600",
+      "70,000",
+    ]);
+    expect(cells(lines[header + 3])).toEqual([
+      "triage-agent",
+      "10",
+      "0",
+      "0.0%",
+      "$0.3000",
+      "$0.0300",
+      "20,000",
+      "-",
+    ]);
+
+    // JSON carries the groups as the API answered them.
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["traces", "summary", "--by", "agent", "--json"])).toBe(0);
+    expect(JSON.parse(api.captured.out.join("\n"))).toEqual({ ...totals, groups });
+
+    // Without --by nothing is asked for and no table is printed.
+    const plain = fakeApi({ "GET /api/v1/traces/summary": () => ({ body: totals }) });
+    expect(await runWith(plain, ["traces", "summary"])).toBe(0);
+    expect(new URL(plain.captured.calls[0]?.url ?? "").searchParams.has("groupBy")).toBe(false);
+    expect(plain.captured.out.join("\n")).not.toContain("FAIL RATE");
+
+    // An unknown dimension is a usage error before any request.
+    const bad = fakeApi({});
+    expect(await runWith(bad, ["traces", "summary", "--by", "tag"])).toBe(2);
+    expect(bad.captured.calls).toHaveLength(0);
+    expect(bad.captured.err.join("\n")).toContain("expected one of agent, project, status, day");
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {

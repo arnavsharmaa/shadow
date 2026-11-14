@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces summary --by agent|project|status|day` prints a table under the totals with
+  each group's traces, failures, failure rate, cost in total and per trace, tokens and p95
+  duration; `--json` carries the groups as the API answers them.
 - `GET /traces/summary?groupBy=agent|project|status|day` also answers the totals of each
   group among the matching traces (`groups`, each with its `key`), largest first and days
   oldest first, so one request says which agent, project or day the failures and the cost

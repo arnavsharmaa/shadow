@@ -25,7 +25,7 @@ import type {
   ShadowEvent,
   TraceExport,
   TraceSummary,
-  TraceTotals,
+  TraceTotalsBreakdown,
 } from "@shadow/schemas";
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { ApiClient, CliError, EXIT } from "./client.js";
@@ -1020,6 +1020,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "--meta <key=value>",
       "metadata entry to match exactly; a bare key matches its presence",
     )
+    .option(
+      "--by <dimension>",
+      "also break the totals down by agent, project, status or day (UTC)",
+      groupDimension,
+    )
     .option("--json", "print JSON")
     .action(
       async (opts: {
@@ -1036,9 +1041,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         minDuration?: number;
         collection?: string;
         meta?: string;
+        by?: string;
         json?: boolean;
       }) => {
-        const totals = await client().get<TraceTotals>("/api/v1/traces/summary", {
+        const totals = await client().get<TraceTotalsBreakdown>("/api/v1/traces/summary", {
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
@@ -1052,6 +1058,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minDurationMs: opts.minDuration,
           collection: opts.collection,
           meta: opts.meta,
+          groupBy: opts.by,
         });
         if (opts.json) return json(totals);
         if (totals.traces === 0) return out("no traces match");
@@ -1070,6 +1077,33 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             `duration  avg ${totals.avgDurationMs === null ? "-" : duration(totals.avgDurationMs)}, p95 ${totals.p95DurationMs === null ? "-" : duration(totals.p95DurationMs)}`,
             `started   ${totals.firstStartedAt ?? "-"} to ${totals.lastStartedAt ?? "-"}`,
           ].join("\n"),
+        );
+        if (!opts.by || !totals.groups) return;
+        // One row per group: the server sends the largest first, days oldest first.
+        out("");
+        out(
+          table(
+            [
+              opts.by.toUpperCase(),
+              "TRACES",
+              "FAILED",
+              "FAIL RATE",
+              "COST",
+              "PER TRACE",
+              "TOKENS",
+              "P95",
+            ],
+            totals.groups.map((group) => [
+              group.key,
+              n(group.traces),
+              n(group.failed),
+              group.failureRate === null ? "-" : `${(group.failureRate * 100).toFixed(1)}%`,
+              money(group.totalEstimatedCost),
+              group.avgEstimatedCost === null ? "-" : money(group.avgEstimatedCost),
+              n(group.totalTokens),
+              group.p95DurationMs === null ? "-" : duration(group.p95DurationMs),
+            ]),
+          ),
         );
       },
     );
@@ -3962,6 +3996,15 @@ function nonNegative(value: string): number {
   if (!Number.isFinite(n) || n < 0)
     throw new InvalidArgumentError("expected a non-negative number");
   return n;
+}
+
+const GROUP_DIMENSIONS = ["agent", "project", "status", "day"];
+
+/** Commander parser for `--by`: what a summary can be broken down by. */
+function groupDimension(value: string): string {
+  if (!GROUP_DIMENSIONS.includes(value))
+    throw new InvalidArgumentError(`expected one of ${GROUP_DIMENSIONS.join(", ")}`);
+  return value;
 }
 
 /** Commander parser for cutoff options: ISO timestamps or relative ages. */
