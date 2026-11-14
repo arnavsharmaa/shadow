@@ -98,6 +98,12 @@ export function TraceExplorer() {
     queryKey: ["traces", filters],
     queryFn: () => api.listTraces(filters),
   });
+  // Totals follow the filters, not the page: they cover every matching trace.
+  const totals = useQuery({
+    queryKey: ["trace-totals", toSelection(filters)],
+    queryFn: () => api.traceTotals(toSelection(filters)),
+    retry: false,
+  });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
   const collections = useQuery({
     queryKey: ["collections"],
@@ -251,6 +257,44 @@ export function TraceExplorer() {
             : ""}
         </span>
       </div>
+      {totals.data && totals.data.traces > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-0.5 border-b border-border bg-panel px-3 py-1 text-[11px] text-fg-muted"
+          aria-label="Totals for every trace matching the filters"
+          data-testid="trace-totals"
+        >
+          <span>
+            <span className={totals.data.failed > 0 ? "text-err" : "text-fg"}>
+              {totals.data.failed.toLocaleString()} failed
+            </span>
+            {totals.data.failureRate !== null
+              ? ` (${(totals.data.failureRate * 100).toFixed(1)}%)`
+              : ""}
+            {totals.data.policyViolations > 0
+              ? `, ${totals.data.policyViolations.toLocaleString()} policy violation${totals.data.policyViolations === 1 ? "" : "s"}`
+              : ""}
+          </span>
+          <span>
+            <span className="text-fg">{money(totals.data.totalEstimatedCost)}</span> estimated,{" "}
+            {money(totals.data.avgEstimatedCost)} per trace
+          </span>
+          <span>
+            <span className="text-fg">{compact(totals.data.totalTokens)}</span> tokens
+          </span>
+          <span>
+            {compact(totals.data.modelCalls)} model and {compact(totals.data.toolCalls)} tool calls
+            {totals.data.toolErrors > 0
+              ? ` (${totals.data.toolErrors.toLocaleString()} failed)`
+              : ""}
+          </span>
+          {totals.data.p95DurationMs !== null && (
+            <span>
+              p95 <span className="text-fg">{duration(totals.data.p95DurationMs)}</span>, avg{" "}
+              {duration(totals.data.avgDurationMs)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {traces.isError ? (

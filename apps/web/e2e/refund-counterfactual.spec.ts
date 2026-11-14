@@ -1113,6 +1113,12 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
   test("explorer filters and keyboard navigation", async ({ page, request }) => {
     await page.goto("/?status=failed");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
+    // The totals strip sums up every trace the filters match.
+    const totals = page.getByTestId("trace-totals");
+    await expect(totals).toContainText("1 failed (100.0%)");
+    await expect(totals).toContainText("estimated");
+    await expect(totals).toContainText("tokens");
+    await expect(totals).toContainText("p95");
     await page.goto("/?q=cus_1001");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
     await page.goto("/?tool=inventory.lookup");

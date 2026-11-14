@@ -30,7 +30,11 @@ export function BulkActions({
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["traces"] });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["traces"] });
+    // Deleting or tagging changes what the filters match, and with it the totals strip.
+    await queryClient.invalidateQueries({ queryKey: ["trace-totals"] });
+  };
   const exportAll = async () => {
     setBusy(true);
     setMessage(null);

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer shows a totals strip under the filters: for every trace they match, not only
+  the page in view, how many failed and at what rate, policy violations, estimated cost in
+  total and per trace, tokens, model and tool calls, and p95 and average duration.
 - `shadow traces summary` prints what the traces matching the same filters as `traces list`
   add up to (counts by status, failure rate, cost in total and per trace, tokens, calls,
   average and p95 duration, time span), with `--json` for scripts.

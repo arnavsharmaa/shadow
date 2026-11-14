@@ -21,6 +21,7 @@ import type {
   DiffEntry,
   TraceListQuery,
   TraceSelection,
+  TraceTotals,
 } from "@shadow/schemas";
 
 import type { TrendPoint } from "./trend";
@@ -365,6 +366,12 @@ export const api = {
     request<TracePage>(
       "GET",
       `/api/v1/traces${query(filters as Record<string, string | number | undefined>)}`,
+    ),
+  /** What the traces a selection matches add up to (counts, cost, tokens, latency). */
+  traceTotals: (selection: TraceSelection) =>
+    request<TraceTotals>(
+      "GET",
+      `/api/v1/traces/summary${query(selection as Record<string, string | number | undefined>)}`,
     ),
   facets: () => request<Facets>("GET", "/api/v1/traces/facets"),
   trace: (traceId: string) =>
