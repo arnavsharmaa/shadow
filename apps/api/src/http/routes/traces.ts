@@ -12,6 +12,7 @@ import {
   pruneTracesBodySchema,
   tagTracesBodySchema,
   traceListQuerySchema,
+  traceSelectionSchema,
   updateTraceBodySchema,
   type TraceSummary,
   exportTracesBodySchema,
@@ -41,6 +42,7 @@ import {
   listTraces,
   pruneTraces,
   tagTraces,
+  summarizeTraces,
   traceFacets,
   updateTrace,
 } from "../../services/traces.js";
@@ -163,6 +165,13 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       reply.header("x-shadow-truncated", count >= MAX_TRACE_CSV_ROWS ? "true" : "false");
       return reply.send(lines.join(""));
     },
+  );
+
+  /** What the traces matching the list's filters add up to (counts, cost, tokens, latency). */
+  app.get(
+    "/traces/summary",
+    { schema: { tags: ["traces"], querystring: traceSelectionSchema } },
+    async (request) => summarizeTraces(app.services, request.query),
   );
 
   app.get(

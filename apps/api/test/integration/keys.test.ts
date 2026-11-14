@@ -366,6 +366,14 @@ describe("API keys", () => {
       await t.app.inject({ url: "/api/v1/traces/facets", headers: admin }),
     );
     expect(all.tags).toContain("billing-only");
+    // Totals cover the pinned project only, and another project's are refused.
+    const pinnedTotals = json<{ traces: number }>(await get("/api/v1/traces/summary"));
+    expect(pinnedTotals.traces).toBe(list.items.length);
+    const allTotals = json<{ traces: number }>(
+      await t.app.inject({ url: "/api/v1/traces/summary", headers: admin }),
+    );
+    expect(allTotals.traces).toBeGreaterThan(pinnedTotals.traces);
+    expect(await status("/api/v1/traces/summary?project=billing")).toBe(403);
     const projects = json<{ items: { id: string; slug: string }[] }>(await get("/api/v1/projects"));
     expect(projects.items.map((p) => p.slug)).toEqual(["support-agent"]);
     const agentList = json<{ items: { projectId: string }[] }>(await get("/api/v1/agents"));

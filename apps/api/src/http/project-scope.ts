@@ -24,6 +24,7 @@ export function projectOf(request: FastifyRequest): string | null {
 const PROJECT_FILTERED_ROUTES = new Set([
   "/api/v1/traces",
   "/api/v1/traces/facets",
+  "/api/v1/traces/summary",
   "/api/v1/stats/agents",
   "/api/v1/stats/overview",
   "/api/v1/stats/models",

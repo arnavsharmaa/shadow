@@ -269,6 +269,19 @@ as JSON), following the cursors server-side in the listing's order up to 10,000 
 `x-shadow-truncated: true` says the cap was hit. CLI: `shadow traces list --csv [--out <file>]`
 with the usual filters; the explorer's Download CSV link carries the current filters.
 
+### `GET /api/v1/traces/summary`
+
+What the traces matching a set of filters add up to. It takes the list's filters (`project`,
+`agent`, `status`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`,
+`meta`, `collection`), without paging or sorting, and answers one object:
+`{ traces, running, completed, failed, policyViolations, failureRate, totalEstimatedCost,
+avgEstimatedCost, totalTokens, modelCalls, toolCalls, toolErrors, avgDurationMs, p95DurationMs,
+firstStartedAt, lastStartedAt }`. `failureRate` is failed over finished traces and the
+durations cover finished traces only; they, `avgEstimatedCost` and the two timestamps are
+`null` when there is nothing to compute them from. The totals come from one aggregate query
+over the same conditions as the list, so "what did last week's failed refund runs cost" is
+one request instead of a page-through. A project-pinned key gets its own project's totals.
+
 ### `GET /api/v1/traces/facets`
 
 Distinct filter values for the explorer:

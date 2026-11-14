@@ -354,6 +354,30 @@ export const traceSelectionSchema = traceListQuerySchema.omit({
 });
 export type TraceSelection = z.infer<typeof traceSelectionSchema>;
 
+/** What a selection of traces adds up to: `GET /traces/summary` for the same filters as the list. */
+export const traceTotalsSchema = z.object({
+  traces: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  policyViolations: z.number().int().nonnegative(),
+  /** Failed divided by finished traces; `null` when none has finished. */
+  failureRate: z.number().nullable(),
+  totalEstimatedCost: z.number().nonnegative(),
+  /** Estimated cost per trace; `null` without traces. */
+  avgEstimatedCost: z.number().nullable(),
+  totalTokens: z.number().nonnegative(),
+  modelCalls: z.number().nonnegative(),
+  toolCalls: z.number().nonnegative(),
+  toolErrors: z.number().nonnegative(),
+  /** Over finished traces; `null` when none has finished. */
+  avgDurationMs: z.number().nullable(),
+  p95DurationMs: z.number().nullable(),
+  firstStartedAt: z.string().nullable(),
+  lastStartedAt: z.string().nullable(),
+});
+export type TraceTotals = z.infer<typeof traceTotalsSchema>;
+
 export const collectionTracesBodySchema = z
   .object({
     traceIds: z.array(idSchema).max(500).default([]),

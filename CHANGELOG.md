@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `GET /traces/summary` answers what the traces matching the list's filters add up to: counts
+  by status, policy violations, failure rate, estimated cost in total and per trace, tokens,
+  model and tool calls, tool errors, average and p95 duration and the time span, from one
+  aggregate query over the same conditions as the list.
 - The explorer's selection bar gains "Tag all N matching": the tag goes on every trace the
   current filters match (the newest 500) in one call, whatever is ticked.
 - Tags can be added to or removed from many traces in one call: `POST /traces/tags` takes

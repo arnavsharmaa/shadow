@@ -7,6 +7,7 @@ import {
   type TraceListQuery,
   type TraceSelection,
   type TraceSummary,
+  type TraceTotals,
   type UpdateTraceBody,
 } from "@shadow/schemas";
 import {
@@ -37,6 +38,7 @@ import { ApiError } from "../errors.js";
 import type { ServiceContext } from "./context.js";
 import {
   iso,
+  isoOrNull,
   toTrace,
   toTraceSummary,
   type AgentRow,
@@ -224,6 +226,70 @@ export async function selectTraceIds(
     .orderBy(desc(traces.startedAt), desc(traces.id))
     .limit(limit);
   return rows.map((r) => r.id);
+}
+
+/**
+ * What the traces a selection matches add up to: counts by status, cost, tokens, calls and
+ * latency. One aggregate query over the same filters as the list, so the two always agree.
+ */
+export async function summarizeTraces(
+  ctx: ServiceContext,
+  query: TraceSelection,
+): Promise<TraceTotals> {
+  const filters = selectionFilters(query);
+  const where = filters.length > 0 ? and(...filters) : undefined;
+  const metric = (key: string) =>
+    sql<number>`coalesce(sum((${traces.metrics}->>${key})::float), 0)`;
+  const durationMs = sql<number>`coalesce(${traces.durationMs}, (${traces.metrics}->>'durationMs')::float, 0)`;
+  const base = ctx.handle.db
+    .select({
+      traces: sql<number>`count(*)`,
+      running: sql<number>`count(*) filter (where ${traces.status} = 'running')`,
+      completed: sql<number>`count(*) filter (where ${traces.status} = 'completed')`,
+      failed: sql<number>`count(*) filter (where ${traces.status} = 'failed')`,
+      policyViolations: sql<number>`count(*) filter (where ${traces.outcome}->>'kind' = 'policy_violation')`,
+      cost: metric("totalEstimatedCost"),
+      tokens: metric("totalTokens"),
+      modelCalls: metric("modelCalls"),
+      toolCalls: metric("toolCalls"),
+      toolErrors: metric("toolErrors"),
+      avgDuration: sql<
+        number | null
+      >`avg(${durationMs}) filter (where ${traces.status} <> 'running')`,
+      p95: sql<
+        number | null
+      >`percentile_cont(0.95) within group (order by ${durationMs}) filter (where ${traces.status} <> 'running')`,
+      first: sql<string | null>`min(${traces.startedAt})`,
+      last: sql<string | null>`max(${traces.startedAt})`,
+    })
+    .from(traces)
+    .innerJoin(projects, eq(projects.id, traces.projectId))
+    .innerJoin(agents, eq(agents.id, traces.agentId));
+  const [row] = await (where ? base.where(where) : base);
+  const count = Number(row?.traces ?? 0);
+  const failed = Number(row?.failed ?? 0);
+  const finished = count - Number(row?.running ?? 0);
+  const cost = Number(row?.cost ?? 0);
+  const orNull = (value: number | null | undefined) =>
+    value === null || value === undefined ? null : Number(value);
+  return {
+    traces: count,
+    running: Number(row?.running ?? 0),
+    completed: Number(row?.completed ?? 0),
+    failed,
+    policyViolations: Number(row?.policyViolations ?? 0),
+    failureRate: finished > 0 ? failed / finished : null,
+    totalEstimatedCost: cost,
+    avgEstimatedCost: count > 0 ? cost / count : null,
+    totalTokens: Number(row?.tokens ?? 0),
+    modelCalls: Number(row?.modelCalls ?? 0),
+    toolCalls: Number(row?.toolCalls ?? 0),
+    toolErrors: Number(row?.toolErrors ?? 0),
+    avgDurationMs: orNull(row?.avgDuration),
+    p95DurationMs: orNull(row?.p95),
+    firstStartedAt: isoOrNull(row?.first),
+    lastStartedAt: isoOrNull(row?.last),
+  };
 }
 
 export async function listTraces(
