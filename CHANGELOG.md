@@ -583,6 +583,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Fixed
 
+- A saved view can carry the "Failed tool" filter (`toolError`). The filter was listed among
+  the ones a view may hold, but `POST /views` refused any query containing it, so a view could
+  not be shared while that filter was set. The accepted filters are now derived from that one
+  list.
 - A `trace.completed` or `trace.failed` event whose declared `outcome` lacks `kind` or `label`
   (for example `{ "status": "ok" }`) is normalised instead of stored as is, so the trace, its
   branches and its export bundle always carry a valid outcome and can be imported again.

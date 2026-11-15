@@ -114,23 +114,14 @@ export const SAVED_VIEW_KEYS = [
   "order",
 ] as const;
 
+export type SavedViewKey = (typeof SAVED_VIEW_KEYS)[number];
+
+/**
+ * Picked from `SAVED_VIEW_KEYS` itself, so a filter cannot be listed there (and named in the
+ * error message) while a view carrying it is refused.
+ */
 const savedViewFiltersSchema = traceListQuerySchema
-  .pick({
-    project: true,
-    agent: true,
-    status: true,
-    tag: true,
-    tool: true,
-    q: true,
-    from: true,
-    to: true,
-    minCost: true,
-    minDurationMs: true,
-    collection: true,
-    meta: true,
-    sort: true,
-    order: true,
-  })
+  .pick(Object.fromEntries(SAVED_VIEW_KEYS.map((key) => [key, true])) as Record<SavedViewKey, true>)
   .partial()
   .strict();
 

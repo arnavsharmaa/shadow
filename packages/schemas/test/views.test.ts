@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeViewQuery, saveViewBodySchema } from "../src/index.js";
+import {
+  SAVED_VIEW_KEYS,
+  normalizeViewQuery,
+  saveViewBodySchema,
+  type SavedViewKey,
+} from "../src/index.js";
 
 describe("normalizeViewQuery", () => {
   it("drops paging and sorts keys", () => {
@@ -20,6 +25,40 @@ describe("normalizeViewQuery", () => {
       expected.sort();
       expect(normalizeViewQuery(query), query).toBe(expected.toString());
     }
+  });
+
+  it("accepts every filter it says a view may carry", () => {
+    // One valid value per key; a key added to SAVED_VIEW_KEYS has to be given one here.
+    const samples: Record<SavedViewKey, string> = {
+      project: "support-agent",
+      agent: "refund-agent",
+      status: "failed",
+      tag: "refund",
+      tool: "refund_order",
+      toolError: "refund_order",
+      q: "cus_1001",
+      from: "2026-09-01T00:00:00.000Z",
+      to: "2026-09-08T00:00:00.000Z",
+      minCost: "0.01",
+      minDurationMs: "1500",
+      collection: "incident-42",
+      meta: "attempt=3",
+      sort: "totalEstimatedCost",
+      order: "asc",
+    };
+    expect(Object.keys(samples).sort()).toEqual([...SAVED_VIEW_KEYS].sort());
+    for (const key of SAVED_VIEW_KEYS) {
+      const query = new URLSearchParams({ [key]: samples[key] }).toString();
+      expect(normalizeViewQuery(query), key).toBe(query);
+    }
+    const everything = new URLSearchParams(samples);
+    everything.sort();
+    expect(normalizeViewQuery(everything.toString())).toBe(everything.toString());
+    // The explorer's "Failed tool" filter used to make a view unsaveable.
+    expect(
+      saveViewBodySchema.safeParse({ name: "blocked refunds", query: "toolError=refund_order" })
+        .success,
+    ).toBe(true);
   });
 
   it("rejects unknown keys, duplicates, bad values and broken encodings", () => {

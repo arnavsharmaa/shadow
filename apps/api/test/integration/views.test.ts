@@ -76,6 +76,19 @@ describe("shared saved views", () => {
     ).toEqual(["agents: refund"]);
   });
 
+  it("saves a view that filters by the tool that failed", async () => {
+    const response = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/views",
+      payload: { name: "blocked refunds", query: "toolError=refund_order&status=failed" },
+    });
+    expect(response.statusCode).toBe(201);
+    const view = json<SavedView>(response);
+    expect(view.query).toBe("status=failed&toolError=refund_order");
+    const deleted = await t.app.inject({ method: "DELETE", url: `/api/v1/views/${view.id}` });
+    expect(deleted.statusCode).toBe(204);
+  });
+
   it("rejects queries the trace list would not accept", async () => {
     for (const query of [
       "status=exploded",
