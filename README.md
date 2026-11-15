@@ -199,6 +199,7 @@ shadow agents --from 7d
 shadow tools --from 7d
 shadow traces summary --agent refund-agent --status failed --from 7d   # what they add up to
 shadow traces summary --status failed --from 7d --by agent             # ...and per agent
+shadow traces list --outcome policy_violation --from 7d                # by declared outcome
 shadow otlp import ./collector-export.json
 shadow import anthropic examples/anthropic-messages/refund-conversation.json
 shadow import openai examples/openai-chat/refund-conversation.json

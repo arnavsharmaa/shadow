@@ -2561,7 +2561,80 @@ describe("shadow cli", () => {
     const bad = fakeApi({});
     expect(await runWith(bad, ["traces", "summary", "--by", "tag"])).toBe(2);
     expect(bad.captured.calls).toHaveLength(0);
-    expect(bad.captured.err.join("\n")).toContain("expected one of agent, project, status, day");
+    expect(bad.captured.err.join("\n")).toContain(
+      "expected one of agent, project, status, outcome, day",
+    );
+  });
+
+  it("filters by outcome wherever the trace filters are taken", async () => {
+    const totals = {
+      traces: 0,
+      running: 0,
+      completed: 0,
+      failed: 0,
+      policyViolations: 0,
+      failureRate: null,
+      totalEstimatedCost: 0,
+      avgEstimatedCost: null,
+      totalTokens: 0,
+      modelCalls: 0,
+      toolCalls: 0,
+      toolErrors: 0,
+      avgDurationMs: null,
+      p95DurationMs: null,
+      firstStartedAt: null,
+      lastStartedAt: null,
+    };
+    const api = fakeApi({
+      "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+      "GET /api/v1/traces/summary": () => ({ body: { ...totals, groups: [] } }),
+      "POST /api/v1/traces/tags": () => ({
+        body: { matched: 1, updated: ["trc_1"], missing: [] },
+      }),
+      "POST /api/v1/collections/violations/traces": () => ({
+        body: {
+          collection: { id: "col_1", name: "violations", traceCount: 1 },
+          added: ["trc_1"],
+          missing: [],
+          matched: 1,
+        },
+      }),
+    });
+    const params = () => new URL(api.captured.calls.at(-1)?.url ?? "").searchParams;
+
+    expect(
+      await runWith(api, ["traces", "list", "--outcome", "policy_violation", "--agent", "refund"]),
+    ).toBe(0);
+    expect(params().get("outcome")).toBe("policy_violation");
+    expect(params().get("agent")).toBe("refund");
+
+    expect(await runWith(api, ["traces", "summary", "--outcome", "none"])).toBe(0);
+    expect(params().get("outcome")).toBe("none");
+    expect(await runWith(api, ["traces", "summary", "--status", "failed", "--by", "outcome"])).toBe(
+      0,
+    );
+    expect(Object.fromEntries(params())).toEqual({ status: "failed", groupBy: "outcome" });
+
+    expect(await runWith(api, ["traces", "tag", "review", "--outcome", "policy_violation"])).toBe(
+      0,
+    );
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { outcome: "policy_violation" },
+      add: ["review"],
+    });
+
+    expect(
+      await runWith(api, ["collections", "add", "violations", "--outcome", "policy_violation"]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { outcome: "policy_violation" },
+    });
+
+    // Without the flag the parameter is not sent.
+    expect(await runWith(api, ["traces", "list"])).toBe(0);
+    expect(params().has("outcome")).toBe(false);
   });
 
   it("tags traces by filter and collects them by filter", async () => {

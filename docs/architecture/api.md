@@ -289,8 +289,8 @@ totals for each agent slug, project slug, status, outcome kind (`none` for trace
 outcome) or UTC day the traces started on, each under its `key` and inside the same filters. Groups come largest first, days oldest first, and stop at 200
 (for days, the most recent 200). "Which agent's failures cost the most last week" is
 `?status=failed&from=…&groupBy=agent`. Without `groupBy` there is no `groups` field.
-CLI: `shadow traces summary --by agent|project|status|day` prints the groups as a table
-under the totals.
+CLI: `shadow traces summary --by agent|project|status|outcome|day` prints the groups as a
+table under the totals.
 
 ### `GET /api/v1/traces/facets`
 

@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `--outcome <kind>` on `shadow traces list`, `traces summary`, `traces tag` and
+  `collections add` filters by declared outcome (`policy_violation`, …, or `none`), and
+  `shadow traces summary --by outcome` breaks the totals down by it.
 - Traces can be filtered by outcome: `GET /traces?outcome=<kind>` (and with it the CSV
   export, `GET /traces/summary`, saved views, and the selections behind bulk tagging and
   collections) matches traces whose declared outcome is of that kind, such as

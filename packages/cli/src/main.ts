@@ -254,6 +254,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "filter by project slug")
     .option("--agent <slug>", "filter by agent slug")
     .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "outcome kind such as policy_violation; none for traces without an outcome",
+    )
     .option("--tag <tag>", "filter by tag")
     .option("--tool <name>", "traces that called a tool")
     .option("--tool-error <name>", "traces in which a tool raised an error")
@@ -303,6 +307,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         project?: string;
         agent?: string;
         status?: string;
+        outcome?: string;
         tag?: string;
         tool?: string;
         toolError?: string;
@@ -332,6 +337,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
+          outcome: opts.outcome,
           tag: opts.tag,
           tool: opts.tool,
           toolError: opts.toolError,
@@ -1007,6 +1013,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "traces in this project")
     .option("--agent <slug>", "traces of this agent")
     .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "outcome kind such as policy_violation; none for traces without an outcome",
+    )
     .option("--tag <tag>", "traces carrying this tag")
     .option("--tool <name>", "traces that called a tool")
     .option("--tool-error <name>", "traces in which a tool raised an error")
@@ -1022,7 +1032,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     )
     .option(
       "--by <dimension>",
-      "also break the totals down by agent, project, status or day (UTC)",
+      "also break the totals down by agent, project, status, outcome or day (UTC)",
       groupDimension,
     )
     .option("--json", "print JSON")
@@ -1031,6 +1041,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         project?: string;
         agent?: string;
         status?: string;
+        outcome?: string;
         tag?: string;
         tool?: string;
         toolError?: string;
@@ -1048,6 +1059,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
+          outcome: opts.outcome,
           tag: opts.tag,
           tool: opts.tool,
           toolError: opts.toolError,
@@ -1119,6 +1131,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "traces in this project")
     .option("--agent <slug>", "traces of this agent")
     .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "outcome kind such as policy_violation; none for traces without an outcome",
+    )
     .option("--tagged <tag>", "traces already carrying this tag")
     .option("--tool <name>", "traces that called a tool")
     .option("--tool-error <name>", "traces in which a tool raised an error")
@@ -1138,6 +1154,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project?: string;
           agent?: string;
           status?: string;
+          outcome?: string;
           tagged?: string;
           tool?: string;
           toolError?: string;
@@ -1154,6 +1171,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (opts.project) selection.project = opts.project;
         if (opts.agent) selection.agent = opts.agent;
         if (opts.status) selection.status = opts.status;
+        if (opts.outcome) selection.outcome = opts.outcome;
         if (opts.tagged) selection.tag = opts.tagged;
         if (opts.tool) selection.tool = opts.tool;
         if (opts.toolError) selection.toolError = opts.toolError;
@@ -1696,6 +1714,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "traces in this project")
     .option("--agent <slug>", "traces of this agent")
     .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "outcome kind such as policy_violation; none for traces without an outcome",
+    )
     .option("--tag <tag>", "traces carrying this tag")
     .option("--tool <name>", "traces that called a tool")
     .option("--tool-error <name>", "traces in which a tool raised an error")
@@ -1713,6 +1735,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project?: string;
           agent?: string;
           status?: string;
+          outcome?: string;
           tag?: string;
           tool?: string;
           toolError?: string;
@@ -1728,6 +1751,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (opts.project) selection.project = opts.project;
         if (opts.agent) selection.agent = opts.agent;
         if (opts.status) selection.status = opts.status;
+        if (opts.outcome) selection.outcome = opts.outcome;
         if (opts.tag) selection.tag = opts.tag;
         if (opts.tool) selection.tool = opts.tool;
         if (opts.toolError) selection.toolError = opts.toolError;
@@ -3998,7 +4022,7 @@ function nonNegative(value: string): number {
   return n;
 }
 
-const GROUP_DIMENSIONS = ["agent", "project", "status", "day"];
+const GROUP_DIMENSIONS = ["agent", "project", "status", "outcome", "day"];
 
 /** Commander parser for `--by`: what a summary can be broken down by. */
 function groupDimension(value: string): string {
