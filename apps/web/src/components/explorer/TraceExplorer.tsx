@@ -26,6 +26,7 @@ function readFilters(params: URLSearchParams): TraceFilters {
     project: get("project"),
     agent: get("agent"),
     status: get("status") as TraceFilters["status"],
+    outcome: get("outcome"),
     tag: get("tag"),
     tool: get("tool"),
     toolError: get("toolError"),
@@ -43,12 +44,19 @@ function readFilters(params: URLSearchParams): TraceFilters {
   };
 }
 
+/** `policy_violation` reads better as "Policy violation" in a menu. */
+function outcomeLabel(kind: string): string {
+  const words = kind.replace(/[_-]+/g, " ").trim();
+  return words === "" ? kind : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** The filters as the collections API takes them: which traces, without paging or sorting. */
 function toSelection(filters: TraceFilters): TraceSelection {
   return {
     project: filters.project,
     agent: filters.agent,
     status: filters.status,
+    outcome: filters.outcome,
     tag: filters.tag,
     tool: filters.tool,
     toolError: filters.toolError,
@@ -105,6 +113,10 @@ export function TraceExplorer() {
     retry: false,
   });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
+  // The kinds in use plus the one the URL asks for, so the menu always shows the active filter.
+  const outcomeKinds = [
+    ...new Set([...(facets.data?.outcomes ?? []), ...(filters.outcome ? [filters.outcome] : [])]),
+  ].filter((kind) => kind !== "none");
   const collections = useQuery({
     queryKey: ["collections"],
     queryFn: () => api.collections(),
@@ -120,6 +132,7 @@ export function TraceExplorer() {
     "project",
     "agent",
     "status",
+    "outcome",
     "tag",
     "tool",
     "toolError",
@@ -179,6 +192,15 @@ export function TraceExplorer() {
             { value: "completed", label: "Completed" },
             { value: "failed", label: "Failed" },
             { value: "running", label: "Running" },
+          ]}
+        />
+        <Select
+          label="Outcome"
+          value={filters.outcome}
+          onChange={(v) => setFilter({ outcome: v })}
+          options={[
+            ...outcomeKinds.map((kind) => ({ value: kind, label: outcomeLabel(kind) })),
+            { value: "none", label: "No outcome" },
           ]}
         />
         <Select
@@ -270,9 +292,21 @@ export function TraceExplorer() {
             {totals.data.failureRate !== null
               ? ` (${(totals.data.failureRate * 100).toFixed(1)}%)`
               : ""}
-            {totals.data.policyViolations > 0
-              ? `, ${totals.data.policyViolations.toLocaleString()} policy violation${totals.data.policyViolations === 1 ? "" : "s"}`
-              : ""}
+            {totals.data.policyViolations > 0 && (
+              <>
+                ,{" "}
+                <button
+                  type="button"
+                  className="underline decoration-dotted underline-offset-2 hover:text-fg"
+                  onClick={() => setFilter({ outcome: "policy_violation" })}
+                  title="Show only the traces that ended in a policy violation"
+                  data-testid="totals-violations"
+                >
+                  {totals.data.policyViolations.toLocaleString()} policy violation
+                  {totals.data.policyViolations === 1 ? "" : "s"}
+                </button>
+              </>
+            )}
           </span>
           <span>
             <span className="text-fg">{money(totals.data.totalEstimatedCost)}</span> estimated,{" "}

@@ -118,6 +118,8 @@ export interface Facets {
   agents: { slug: string; name: string; projectSlug: string }[];
   tags: string[];
   tools: string[];
+  /** Outcome kinds in use; absent from an API that predates the outcome filter. */
+  outcomes?: string[];
 }
 
 export interface TraceDetail {

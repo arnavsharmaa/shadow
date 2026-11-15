@@ -1119,6 +1119,19 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(totals).toContainText("estimated");
     await expect(totals).toContainText("tokens");
     await expect(totals).toContainText("p95");
+    // The strip's policy violations narrow the list to that outcome; the Outcome menu follows.
+    await expect(totals.getByTestId("totals-violations")).toHaveText("1 policy violation");
+    await totals.getByTestId("totals-violations").click();
+    await expect(page).toHaveURL(/outcome=policy_violation/);
+    await expect(page.locator("#filter-outcome")).toHaveValue("policy_violation");
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="trace-row"]').first()).toContainText(
+      "Policy violation",
+    );
+    // No failed trace is without an outcome.
+    await page.locator("#filter-outcome").selectOption("none");
+    await expect(page).toHaveURL(/outcome=none/);
+    await expect(page.getByText("No traces match these filters")).toBeVisible();
     await page.goto("/?q=cus_1001");
     await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
     await page.goto("/?tool=inventory.lookup");

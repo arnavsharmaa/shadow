@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer has an Outcome filter listing the outcome kinds in use (and "No outcome"),
+  kept in the URL and in saved views like the other filters, and the totals strip's policy
+  violations are a button that applies it.
 - `--outcome <kind>` on `shadow traces list`, `traces summary`, `traces tag` and
   `collections add` filters by declared outcome (`policy_violation`, …, or `none`), and
   `shadow traces summary --by outcome` breaks the totals down by it.
