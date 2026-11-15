@@ -11,6 +11,11 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- Traces can be filtered by outcome: `GET /traces?outcome=<kind>` (and with it the CSV
+  export, `GET /traces/summary`, saved views, and the selections behind bulk tagging and
+  collections) matches traces whose declared outcome is of that kind, such as
+  `policy_violation`, and `outcome=none` those without one. `groupBy=outcome` breaks a
+  summary down by outcome kind, and `GET /traces/facets` lists the kinds in use as `outcomes`.
 - `shadow traces summary --by agent|project|status|day` prints a table under the totals with
   each group's traces, failures, failure rate, cost in total and per trace, tokens and p95
   duration; `--json` carries the groups as the API answers them.

@@ -62,6 +62,11 @@ export const traceListQuerySchema = z.object({
   project: z.string().max(64).optional(),
   agent: z.string().max(64).optional(),
   status: traceStatusSchema.optional(),
+  /**
+   * Traces whose declared outcome is of this kind (`policy_violation`, `completed`, `error`, or
+   * whatever the program reports); `none` matches traces without an outcome.
+   */
+  outcome: z.string().min(1).max(64).optional(),
   tag: z.string().max(64).optional(),
   tool: z.string().max(128).optional(),
   /** Traces in which this tool raised an error, on any branch. */
@@ -100,6 +105,7 @@ export const SAVED_VIEW_KEYS = [
   "project",
   "agent",
   "status",
+  "outcome",
   "tag",
   "tool",
   "toolError",
@@ -369,12 +375,15 @@ export const traceTotalsSchema = z.object({
 });
 export type TraceTotals = z.infer<typeof traceTotalsSchema>;
 
-/** What `GET /traces/summary` can break its totals down by; `day` is the UTC day a trace started. */
-export const TRACE_GROUP_BYS = ["agent", "project", "status", "day"] as const;
+/**
+ * What `GET /traces/summary` can break its totals down by: `outcome` is the outcome kind
+ * (`none` without one) and `day` the UTC day a trace started.
+ */
+export const TRACE_GROUP_BYS = ["agent", "project", "status", "outcome", "day"] as const;
 export type TraceGroupBy = (typeof TRACE_GROUP_BYS)[number];
 
 export const traceSummaryQuerySchema = traceSelectionSchema.extend({
-  /** Also answer the totals of each agent, project, status or day among the matching traces. */
+  /** Also answer the totals of each agent, project, status, outcome or day among the matches. */
   groupBy: z.enum(TRACE_GROUP_BYS).optional(),
 });
 export type TraceSummaryQuery = z.infer<typeof traceSummaryQuerySchema>;

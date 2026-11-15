@@ -341,6 +341,36 @@ describe("trace listing", () => {
     ).toBe(400);
   });
 
+  it("filters by outcome kind, with none for traces that declared no outcome", async () => {
+    const kinds = [...new Set(all.map((i) => i.outcome?.kind ?? "none"))];
+    expect(kinds).toContain("policy_violation");
+    for (const kind of kinds) {
+      const expected = all.filter((i) => (i.outcome?.kind ?? "none") === kind).map((i) => i.id);
+      const result = await list(`outcome=${encodeURIComponent(kind)}&limit=200`);
+      expect(result.total, kind).toBe(expected.length);
+      expect(ids(result).sort(), kind).toEqual([...expected].sort());
+    }
+    expect(ids(await list("outcome=policy_violation"))).toContain(DEMO_TRACE_IDS.refundViolation);
+    expect((await list("outcome=no_such_kind")).total).toBe(0);
+    // It combines with the other filters, and the CSV export follows it too.
+    const refunds = all.filter(
+      (i) => i.outcome?.kind === "policy_violation" && i.agentSlug === "refund-agent",
+    );
+    expect((await list("outcome=policy_violation&agent=refund-agent&limit=200")).total).toBe(
+      refunds.length,
+    );
+    const csv = await t.app.inject({ url: "/api/v1/traces?outcome=policy_violation&format=csv" });
+    expect(csv.statusCode).toBe(200);
+    const rows = csv.body
+      .split("\r\n")
+      .filter((l) => l.length > 0)
+      .slice(1);
+    expect(rows.map((l) => l.split(",")[0])).toEqual(
+      ids(await list("outcome=policy_violation&limit=200")),
+    );
+    expect(rows.every((l) => l.includes(",policy_violation,"))).toBe(true);
+  });
+
   it("exposes facets for the explorer", async () => {
     const response = await t.app.inject({ method: "GET", url: "/api/v1/traces/facets" });
     expect(response.statusCode).toBe(200);
@@ -349,6 +379,7 @@ describe("trace listing", () => {
       agents: { slug: string; name: string; projectSlug: string }[];
       tags: string[];
       tools: string[];
+      outcomes: string[];
     }>(response);
     expect(facets.projects.map((p) => p.slug).sort()).toEqual([
       "fulfilment",
@@ -369,5 +400,10 @@ describe("trace listing", () => {
     );
     expect(facets.tools).toEqual([...facets.tools].sort());
     expect(new Set(facets.tools).size).toBe(facets.tools.length);
+    // Outcome kinds in use, for the explorer's outcome filter; `none` is not a kind.
+    expect(facets.outcomes).toEqual(
+      [...new Set(all.flatMap((i) => (i.outcome ? [i.outcome.kind] : [])))].sort(),
+    );
+    expect(facets.outcomes).toContain("policy_violation");
   });
 });

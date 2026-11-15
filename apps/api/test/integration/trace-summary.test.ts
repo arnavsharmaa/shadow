@@ -60,7 +60,13 @@ afterAll(async () => {
 
 describe("trace totals", () => {
   it("adds up exactly the traces the list returns for the same filters", async () => {
-    for (const query of ["", "agent=refund-agent", "status=failed", "tool=refund_order"]) {
+    for (const query of [
+      "",
+      "agent=refund-agent",
+      "status=failed",
+      "tool=refund_order",
+      "outcome=policy_violation",
+    ]) {
       const items = await list(query);
       const summary = await totals(query);
       const finished = items.filter((i) => i.status !== "running");
@@ -88,9 +94,9 @@ describe("trace totals", () => {
     }
   });
 
-  it("breaks the totals down by agent, project or status, largest group first", async () => {
+  it("breaks the totals down by agent, project, status or outcome, largest group first", async () => {
     const all = await totals("");
-    for (const groupBy of ["agent", "project", "status"] as const) {
+    for (const groupBy of ["agent", "project", "status", "outcome"] as const) {
       const answer = await breakdown(`groupBy=${groupBy}`);
       const groups = answer.groups ?? [];
       expect(groups.length).toBeGreaterThan(0);

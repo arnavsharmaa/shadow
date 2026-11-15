@@ -246,6 +246,7 @@ Query parameters:
 | `project`       | project slug                                                                                                  |                                                                          |
 | `agent`         | agent slug                                                                                                    |                                                                          |
 | `status`        | `running` \| `completed` \| `failed`                                                                          |                                                                          |
+| `outcome`       | string                                                                                                        | outcome kind, e.g. `policy_violation`; `none` for traces without one     |
 | `tag`           | string                                                                                                        | exact tag match                                                          |
 | `tool`          | string                                                                                                        | traces that called this tool                                             |
 | `toolError`     | string                                                                                                        | traces in which this tool raised an error (on any branch)                |
@@ -272,8 +273,8 @@ with the usual filters; the explorer's Download CSV link carries the current fil
 ### `GET /api/v1/traces/summary`
 
 What the traces matching a set of filters add up to. It takes the list's filters (`project`,
-`agent`, `status`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`,
-`meta`, `collection`), without paging or sorting, and answers one object:
+`agent`, `status`, `outcome`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`,
+`minDurationMs`, `meta`, `collection`), without paging or sorting, and answers one object:
 `{ traces, running, completed, failed, policyViolations, failureRate, totalEstimatedCost,
 avgEstimatedCost, totalTokens, modelCalls, toolCalls, toolErrors, avgDurationMs, p95DurationMs,
 firstStartedAt, lastStartedAt }`. `failureRate` is failed over finished traces and the
@@ -283,9 +284,9 @@ over the same conditions as the list, so "what did last week's failed refund run
 one request instead of a page-through. A project-pinned key gets its own project's totals.
 CLI: `shadow traces summary [--agent … --status … --from 7d …]`, with `--json` for scripts.
 
-With `groupBy=agent|project|status|day` the answer also carries `groups`: the same totals for
-each agent slug, project slug, status or UTC day the traces started on, each under its `key`
-and inside the same filters. Groups come largest first, days oldest first, and stop at 200
+With `groupBy=agent|project|status|outcome|day` the answer also carries `groups`: the same
+totals for each agent slug, project slug, status, outcome kind (`none` for traces without an
+outcome) or UTC day the traces started on, each under its `key` and inside the same filters. Groups come largest first, days oldest first, and stop at 200
 (for days, the most recent 200). "Which agent's failures cost the most last week" is
 `?status=failed&from=…&groupBy=agent`. Without `groupBy` there is no `groups` field.
 CLI: `shadow traces summary --by agent|project|status|day` prints the groups as a table
@@ -294,7 +295,8 @@ under the totals.
 ### `GET /api/v1/traces/facets`
 
 Distinct filter values for the explorer:
-`{ projects: [{slug,name}], agents: [{slug,name,projectSlug}], tags: string[], tools: string[] }`.
+`{ projects: [{slug,name}], agents: [{slug,name,projectSlug}], tags: string[], tools: string[],
+outcomes: string[] }`. `outcomes` are the outcome kinds traces have declared, sorted.
 Query `project=<slug>` limits every list to that project.
 
 ### `POST /api/v1/traces`
@@ -777,8 +779,9 @@ page has an Export link.
 ### `POST /api/v1/collections/:collection/traces`
 
 Body `{ traceIds?, query? }`, at least one of them. `traceIds` (up to 500) names traces; `query`
-takes the trace list's filters (`project`, `agent`, `status`, `tag`, `tool`, `toolError`, `q`,
-`from`, `to`, `minCost`, `minDurationMs`, `meta`, `collection`, without paging or sorting) and
+takes the trace list's filters (`project`, `agent`, `status`, `outcome`, `tag`, `tool`,
+`toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `meta`, `collection`, without
+paging or sorting) and
 adds the newest 500 traces they match, the way the explorer lists them, so an incident's or an
 experiment's traces are collected by what they have in common rather than one id at a time.
 Returns `{ collection, added, missing, matched }`: traces already in the collection are left
@@ -983,8 +986,8 @@ is the explorer query string, which is also valid as `GET /api/v1/traces` parame
 ### `POST /api/v1/views`
 
 Body `{ name, query, description? }`. `query` may only contain trace list filters (`project`,
-`agent`, `status`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`,
-`sort`, `order`)
+`agent`, `status`, `outcome`, `tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`,
+`minDurationMs`, `collection`, `meta`, `sort`, `order`)
 with values the list endpoint accepts; `cursor` and `limit` are dropped and the keys sorted, so
 equal filters produce equal strings. Creates the view (`201`) or, when a view with that name
 exists, replaces its query and description and keeps its id (`200`). Invalid queries are `400

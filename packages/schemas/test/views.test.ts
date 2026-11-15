@@ -33,6 +33,7 @@ describe("normalizeViewQuery", () => {
       project: "support-agent",
       agent: "refund-agent",
       status: "failed",
+      outcome: "policy_violation",
       tag: "refund",
       tool: "refund_order",
       toolError: "refund_order",

@@ -179,12 +179,16 @@ export function metadataFilter(spec: string): SQL {
   return alternatives.length === 1 ? (alternatives[0] as SQL) : sql`(${or(...alternatives)})`;
 }
 
+/** A trace's outcome kind as filters and breakdowns see it: `none` when it declared no outcome. */
+const OUTCOME_KIND = sql<string>`coalesce(${traces.outcome}->>'kind', 'none')`;
+
 /** The `where` conditions a selection's filters translate to; shared by listing and selecting. */
 function selectionFilters(query: TraceSelection): SQL[] {
   const filters: SQL[] = [];
   if (query.project) filters.push(eq(projects.slug, query.project));
   if (query.agent) filters.push(eq(agents.slug, query.agent));
   if (query.status) filters.push(eq(traces.status, query.status));
+  if (query.outcome) filters.push(sql`${OUTCOME_KIND} = ${query.outcome}`);
   if (query.tag) filters.push(sql`${traces.tags} @> ${JSON.stringify([query.tag])}::jsonb`);
   if (query.tool) filters.push(likeSearchProvider.filter(`tool:${query.tool}`));
   if (query.toolError) {
@@ -310,13 +314,15 @@ const GROUP_KEYS: Record<TraceGroupBy, SQL<string>> = {
   agent: sql<string>`${agents.slug}`,
   project: sql<string>`${projects.slug}`,
   status: sql<string>`${traces.status}`,
+  outcome: OUTCOME_KIND,
   day: sql<string>`to_char(${traces.startedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
 };
 
 /**
  * What the traces a selection matches add up to: counts by status, cost, tokens, calls and
  * latency. One aggregate query over the same filters as the list, so the two always agree.
- * With `groupBy`, a second query answers the same totals per agent, project, status or day.
+ * With `groupBy`, a second query answers the same totals per agent, project, status, outcome
+ * kind or day.
  */
 export async function summarizeTraces(
   ctx: ServiceContext,
@@ -557,10 +563,14 @@ export async function traceFacets(ctx: ServiceContext, project?: string) {
   const toolRows = (await ctx.handle.db.execute(
     sql`select distinct events.name as tool from events join ${traces} on ${traces.id} = events.trace_id where events.event_type = 'tool.request' ${inProject} order by events.name`,
   )) as { rows: { tool: string }[] };
+  const outcomeRows = (await ctx.handle.db.execute(
+    sql`select distinct ${traces.outcome}->>'kind' as kind from ${traces} where ${traces.outcome}->>'kind' is not null ${inProject} order by kind`,
+  )) as { rows: { kind: string }[] };
   return {
     projects: projectRows,
     agents: agentRows,
     tags: tagRows.rows.map((r) => r.tag),
     tools: toolRows.rows.map((r) => r.tool),
+    outcomes: outcomeRows.rows.map((r) => r.kind),
   };
 }
