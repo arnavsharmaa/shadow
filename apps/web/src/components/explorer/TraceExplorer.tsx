@@ -2,8 +2,13 @@
 
 import { api, type TraceFilters } from "@/lib/api";
 import { classNames, compact, dateTime, duration, money, relativeTime } from "@/lib/format";
-import type { TraceSelection, TraceSummary } from "@shadow/schemas";
-import { useQuery } from "@tanstack/react-query";
+import type {
+  TraceGroupBy,
+  TraceSelection,
+  TraceSummary,
+  TraceTotalsBreakdown,
+} from "@shadow/schemas";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -48,6 +53,21 @@ function readFilters(params: URLSearchParams): TraceFilters {
 function outcomeLabel(kind: string): string {
   const words = kind.replace(/[_-]+/g, " ").trim();
   return words === "" ? kind : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** What the totals can be broken down by, as the menu names them. */
+const GROUP_BYS: { value: TraceGroupBy; label: string }[] = [
+  { value: "agent", label: "Agent" },
+  { value: "project", label: "Project" },
+  { value: "status", label: "Status" },
+  { value: "outcome", label: "Outcome" },
+  { value: "day", label: "Day (UTC)" },
+];
+
+/** The filters that narrow the list to one group of a breakdown; a day becomes its UTC range. */
+function groupFilter(groupBy: TraceGroupBy, key: string): Record<string, string | undefined> {
+  if (groupBy === "day") return { from: `${key}T00:00:00.000Z`, to: `${key}T23:59:59.999Z` };
+  return { [groupBy]: key };
 }
 
 /** The filters as the collections API takes them: which traces, without paging or sorting. */
@@ -106,11 +126,15 @@ export function TraceExplorer() {
     queryKey: ["traces", filters],
     queryFn: () => api.listTraces(filters),
   });
-  // Totals follow the filters, not the page: they cover every matching trace.
+  /** What the totals are broken down by; a way of looking, so it stays out of the URL. */
+  const [groupBy, setGroupBy] = useState<TraceGroupBy | "">("");
+  // Totals follow the filters, not the page: they cover every matching trace. The previous
+  // answer stays up while the next one loads, so the strip and its menu do not blink away.
   const totals = useQuery({
-    queryKey: ["trace-totals", toSelection(filters)],
-    queryFn: () => api.traceTotals(toSelection(filters)),
+    queryKey: ["trace-totals", toSelection(filters), groupBy],
+    queryFn: () => api.traceTotals(toSelection(filters), groupBy || undefined),
     retry: false,
+    placeholderData: keepPreviousData,
   });
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
   // The kinds in use plus the one the URL asks for, so the menu always shows the active filter.
@@ -327,8 +351,37 @@ export function TraceExplorer() {
               {duration(totals.data.avgDurationMs)}
             </span>
           )}
+          <label htmlFor="totals-group-by" className="ml-auto flex items-center gap-1">
+            Break down by
+            <select
+              id="totals-group-by"
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as TraceGroupBy | "")}
+              className="h-6 rounded border border-border bg-bg px-1 text-[11px] text-fg"
+              data-testid="totals-group-by"
+            >
+              <option value="">Nothing</option>
+              {GROUP_BYS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       )}
+      {groupBy !== "" &&
+        totals.data &&
+        totals.data.traces > 0 &&
+        totals.data.groups &&
+        !totals.isPlaceholderData && (
+          <TotalsBreakdown
+            groupBy={groupBy}
+            groups={totals.data.groups}
+            csvUrl={api.traceSummaryCsvUrl(toSelection(filters), groupBy)}
+            onPick={(key) => setFilter(groupFilter(groupBy, key))}
+          />
+        )}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {traces.isError ? (
@@ -646,6 +699,90 @@ function Th({
         content
       )}
     </th>
+  );
+}
+
+/** The totals of each group among the matching traces; a group's name narrows the list to it. */
+function TotalsBreakdown({
+  groupBy,
+  groups,
+  csvUrl,
+  onPick,
+}: {
+  groupBy: TraceGroupBy;
+  groups: NonNullable<TraceTotalsBreakdown["groups"]>;
+  csvUrl: string;
+  onPick: (key: string) => void;
+}) {
+  const heading = GROUP_BYS.find((g) => g.value === groupBy)?.label ?? groupBy;
+  const name = (key: string) =>
+    groupBy !== "outcome" ? key : key === "none" ? "No outcome" : outcomeLabel(key);
+  return (
+    <div
+      className="max-h-56 overflow-auto border-b border-border bg-panel px-3 py-1 text-[11px]"
+      data-testid="trace-breakdown"
+    >
+      <table className="w-full max-w-4xl border-collapse">
+        <caption className="sr-only">
+          Totals per {heading.toLowerCase()} for the traces matching the filters
+        </caption>
+        <thead className="text-left uppercase tracking-wide text-fg-muted">
+          <tr>
+            <th scope="col" className="py-1 pr-3 font-medium">
+              {heading}
+            </th>
+            {["Traces", "Failed", "Fail rate", "Est. cost", "Per trace", "Tokens", "p95"].map(
+              (column) => (
+                <th key={column} scope="col" className="py-1 pr-3 text-right font-medium">
+                  {column}
+                </th>
+              ),
+            )}
+          </tr>
+        </thead>
+        <tbody className="tabular">
+          {groups.map((group) => (
+            <tr
+              key={group.key}
+              className="border-t border-border"
+              data-testid="breakdown-row"
+              data-group={group.key}
+            >
+              <th scope="row" className="py-1 pr-3 text-left font-normal">
+                <button
+                  type="button"
+                  className="text-fg underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                  onClick={() => onPick(group.key)}
+                  title="Show only these traces"
+                >
+                  {name(group.key)}
+                </button>
+              </th>
+              <td className="py-1 pr-3 text-right">{group.traces.toLocaleString()}</td>
+              <td className={classNames("py-1 pr-3 text-right", group.failed > 0 && "text-err")}>
+                {group.failed.toLocaleString()}
+              </td>
+              <td className="py-1 pr-3 text-right">
+                {group.failureRate === null ? "–" : `${(group.failureRate * 100).toFixed(1)}%`}
+              </td>
+              <td className="py-1 pr-3 text-right">{money(group.totalEstimatedCost)}</td>
+              <td className="py-1 pr-3 text-right">{money(group.avgEstimatedCost)}</td>
+              <td className="py-1 pr-3 text-right">{compact(group.totalTokens)}</td>
+              <td className="py-1 pr-3 text-right">{duration(group.p95DurationMs)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <a
+        href={csvUrl}
+        className="mt-1 inline-flex h-6 items-center rounded border border-border px-2 text-fg-muted hover:bg-hover"
+        download
+        title="Download this breakdown as CSV"
+        data-testid="breakdown-csv"
+      >
+        Download CSV
+      </a>
+    </div>
   );
 }
 

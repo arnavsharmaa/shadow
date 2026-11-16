@@ -1119,6 +1119,27 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(totals).toContainText("estimated");
     await expect(totals).toContainText("tokens");
     await expect(totals).toContainText("p95");
+    // The totals can be broken down; a group's name narrows the list to that group.
+    await page.goto("/");
+    await page.getByTestId("totals-group-by").selectOption("status");
+    const breakdown = page.getByTestId("trace-breakdown");
+    const failedGroup = breakdown.locator('[data-testid="breakdown-row"][data-group="failed"]');
+    await expect(failedGroup).toContainText("100.0%");
+    await expect(breakdown.locator('[data-testid="breakdown-row"]')).not.toHaveCount(1);
+    await expect(breakdown.getByTestId("breakdown-csv")).toHaveAttribute(
+      "href",
+      /\/api\/v1\/traces\/summary\?groupBy=status&format=csv$/,
+    );
+    await failedGroup.getByRole("button").click();
+    await expect(page).toHaveURL(/status=failed/);
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
+    await expect(breakdown.locator('[data-testid="breakdown-row"]')).toHaveCount(1);
+    await expect(breakdown.getByTestId("breakdown-csv")).toHaveAttribute(
+      "href",
+      /summary\?status=failed&groupBy=status&format=csv$/,
+    );
+    await page.getByTestId("totals-group-by").selectOption("");
+    await expect(breakdown).toHaveCount(0);
     // The strip's policy violations narrow the list to that outcome; the Outcome menu follows.
     await expect(totals.getByTestId("totals-violations")).toHaveText("1 policy violation");
     await totals.getByTestId("totals-violations").click();

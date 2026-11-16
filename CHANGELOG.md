@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer's totals strip has a "Break down by" menu (agent, project, status, outcome or
+  day): a table under the strip shows each group's traces, failures, failure rate, cost in
+  total and per trace, tokens and p95 duration. A group's name narrows the list to it, and
+  the breakdown downloads as CSV.
 - `shadow traces summary --from <cutoff> --compare` sets the window against the equally long
   one before it, with the same filters: traces, failures, failure rate, policy violations,
   cost in total and per trace, tokens, tool errors and p95 duration side by side with the
