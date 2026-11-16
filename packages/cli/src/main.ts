@@ -1035,6 +1035,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "also break the totals down by agent, project, status, outcome or day (UTC)",
       groupDimension,
     )
+    .option(
+      "--compare",
+      "set the window from --from to --to (default now) against the equally long one before it",
+    )
     .option("--json", "print JSON")
     .action(
       async (opts: {
@@ -1053,9 +1057,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         collection?: string;
         meta?: string;
         by?: string;
+        compare?: boolean;
         json?: boolean;
       }) => {
-        const totals = await client().get<TraceTotalsBreakdown>("/api/v1/traces/summary", {
+        const filters = {
           project: opts.project,
           agent: opts.agent,
           status: opts.status,
@@ -1070,11 +1075,120 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minDurationMs: opts.minDuration,
           collection: opts.collection,
           meta: opts.meta,
+        };
+        const n = (value: number) => value.toLocaleString("en-US");
+        if (opts.compare) {
+          if (opts.by) throw new CliError("--compare and --by cannot be combined", EXIT.usage);
+          if (!opts.from) {
+            throw new CliError(
+              "--compare needs --from: the start of the window to set against the one before it",
+              EXIT.usage,
+            );
+          }
+          const to = opts.to ?? new Date().toISOString();
+          const span = Date.parse(to) - Date.parse(opts.from);
+          if (!(span > 0)) throw new CliError("--from must be earlier than --to", EXIT.usage);
+          // The window before: as long as this one, ending a millisecond before it starts.
+          const previousFrom = new Date(Date.parse(opts.from) - span).toISOString();
+          const previousTo = new Date(Date.parse(opts.from) - 1).toISOString();
+          const api = client();
+          const current = await api.get<TraceTotalsBreakdown>("/api/v1/traces/summary", {
+            ...filters,
+            to,
+          });
+          const previous = await api.get<TraceTotalsBreakdown>("/api/v1/traces/summary", {
+            ...filters,
+            from: previousFrom,
+            to: previousTo,
+          });
+          if (opts.json) {
+            return json({ from: opts.from, to, previousFrom, previousTo, current, previous });
+          }
+          const change = (now: number | null, before: number | null): string => {
+            if (now === null || before === null) return "";
+            if (before === 0) return now === 0 ? "0.0%" : "new";
+            return percent((now - before) / before);
+          };
+          const rate = (value: number | null) =>
+            value === null ? "-" : `${(value * 100).toFixed(1)}%`;
+          const points = (now: number | null, before: number | null): string => {
+            if (now === null || before === null) return "";
+            const delta = (now - before) * 100;
+            return `${delta > 0 ? "+" : ""}${delta.toFixed(1)} pts`;
+          };
+          const cost = (value: number | null) => (value === null ? "-" : money(value));
+          const time = (value: number | null) => (value === null ? "-" : duration(value));
+          out(`${opts.from} to ${to}, against ${previousFrom} to ${previousTo}`);
+          out("");
+          out(
+            table(
+              ["METRIC", "CURRENT", "PREVIOUS", "CHANGE"],
+              [
+                [
+                  "traces",
+                  n(current.traces),
+                  n(previous.traces),
+                  change(current.traces, previous.traces),
+                ],
+                [
+                  "failed",
+                  n(current.failed),
+                  n(previous.failed),
+                  change(current.failed, previous.failed),
+                ],
+                [
+                  "failure rate",
+                  rate(current.failureRate),
+                  rate(previous.failureRate),
+                  points(current.failureRate, previous.failureRate),
+                ],
+                [
+                  "policy violations",
+                  n(current.policyViolations),
+                  n(previous.policyViolations),
+                  change(current.policyViolations, previous.policyViolations),
+                ],
+                [
+                  "est. cost",
+                  money(current.totalEstimatedCost),
+                  money(previous.totalEstimatedCost),
+                  change(current.totalEstimatedCost, previous.totalEstimatedCost),
+                ],
+                [
+                  "cost / trace",
+                  cost(current.avgEstimatedCost),
+                  cost(previous.avgEstimatedCost),
+                  change(current.avgEstimatedCost, previous.avgEstimatedCost),
+                ],
+                [
+                  "tokens",
+                  n(current.totalTokens),
+                  n(previous.totalTokens),
+                  change(current.totalTokens, previous.totalTokens),
+                ],
+                [
+                  "tool errors",
+                  n(current.toolErrors),
+                  n(previous.toolErrors),
+                  change(current.toolErrors, previous.toolErrors),
+                ],
+                [
+                  "p95 duration",
+                  time(current.p95DurationMs),
+                  time(previous.p95DurationMs),
+                  change(current.p95DurationMs, previous.p95DurationMs),
+                ],
+              ],
+            ),
+          );
+          return;
+        }
+        const totals = await client().get<TraceTotalsBreakdown>("/api/v1/traces/summary", {
+          ...filters,
           groupBy: opts.by,
         });
         if (opts.json) return json(totals);
         if (totals.traces === 0) return out("no traces match");
-        const n = (value: number) => value.toLocaleString("en-US");
         const rate =
           totals.failureRate === null
             ? "none finished yet"

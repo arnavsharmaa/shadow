@@ -2458,6 +2458,136 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toBe("no traces match");
   });
 
+  it("compares a summary window with the one before it", async () => {
+    const totals = {
+      traces: 40,
+      running: 0,
+      completed: 30,
+      failed: 10,
+      policyViolations: 4,
+      failureRate: 0.25,
+      totalEstimatedCost: 2,
+      avgEstimatedCost: 0.05,
+      totalTokens: 120_000,
+      modelCalls: 80,
+      toolCalls: 160,
+      toolErrors: 6,
+      avgDurationMs: 1500,
+      p95DurationMs: 3000,
+      firstStartedAt: "2026-11-08T00:10:00.000Z",
+      lastStartedAt: "2026-11-14T23:50:00.000Z",
+    };
+    const before = {
+      ...totals,
+      traces: 20,
+      completed: 18,
+      failed: 2,
+      policyViolations: 0,
+      failureRate: 0.1,
+      totalEstimatedCost: 1,
+      totalTokens: 100_000,
+      toolErrors: 6,
+      p95DurationMs: 2000,
+    };
+    const seen: URLSearchParams[] = [];
+    const api: ReturnType<typeof fakeApi> = fakeApi({
+      "GET /api/v1/traces/summary": () => {
+        const params = new URL(api.captured.calls.at(-1)?.url ?? "").searchParams;
+        seen.push(params);
+        return { body: params.get("from") === "2026-11-08T00:00:00.000Z" ? totals : before };
+      },
+    });
+    expect(
+      await runWith(api, [
+        "traces",
+        "summary",
+        "--agent",
+        "refund-agent",
+        "--from",
+        "2026-11-08T00:00:00Z",
+        "--to",
+        "2026-11-15T00:00:00Z",
+        "--compare",
+      ]),
+    ).toBe(0);
+    // Two requests: the window asked for, then the seven days before it, with the same filters.
+    expect(seen.map((params) => Object.fromEntries(params))).toEqual([
+      {
+        agent: "refund-agent",
+        from: "2026-11-08T00:00:00.000Z",
+        to: "2026-11-15T00:00:00.000Z",
+      },
+      {
+        agent: "refund-agent",
+        from: "2026-11-01T00:00:00.000Z",
+        to: "2026-11-07T23:59:59.999Z",
+      },
+    ]);
+    const lines = api.captured.out.join("\n").split("\n");
+    expect(lines[0]).toBe(
+      "2026-11-08T00:00:00.000Z to 2026-11-15T00:00:00.000Z, against 2026-11-01T00:00:00.000Z to 2026-11-07T23:59:59.999Z",
+    );
+    const row = (metric: string) =>
+      (lines.find((line) => line.startsWith(metric)) ?? "").split(/\s{2,}/);
+    expect(row("METRIC")).toEqual(["METRIC", "CURRENT", "PREVIOUS", "CHANGE"]);
+    expect(row("traces")).toEqual(["traces", "40", "20", "+100.0%"]);
+    expect(row("failed")).toEqual(["failed", "10", "2", "+400.0%"]);
+    expect(row("failure rate")).toEqual(["failure rate", "25.0%", "10.0%", "+15.0 pts"]);
+    expect(row("policy violations")).toEqual(["policy violations", "4", "0", "new"]);
+    expect(row("est. cost")).toEqual(["est. cost", "$2.0000", "$1.0000", "+100.0%"]);
+    expect(row("cost / trace")).toEqual(["cost / trace", "$0.0500", "$0.0500", "0.0%"]);
+    expect(row("tokens")).toEqual(["tokens", "120,000", "100,000", "+20.0%"]);
+    expect(row("tool errors")).toEqual(["tool errors", "6", "6", "0.0%"]);
+    expect(row("p95 duration")).toEqual(["p95 duration", "3.00s", "2.00s", "+50.0%"]);
+
+    // JSON carries both windows and both sets of totals.
+    api.captured.out.length = 0;
+    expect(
+      await runWith(api, [
+        "traces",
+        "summary",
+        "--from",
+        "2026-11-08T00:00:00Z",
+        "--to",
+        "2026-11-15T00:00:00Z",
+        "--compare",
+        "--json",
+      ]),
+    ).toBe(0);
+    expect(JSON.parse(api.captured.out.join("\n"))).toEqual({
+      from: "2026-11-08T00:00:00.000Z",
+      to: "2026-11-15T00:00:00.000Z",
+      previousFrom: "2026-11-01T00:00:00.000Z",
+      previousTo: "2026-11-07T23:59:59.999Z",
+      current: totals,
+      previous: before,
+    });
+
+    // A relative window ends now: `--from 7d --compare` is this week against last week.
+    seen.length = 0;
+    expect(await runWith(api, ["traces", "summary", "--from", "7d", "--compare"])).toBe(0);
+    const [thisWeek, lastWeek] = seen;
+    const at = (params: URLSearchParams | undefined, key: string) =>
+      Date.parse(params?.get(key) ?? "");
+    expect(at(thisWeek, "to") - at(thisWeek, "from")).toBeGreaterThan(6.99 * 86_400_000);
+    expect(at(lastWeek, "to")).toBe(at(thisWeek, "from") - 1);
+    expect(at(thisWeek, "from") - at(lastWeek, "from")).toBe(
+      at(thisWeek, "to") - at(thisWeek, "from"),
+    );
+
+    // It needs a window, a sensible one, and does not mix with --by.
+    const calls = api.captured.calls.length;
+    expect(await runWith(api, ["traces", "summary", "--compare"])).toBe(2);
+    expect(
+      await runWith(api, ["traces", "summary", "--from", "7d", "--to", "8d", "--compare"]),
+    ).toBe(2);
+    expect(
+      await runWith(api, ["traces", "summary", "--from", "7d", "--compare", "--by", "agent"]),
+    ).toBe(2);
+    expect(api.captured.calls).toHaveLength(calls);
+    expect(api.captured.err.join("\n")).toContain("--compare needs --from");
+  });
+
   it("breaks a summary down by agent, project, status or day", async () => {
     const totals = {
       traces: 30,

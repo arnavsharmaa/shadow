@@ -297,6 +297,10 @@ per group with the dimension's name heading the first column, or without `groupB
 `all` row under `group`. The other columns are the fields above in that order; a value that
 is `null` in JSON is an empty cell.
 
+The CLI's `shadow traces summary --from <cutoff> [--to <cutoff>] --compare` asks for two
+summaries with the same filters, the window given and the equally long one right before it,
+and prints them side by side with the change in each metric.
+
 ### `GET /api/v1/traces/facets`
 
 Distinct filter values for the explorer:

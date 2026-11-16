@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces summary --from <cutoff> --compare` sets the window against the equally long
+  one before it, with the same filters: traces, failures, failure rate, policy violations,
+  cost in total and per trace, tokens, tool errors and p95 duration side by side with the
+  change in each. `--json` carries both windows and both sets of totals.
 - `GET /traces/summary?format=csv` serves the totals as a CSV document for spreadsheets: one
   row per group when `groupBy` is set, otherwise one row for everything the filters match.
 - The explorer has an Outcome filter listing the outcome kinds in use (and "No outcome"),
