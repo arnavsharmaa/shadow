@@ -142,6 +142,52 @@ describe("trace totals", () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it("serves the totals, or a breakdown, as CSV", async () => {
+    const csv = async (query: string) => {
+      const response = await t.app.inject({ url: `/api/v1/traces/summary?format=csv${query}` });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-type"]).toContain("text/csv");
+      expect(response.headers["content-disposition"]).toContain("shadow-trace-summary.csv");
+      return response.body.split("\r\n").filter((line) => line.length > 0);
+    };
+
+    // Without a breakdown: one row for everything the filters match.
+    const failed = await totals("status=failed");
+    const whole = await csv("&status=failed");
+    expect(whole[0]).toBe(
+      "group,traces,running,completed,failed,policyViolations,failureRate,totalEstimatedCost,avgEstimatedCost,totalTokens,modelCalls,toolCalls,toolErrors,avgDurationMs,p95DurationMs,firstStartedAt,lastStartedAt",
+    );
+    expect(whole).toHaveLength(2);
+    const cells = (whole[1] ?? "").split(",");
+    expect(cells.slice(0, 6)).toEqual([
+      "all",
+      String(failed.traces),
+      "0",
+      "0",
+      String(failed.failed),
+      String(failed.policyViolations),
+    ]);
+    expect(Number(cells[7])).toBeCloseTo(failed.totalEstimatedCost, 8);
+    expect(cells.at(-1)).toBe(failed.lastStartedAt);
+
+    // With one: the first column is named after the dimension, one row per group in order.
+    for (const groupBy of ["agent", "outcome", "day"] as const) {
+      const groups = (await breakdown(`groupBy=${groupBy}`)).groups ?? [];
+      const lines = await csv(`&groupBy=${groupBy}`);
+      expect(lines[0]?.startsWith(`${groupBy},traces,running,`)).toBe(true);
+      expect(lines.slice(1).map((line) => line.split(",")[0])).toEqual(groups.map((g) => g.key));
+      expect(lines.slice(1).map((line) => Number(line.split(",")[1]))).toEqual(
+        groups.map((g) => g.traces),
+      );
+    }
+
+    // Values that cannot be computed are empty cells; an empty breakdown is only the header.
+    expect((await csv("&agent=no-such-agent"))[1]).toBe("all,0,0,0,0,0,,0,,0,0,0,0,,,,");
+    expect(await csv("&agent=no-such-agent&groupBy=status")).toHaveLength(1);
+    const bad = await t.app.inject({ url: "/api/v1/traces/summary?format=xml" });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it("answers zeros and nulls for a selection that matches nothing, and validates filters", async () => {
     expect(await totals("agent=no-such-agent")).toEqual({
       traces: 0,

@@ -292,6 +292,11 @@ outcome) or UTC day the traces started on, each under its `key` and inside the s
 CLI: `shadow traces summary --by agent|project|status|outcome|day` prints the groups as a
 table under the totals.
 
+`format=csv` answers the same numbers as a CSV document (`shadow-trace-summary.csv`): one row
+per group with the dimension's name heading the first column, or without `groupBy` a single
+`all` row under `group`. The other columns are the fields above in that order; a value that
+is `null` in JSON is an empty cell.
+
 ### `GET /api/v1/traces/facets`
 
 Distinct filter values for the explorer:

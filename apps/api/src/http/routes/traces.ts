@@ -15,6 +15,7 @@ import {
   traceSummaryQuerySchema,
   updateTraceBodySchema,
   type TraceSummary,
+  type TraceTotals,
   exportTracesBodySchema,
 } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -90,6 +91,26 @@ const TRACE_CSV_COLUMNS = [
   "tags",
   "metadata",
 ] as const;
+
+/** The columns of a summary CSV after the group's key, in the order the JSON lists them. */
+const SUMMARY_CSV_COLUMNS = [
+  "traces",
+  "running",
+  "completed",
+  "failed",
+  "policyViolations",
+  "failureRate",
+  "totalEstimatedCost",
+  "avgEstimatedCost",
+  "totalTokens",
+  "modelCalls",
+  "toolCalls",
+  "toolErrors",
+  "avgDurationMs",
+  "p95DurationMs",
+  "firstStartedAt",
+  "lastStartedAt",
+] as const satisfies readonly (keyof TraceTotals)[];
 
 function traceCsvRow(t: TraceSummary): unknown[] {
   return [
@@ -169,12 +190,28 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
 
   /**
    * What the traces matching the list's filters add up to (counts, cost, tokens, latency), and
-   * with `groupBy` the same per agent, project, status or day.
+   * with `groupBy` the same per agent, project, status, outcome or day. `format=csv` answers
+   * the groups, or the whole selection, as rows for a spreadsheet.
    */
   app.get(
     "/traces/summary",
     { schema: { tags: ["traces"], querystring: traceSummaryQuerySchema } },
-    async (request) => summarizeTraces(app.services, request.query),
+    async (request, reply) => {
+      const { format, ...query } = request.query;
+      const summary = await summarizeTraces(app.services, query);
+      if (format !== "csv") return summary;
+      // One row per group; without a breakdown, one row for everything that matched.
+      const rows: (TraceTotals & { key: string })[] = summary.groups ?? [
+        { key: "all", ...summary },
+      ];
+      const lines = [csvLine([query.groupBy ?? "group", ...SUMMARY_CSV_COLUMNS])];
+      for (const row of rows) {
+        lines.push(csvLine([row.key, ...SUMMARY_CSV_COLUMNS.map((column) => row[column])]));
+      }
+      reply.header("content-type", "text/csv; charset=utf-8");
+      reply.header("content-disposition", 'attachment; filename="shadow-trace-summary.csv"');
+      return reply.send(lines.join(""));
+    },
   );
 
   app.get(

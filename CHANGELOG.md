@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `GET /traces/summary?format=csv` serves the totals as a CSV document for spreadsheets: one
+  row per group when `groupBy` is set, otherwise one row for everything the filters match.
 - The explorer has an Outcome filter listing the outcome kinds in use (and "No outcome"),
   kept in the URL and in saved views like the other filters, and the totals strip's policy
   violations are a button that applies it.

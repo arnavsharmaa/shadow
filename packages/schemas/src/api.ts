@@ -385,6 +385,8 @@ export type TraceGroupBy = (typeof TRACE_GROUP_BYS)[number];
 export const traceSummaryQuerySchema = traceSelectionSchema.extend({
   /** Also answer the totals of each agent, project, status, outcome or day among the matches. */
   groupBy: z.enum(TRACE_GROUP_BYS).optional(),
+  /** `csv` answers one row per group (or one for the whole selection) for spreadsheets. */
+  format: z.enum(["json", "csv"]).optional(),
 });
 export type TraceSummaryQuery = z.infer<typeof traceSummaryQuerySchema>;
 
