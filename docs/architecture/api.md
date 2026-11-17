@@ -1138,6 +1138,7 @@ See [Branch comparison](../concepts/branch-comparison.md) for the `ComparisonRes
 | `SHADOW_WEBHOOK_EVENTS`             | `failures`                                    | `failures` \| `policy_violations` \| `all`                |
 | `SHADOW_WEBHOOK_PROJECTS`           | unset (all)                                   | comma-separated project slugs whose traces notify         |
 | `SHADOW_WEBHOOK_TAGS`               | unset (all)                                   | comma-separated tags, one of which a trace must carry     |
+| `SHADOW_WEBHOOK_OUTCOMES`           | unset (any)                                   | comma-separated outcome kinds a trace must end with       |
 | `SHADOW_WEBHOOK_MIN_COST`           | `0` (any)                                     | estimated cost in USD a trace must have reached to notify |
 | `SHADOW_RETENTION_DAYS`             | unset                                         | delete traces older than N days (see below)               |
 | `SHADOW_RETENTION_INTERVAL_MINUTES` | `60`                                          | how often the retention sweep runs                        |
@@ -1208,7 +1209,11 @@ includes policy violations), `policy_violations` only, or `all`; `SHADOW_WEBHOOK
 (comma-separated slugs) restricts finished-trace notifications to those projects, so a channel
 hears about production and not about CI runs, and `SHADOW_WEBHOOK_TAGS` (comma-separated)
 restricts them to traces carrying at least one of the tags, which pairs with the SDK's
-`SHADOW_TAGS` to notify about one deployment only. `SHADOW_WEBHOOK_MIN_COST` (US dollars) adds
+`SHADOW_TAGS` to notify about one deployment only. `SHADOW_WEBHOOK_OUTCOMES` (comma-separated
+outcome kinds, `none` for traces without an outcome) narrows them to traces that ended a given
+way: with `SHADOW_WEBHOOK_EVENTS=all` and `SHADOW_WEBHOOK_OUTCOMES=escalated` a channel hears
+about escalations only, failed or not. It narrows the event filter and never widens it.
+`SHADOW_WEBHOOK_MIN_COST` (US dollars) adds
 a cost floor: a finished trace notifies only when its estimated cost reached it, so with
 `SHADOW_WEBHOOK_EVENTS=all` a channel hears about the expensive runs and nothing else, and
 with `failures` about the failures worth a look. Alerts, failed replays and batch jobs are

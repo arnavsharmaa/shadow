@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `SHADOW_WEBHOOK_OUTCOMES` restricts finished-trace notifications to traces that ended with
+  one of the listed outcome kinds (`none` for traces without an outcome), so a channel can
+  hear about escalations or policy violations only. `GET /health` reports the restriction
+  under `features.webhook.outcomes`.
 - The explorer's totals strip has a "Break down by" menu (agent, project, status, outcome or
   day): a table under the strip shows each group's traces, failures, failure rate, cost in
   total and per trace, tokens and p95 duration. A group's name narrows the list to it, and

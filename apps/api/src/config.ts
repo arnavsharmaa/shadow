@@ -96,6 +96,11 @@ const configSchema = z.object({
   /** Only finished traces carrying one of these tags notify (comma-separated; unset = any). */
   SHADOW_WEBHOOK_TAGS: csvList,
   /**
+   * Only finished traces whose outcome is of one of these kinds notify (comma-separated, such
+   * as `policy_violation,escalated`; `none` stands for traces without an outcome; unset = any).
+   */
+  SHADOW_WEBHOOK_OUTCOMES: csvList,
+  /**
    * Only finished traces whose estimated cost reached this many US dollars notify (0, the
    * default, notifies whatever they cost).
    */

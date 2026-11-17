@@ -42,6 +42,11 @@ describe("loadConfig", () => {
       "eu",
     ]);
     expect(loadConfig({ SHADOW_WEBHOOK_TAGS: " , " }).SHADOW_WEBHOOK_TAGS).toBeUndefined();
+    expect(off.SHADOW_WEBHOOK_OUTCOMES).toBeUndefined();
+    expect(
+      loadConfig({ SHADOW_WEBHOOK_OUTCOMES: "policy_violation, escalated,policy_violation" })
+        .SHADOW_WEBHOOK_OUTCOMES,
+    ).toEqual(["policy_violation", "escalated"]);
     const on = loadConfig({
       SHADOW_WEBHOOK_URL: " https://hooks.example.com/shadow?x=1 ",
       SHADOW_WEBHOOK_SECRET: " s3cret ",

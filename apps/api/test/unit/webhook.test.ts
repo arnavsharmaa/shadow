@@ -88,6 +88,58 @@ describe("webhook", () => {
     expect(sign("s3cret", String(init.body))).toBe(expected);
   });
 
+  it("only notifies about the outcome kinds in SHADOW_WEBHOOK_OUTCOMES", async () => {
+    const sent: string[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      sent.push((JSON.parse(String(init?.body)) as { trace: { id: string } }).trace.id);
+      return new Response("ok", { status: 200 });
+    }) as unknown as typeof fetch;
+    const finished = [
+      trace,
+      {
+        ...trace,
+        id: "trc_escalated",
+        status: "completed" as const,
+        outcome: { kind: "escalated", label: "Escalated to a human" },
+      },
+      {
+        ...trace,
+        id: "trc_done",
+        status: "completed" as const,
+        outcome: { kind: "completed", label: "Completed" },
+      },
+      { ...trace, id: "trc_bare", status: "completed" as const, outcome: null },
+    ];
+    const run = async (events: "all" | "failures", outcomes?: string[]) => {
+      sent.length = 0;
+      const webhook = createWebhook({
+        config: {
+          SHADOW_WEBHOOK_URL: "https://hooks.example.com/shadow",
+          SHADOW_WEBHOOK_SECRET: undefined,
+          SHADOW_WEBHOOK_EVENTS: events,
+          SHADOW_WEBHOOK_OUTCOMES: outcomes,
+        },
+        logger,
+        fetch: fetchImpl,
+      });
+      for (const item of finished) await webhook.traceFinished({ trace: item });
+      await webhook.settle();
+      return [...sent];
+    };
+
+    // With every finished trace eligible, the kinds pick: here escalations and nothing else.
+    expect(await run("all", ["escalated"])).toEqual(["trc_escalated"]);
+    expect(await run("all", ["escalated", "policy_violation"])).toEqual(["trc_1", "trc_escalated"]);
+    // `none` stands for traces that declared no outcome.
+    expect(await run("all", ["none"])).toEqual(["trc_bare"]);
+    // The kinds narrow the event filter, they do not widen it: a completed escalation is not
+    // a failure.
+    expect(await run("failures", ["escalated", "policy_violation"])).toEqual(["trc_1"]);
+    expect(await run("failures", ["escalated"])).toEqual([]);
+    // Unset, the outcome does not matter.
+    expect(await run("all")).toEqual(["trc_1", "trc_escalated", "trc_done", "trc_bare"]);
+  });
+
   it("leaves traces under SHADOW_WEBHOOK_MIN_COST out", async () => {
     const sent: string[] = [];
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
