@@ -201,6 +201,7 @@ shadow traces summary --agent refund-agent --status failed --from 7d   # what th
 shadow traces summary --status failed --from 7d --by agent             # ...and per agent
 shadow traces list --outcome policy_violation --from 7d                # by declared outcome
 shadow traces summary --agent refund-agent --from 7d --compare         # this week against last
+shadow traces summary --from 30d --by day --out daily.csv              # the breakdown as CSV
 shadow otlp import ./collector-export.json
 shadow import anthropic examples/anthropic-messages/refund-conversation.json
 shadow import openai examples/openai-chat/refund-conversation.json

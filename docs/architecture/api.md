@@ -295,7 +295,8 @@ table under the totals.
 `format=csv` answers the same numbers as a CSV document (`shadow-trace-summary.csv`): one row
 per group with the dimension's name heading the first column, or without `groupBy` a single
 `all` row under `group`. The other columns are the fields above in that order; a value that
-is `null` in JSON is an empty cell.
+is `null` in JSON is an empty cell. CLI: `shadow traces summary [--by …] --csv` prints the
+document and `--out <file>` writes it.
 
 The CLI's `shadow traces summary --from <cutoff> [--to <cutoff>] --compare` asks for two
 summaries with the same filters, the window given and the equally long one right before it,

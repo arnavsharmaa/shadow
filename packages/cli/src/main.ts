@@ -1039,6 +1039,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "--compare",
       "set the window from --from to --to (default now) against the equally long one before it",
     )
+    .option("--csv", "print the totals, or the --by breakdown, as CSV (for spreadsheets)")
+    .option("-o, --out <file>", "write the CSV to a file instead of stdout")
     .option("--json", "print JSON")
     .action(
       async (opts: {
@@ -1058,6 +1060,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         meta?: string;
         by?: string;
         compare?: boolean;
+        csv?: boolean;
+        out?: string;
         json?: boolean;
       }) => {
         const filters = {
@@ -1077,6 +1081,26 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           meta: opts.meta,
         };
         const n = (value: number) => value.toLocaleString("en-US");
+        if (opts.csv || opts.out) {
+          if (opts.compare) {
+            throw new CliError("--csv and --compare cannot be combined", EXIT.usage);
+          }
+          // The API writes the document: one row per group with --by, otherwise one for all.
+          const { bytes } = await client().download(
+            "/api/v1/traces/summary",
+            { ...filters, groupBy: opts.by, format: "csv" },
+            "text/csv",
+          );
+          const text = new TextDecoder().decode(bytes);
+          if (opts.out) {
+            await writeFile(opts.out, text, "utf8");
+            const rows = text.split("\r\n").filter((l) => l.length > 0).length - 1;
+            out(`wrote ${rows} row${rows === 1 ? "" : "s"} to ${opts.out}`);
+          } else {
+            out(text.replace(/\r\n$/, ""));
+          }
+          return;
+        }
         if (opts.compare) {
           if (opts.by) throw new CliError("--compare and --by cannot be combined", EXIT.usage);
           if (!opts.from) {

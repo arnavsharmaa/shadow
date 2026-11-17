@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces summary --csv` prints the totals, or with `--by` the breakdown, as CSV, and
+  `--out <file>` writes the document to a file.
 - `SHADOW_WEBHOOK_OUTCOMES` restricts finished-trace notifications to traces that ended with
   one of the listed outcome kinds (`none` for traces without an outcome), so a channel can
   hear about escalations or policy violations only. `GET /health` reports the restriction

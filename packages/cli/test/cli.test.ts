@@ -2458,6 +2458,53 @@ describe("shadow cli", () => {
     expect(empty.captured.out.join("\n")).toBe("no traces match");
   });
 
+  it("exports a summary or its breakdown as CSV", async () => {
+    const document =
+      "agent,traces,running,completed,failed\r\nrefund-agent,20,0,14,6\r\ntriage-agent,10,0,10,0\r\n";
+    const api = fakeApi({
+      "GET /api/v1/traces/summary": () => ({
+        raw: true,
+        contentType: "text/csv; charset=utf-8",
+        body: document,
+      }),
+    });
+    expect(
+      await runWith(api, ["traces", "summary", "--status", "failed", "--by", "agent", "--csv"]),
+    ).toBe(0);
+    expect(Object.fromEntries(new URL(api.captured.calls[0]?.url ?? "").searchParams)).toEqual({
+      status: "failed",
+      groupBy: "agent",
+      format: "csv",
+    });
+    expect(api.captured.out.join("\n")).toBe(document.replace(/\r\n$/, ""));
+
+    // --out writes the document as the API sent it and says how many rows it holds.
+    api.captured.out.length = 0;
+    const file = path.join(await mkdtemp(path.join(tmpdir(), "shadow-cli-summary-")), "s.csv");
+    expect(await runWith(api, ["traces", "summary", "--by", "agent", "--out", file])).toBe(0);
+    expect(await readFile(file, "utf8")).toBe(document);
+    expect(api.captured.out.join("\n")).toBe(`wrote 2 rows to ${file}`);
+    expect(new URL(api.captured.calls.at(-1)?.url ?? "").searchParams.get("format")).toBe("csv");
+
+    // Without --by it is the single row for everything that matched.
+    const whole = fakeApi({
+      "GET /api/v1/traces/summary": () => ({
+        raw: true,
+        contentType: "text/csv; charset=utf-8",
+        body: "group,traces\r\nall,30\r\n",
+      }),
+    });
+    const wholeFile = path.join(path.dirname(file), "all.csv");
+    expect(await runWith(whole, ["traces", "summary", "-o", wholeFile])).toBe(0);
+    expect(whole.captured.out.join("\n")).toBe(`wrote 1 row to ${wholeFile}`);
+    expect(new URL(whole.captured.calls[0]?.url ?? "").searchParams.has("groupBy")).toBe(false);
+
+    // A comparison is two summaries, not one document.
+    const calls = api.captured.calls.length;
+    expect(await runWith(api, ["traces", "summary", "--from", "7d", "--compare", "--csv"])).toBe(2);
+    expect(api.captured.calls).toHaveLength(calls);
+  });
+
   it("compares a summary window with the one before it", async () => {
     const totals = {
       traces: 40,
