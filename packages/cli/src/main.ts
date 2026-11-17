@@ -1282,6 +1282,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
     .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
     .option("--collection <name>", "traces in this collection")
+    .option(
+      "--meta <key=value>",
+      "metadata entry to match exactly; a bare key matches its presence",
+    )
     .option("--json", "print JSON")
     .action(
       async (
@@ -1302,6 +1306,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minCost?: number;
           minDuration?: number;
           collection?: string;
+          meta?: string;
           json?: boolean;
         },
       ) => {
@@ -1319,6 +1324,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (opts.minCost !== undefined) selection.minCost = opts.minCost;
         if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
         if (opts.collection) selection.collection = opts.collection;
+        if (opts.meta) selection.meta = opts.meta;
         const hasSelection = Object.keys(selection).length > 0;
         const traceIds = opts.id ?? [];
         if (traceIds.length === 0 && !hasSelection) {
@@ -1864,6 +1870,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
     .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
     .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option("--collection <name>", "traces already in this collection")
+    .option(
+      "--meta <key=value>",
+      "metadata entry to match exactly; a bare key matches its presence",
+    )
     .option("--json", "print JSON")
     .action(
       async (
@@ -1882,6 +1893,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           to?: string;
           minCost?: number;
           minDuration?: number;
+          collection?: string;
+          meta?: string;
           json?: boolean;
         },
       ) => {
@@ -1898,6 +1911,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (opts.to) selection.to = opts.to;
         if (opts.minCost !== undefined) selection.minCost = opts.minCost;
         if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
+        if (opts.collection) selection.collection = opts.collection;
+        if (opts.meta) selection.meta = opts.meta;
         const hasSelection = Object.keys(selection).length > 0;
         if (traceIds.length === 0 && !hasSelection) {
           throw new CliError(

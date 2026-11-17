@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces tag` takes `--meta <key=value>`, and `shadow collections add` takes `--meta`
+  and `--collection <name>`, so traces can be tagged or collected by a metadata entry or by
+  the collection they are already in, as `traces list` filters them.
 - `shadow traces summary --csv` prints the totals, or with `--by` the breakdown, as CSV, and
   `--out <file>` writes the document to a file.
 - `SHADOW_WEBHOOK_OUTCOMES` restricts finished-trace notifications to traces that ended with

@@ -385,7 +385,8 @@ of the two is required, as is at least one of `add` and `remove` (up to 16 tags 
 edited, and the named ids that do not exist. Tags stay de-duplicated and searchable as with
 `PATCH /traces/:traceId`, and a call that changed something is audited as `traces.tagged`.
 CLI: `shadow traces tag triage --agent refund-agent --status failed`, or
-`shadow traces tag triage --remove --id <traceId>`.
+`shadow traces tag triage --remove --id <traceId>`. The command takes the list's filters,
+`--meta key=value` and `--collection <name>` included.
 
 ### `GET /api/v1/traces/:traceId`
 

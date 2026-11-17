@@ -2814,6 +2814,69 @@ describe("shadow cli", () => {
     expect(params().has("outcome")).toBe(false);
   });
 
+  it("picks traces to tag or collect by metadata and by collection", async () => {
+    const api = fakeApi({
+      "POST /api/v1/traces/tags": () => ({
+        body: { matched: 3, updated: ["trc_1", "trc_2", "trc_3"], missing: [] },
+      }),
+      "POST /api/v1/collections/escalations/traces": () => ({
+        body: {
+          collection: { id: "col_2", name: "escalations", traceCount: 3 },
+          added: ["trc_1", "trc_2", "trc_3"],
+          missing: [],
+          matched: 3,
+        },
+      }),
+    });
+    expect(
+      await runWith(api, [
+        "traces",
+        "tag",
+        "vip",
+        "--meta",
+        "customerId=cus_1001",
+        "--collection",
+        "triage",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { collection: "triage", meta: "customerId=cus_1001" },
+      add: ["vip"],
+    });
+
+    // A bare key matches its presence; --meta alone is enough of a selection.
+    expect(await runWith(api, ["traces", "tag", "vip", "--meta", "customerId"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { meta: "customerId" },
+      add: ["vip"],
+    });
+
+    expect(
+      await runWith(api, [
+        "collections",
+        "add",
+        "escalations",
+        "--collection",
+        "triage",
+        "--meta",
+        "attempt=3",
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { collection: "triage", meta: "attempt=3" },
+    });
+    expect(await runWith(api, ["collections", "add", "escalations", "--meta", "attempt=3"])).toBe(
+      0,
+    );
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { meta: "attempt=3" },
+    });
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {
