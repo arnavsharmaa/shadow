@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow tools` and `shadow models` take `--status` and `--outcome`, for the usage of failed
+  runs only or of the runs that ended with a given outcome kind.
 - `GET /stats/tools` and `GET /stats/models` take `status` and `outcome`, so usage can be
   read for failed runs only, or for the runs that ended in a policy violation: which tools
   they called and how often those failed, which models they used and what that cost.

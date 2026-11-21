@@ -187,7 +187,7 @@ included): `{ from, to, items: [{ provider, model, calls, traces, inputTokens, o
 totalTokens, estimatedCost, pricedCalls, lastUsedAt }] }`, most expensive first. Tokens and cost
 come from the response that answered each request; `pricedCalls` below `calls` means some
 responses had no price, so the model should be added with `SHADOW_PRICING_FILE`. CLI:
-`shadow models [--project] [--agent] [--from] [--to]`; the Overview page lists the models of
+`shadow models [--project] [--agent] [--collection] [--status] [--outcome] [--from] [--to]`; the Overview page lists the models of
 its window.
 
 ### `GET /api/v1/stats/tools?from=&to=&project=&agent=&collection=`
@@ -201,8 +201,8 @@ first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a s
 and model usage can be compared. They also take `status=` and `outcome=` (an outcome kind, or
 `none` for traces without one) to cover only traces in that state or with that ending:
 `/stats/tools?outcome=policy_violation` shows which tools the violating runs called and which
-calls were blocked. CLI: `shadow tools [--project] [--agent] [--collection]
-[--from] [--to]`; the Overview page lists the tools of its window, each linking to
+calls were blocked. CLI: `shadow tools [--project] [--agent] [--collection] [--status]
+[--outcome] [--from] [--to]`; the Overview page lists the tools of its window, each linking to
 the explorer filtered by that tool, and each error count to the traces in which it failed; the
 Agents page lists an agent's tools under its trend.
 

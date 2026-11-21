@@ -2398,6 +2398,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "only this project")
     .option("--agent <slug>", "only this agent")
     .option("--collection <name>", "only traces in this collection")
+    .option("--status <status>", "only traces in this state: running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "only traces that ended with this outcome kind, e.g. policy_violation (none: no outcome)",
+    )
     .option(
       "--from <cutoff>",
       "traces started at or after (ISO timestamp or age such as 7d)",
@@ -2410,6 +2415,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         project?: string;
         agent?: string;
         collection?: string;
+        status?: string;
+        outcome?: string;
         from?: string;
         to?: string;
         json?: boolean;
@@ -2431,6 +2438,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project: opts.project,
           agent: opts.agent,
           collection: opts.collection,
+          status: opts.status,
+          outcome: opts.outcome,
           from: opts.from,
           to: opts.to,
         });
@@ -2595,6 +2604,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--project <slug>", "only this project")
     .option("--agent <slug>", "only this agent")
     .option("--collection <name>", "only traces in this collection")
+    .option("--status <status>", "only traces in this state: running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "only traces that ended with this outcome kind, e.g. policy_violation (none: no outcome)",
+    )
     .option(
       "--from <cutoff>",
       "traces started at or after (ISO timestamp or age such as 7d)",
@@ -2607,6 +2621,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         project?: string;
         agent?: string;
         collection?: string;
+        status?: string;
+        outcome?: string;
         from?: string;
         to?: string;
         json?: boolean;
@@ -2628,6 +2644,8 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           project: opts.project,
           agent: opts.agent,
           collection: opts.collection,
+          status: opts.status,
+          outcome: opts.outcome,
           from: opts.from,
           to: opts.to,
         });

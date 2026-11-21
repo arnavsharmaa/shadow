@@ -2920,6 +2920,30 @@ describe("shadow cli", () => {
     expect(api.captured.calls.at(-1)?.body).not.toHaveProperty("outcome");
   });
 
+  it("narrows tool and model usage to a trace state or outcome", async () => {
+    const api = fakeApi({
+      "GET /api/v1/stats/tools": () => ({ body: { from: null, to: null, items: [] } }),
+      "GET /api/v1/stats/models": () => ({ body: { from: null, to: null, items: [] } }),
+    });
+    const params = () =>
+      Object.fromEntries(new URL(api.captured.calls.at(-1)?.url ?? "").searchParams);
+
+    expect(
+      await runWith(api, ["tools", "--outcome", "policy_violation", "--agent", "refund-agent"]),
+    ).toBe(0);
+    expect(params()).toEqual({ agent: "refund-agent", outcome: "policy_violation" });
+    expect(await runWith(api, ["tools", "--status", "failed"])).toBe(0);
+    expect(params()).toEqual({ status: "failed" });
+
+    expect(await runWith(api, ["models", "--status", "failed", "--outcome", "error"])).toBe(0);
+    expect(params()).toEqual({ status: "failed", outcome: "error" });
+    expect(api.captured.calls.at(-1)?.url).toContain("/api/v1/stats/models");
+
+    // Without the flags nothing is added to the request.
+    expect(await runWith(api, ["models"])).toBe(0);
+    expect(params()).toEqual({});
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {

@@ -197,6 +197,7 @@ shadow traces list --from 7d --sort totalEstimatedCost --order desc
 shadow overview --days 7
 shadow agents --from 7d
 shadow tools --from 7d
+shadow tools --outcome policy_violation --from 7d   # what the violating runs called
 shadow traces summary --agent refund-agent --status failed --from 7d   # what they add up to
 shadow traces summary --status failed --from 7d --by agent             # ...and per agent
 shadow traces list --outcome policy_violation --from 7d                # by declared outcome
