@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `POST /batch/counterfactuals` takes `outcome` next to `status` and `tag`, so a what-if can
+  run over exactly the traces that ended a given way, such as every policy violation.
 - `shadow traces tag` takes `--meta <key=value>`, and `shadow collections add` takes `--meta`
   and `--collection <name>`, so traces can be tagged or collected by a metadata entry or by
   the collection they are already in, as `traces list` filters them.

@@ -130,6 +130,40 @@ describe("POST /batch/counterfactuals", () => {
     expect(unchanged.summary).toEqual({ changed: 0, unchanged: 1, skipped: 0, failed: 0 });
   });
 
+  it("picks the traces by the outcome they ended with", async () => {
+    const run = async (outcome: string) =>
+      t.app.inject({
+        method: "POST",
+        url: "/api/v1/batch/counterfactuals",
+        payload: {
+          agent: "refund-agent",
+          at: { name: "refund_order" },
+          overrides: [{ kind: "context", op: "set", key: "refundLimit", value: 100 }],
+          outcome,
+        },
+      });
+    // The same traces the list finds for that outcome, newest first.
+    const listed = json<{ items: { id: string }[] }>(
+      await t.app.inject({ url: "/api/v1/traces?agent=refund-agent&outcome=policy_violation" }),
+    ).items.map((item) => item.id);
+    expect(listed).toEqual(["trc_batch_b", "trc_batch_a"]);
+    const violations = json<BatchResult>(await run("policy_violation"));
+    expect(violations.matched).toBe(2);
+    expect(violations.results.map((r) => r.traceId)).toEqual(listed);
+    expect(violations.summary).toEqual({ changed: 2, unchanged: 0, skipped: 0, failed: 0 });
+
+    // `none` is the trace that never finished; it has no refund step to fork at.
+    const bare = json<BatchResult>(await run("none"));
+    expect(bare.matched).toBe(1);
+    expect(bare.results[0]).toMatchObject({ traceId: "trc_batch_bare", status: "skipped" });
+
+    // An outcome nothing ended with matches nothing; an empty one is refused.
+    const nothing = json<BatchResult>(await run("escalated"));
+    expect(nothing.matched).toBe(0);
+    expect(nothing.results).toEqual([]);
+    expect((await run("")).statusCode).toBe(400);
+  });
+
   it("rejects agents without a program and invalid bodies", async () => {
     const refused = await t.app.inject({
       method: "POST",

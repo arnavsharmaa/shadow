@@ -89,6 +89,7 @@ export async function runBatchCounterfactual(
     agent: body.agent,
     project: body.project,
     status: body.status,
+    outcome: body.outcome,
     tag: body.tag,
     from: body.from,
     to: body.to,

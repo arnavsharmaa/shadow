@@ -572,8 +572,10 @@ Batch counterfactual: apply one override set to many recorded traces of an agent
 }
 ```
 
-`at.eventType` defaults to `tool.request`. Optional filters: `project`, `status`, `tag`, `from`,
-`to`; `limit` is 1 to 50 (default 20), newest traces first. Each trace is forked on its root
+`at.eventType` defaults to `tool.request`. Optional filters: `project`, `status`, `outcome`
+(an outcome kind such as `policy_violation`, or `none`), `tag`, `from`, `to`; `limit` is 1 to
+50 (default 20), newest traces first. With `outcome`, "would the runs that ended in a policy
+violation still have, under the new limit?" is one request. Each trace is forked on its root
 branch at the first matching event, replayed deterministically and compared with the original.
 Returns `201 { agent, at, matched, summary: { changed, unchanged, skipped, failed }, results }`
 where each result is `ok` (with the branch, replay, `comparisonId`, outcome pair, first

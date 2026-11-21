@@ -298,6 +298,8 @@ export const batchCounterfactualBodySchema = z
     /** Branch name given to every fork (default: the next `fork-N` of each trace). */
     branchName: z.string().min(1).max(128).optional(),
     status: traceStatusSchema.optional(),
+    /** Only traces that ended with this outcome kind (`none`: no outcome), as the list filters. */
+    outcome: z.string().min(1).max(64).optional(),
     tag: z.string().max(64).optional(),
     from: z.iso.datetime({ offset: true }).optional(),
     to: z.iso.datetime({ offset: true }).optional(),
