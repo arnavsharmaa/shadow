@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `GET /stats/tools` and `GET /stats/models` take `status` and `outcome`, so usage can be
+  read for failed runs only, or for the runs that ended in a policy violation: which tools
+  they called and how often those failed, which models they used and what that cost.
 - `shadow batch --outcome <kind>` runs the what-if over the traces that ended with that
   outcome kind (`none` for traces without one), in the foreground or as a background job.
 - `POST /batch/counterfactuals` takes `outcome` next to `status` and `tag`, so a what-if can

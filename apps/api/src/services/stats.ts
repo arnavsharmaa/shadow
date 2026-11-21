@@ -1,3 +1,4 @@
+import type { TraceStatus } from "@shadow/schemas";
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import { agents, collectionTraces, collections, events, projects, traces } from "../db/schema.js";
 import { ApiError } from "../errors.js";
@@ -243,6 +244,25 @@ export interface ModelStatsQuery {
   agent?: string;
   /** Only traces in the collection with this name. */
   collection?: string;
+  /** Only traces in this state. */
+  status?: TraceStatus;
+  /** Only traces that ended with this outcome kind; `none` for traces without an outcome. */
+  outcome?: string;
+}
+
+/** Which traces a usage query covers; the model and tool aggregates share these conditions. */
+function usageScope(query: ModelStatsQuery): SQL[] {
+  const filters: SQL[] = [];
+  if (query.from) filters.push(gte(traces.startedAt, query.from));
+  if (query.to) filters.push(lte(traces.startedAt, query.to));
+  if (query.project) filters.push(eq(projects.slug, query.project));
+  if (query.agent) filters.push(eq(agents.slug, query.agent));
+  if (query.collection) filters.push(inCollection(query.collection));
+  if (query.status) filters.push(eq(traces.status, query.status));
+  if (query.outcome) {
+    filters.push(sql`coalesce(${traces.outcome}->>'kind', 'none') = ${query.outcome}`);
+  }
+  return filters;
 }
 
 /** Traces that are in the named collection (an unknown name matches nothing). */
@@ -278,11 +298,7 @@ export async function modelStats(
   query: ModelStatsQuery,
 ): Promise<ModelStats[]> {
   const filters: SQL[] = [eq(events.eventType, "model.request")];
-  if (query.from) filters.push(gte(traces.startedAt, query.from));
-  if (query.to) filters.push(lte(traces.startedAt, query.to));
-  if (query.project) filters.push(eq(projects.slug, query.project));
-  if (query.agent) filters.push(eq(agents.slug, query.agent));
-  if (query.collection) filters.push(inCollection(query.collection));
+  filters.push(...usageScope(query));
   const provider = sql<string>`coalesce(${events.input}->>'provider', 'unknown')`;
   const model = sql<string>`coalesce(${events.input}->>'model', 'unknown')`;
   const response = sql`(
@@ -366,11 +382,7 @@ const POLICY_BLOCKED_CODE = "policy_blocked";
  */
 export async function toolStats(ctx: ServiceContext, query: ToolStatsQuery): Promise<ToolStats[]> {
   const filters: SQL[] = [inArray(events.eventType, ["tool.response", "tool.error"])];
-  if (query.from) filters.push(gte(traces.startedAt, query.from));
-  if (query.to) filters.push(lte(traces.startedAt, query.to));
-  if (query.project) filters.push(eq(projects.slug, query.project));
-  if (query.agent) filters.push(eq(agents.slug, query.agent));
-  if (query.collection) filters.push(inCollection(query.collection));
+  filters.push(...usageScope(query));
   const isError = sql`${events.eventType} = 'tool.error'`;
   const rows = await ctx.handle.db
     .select({

@@ -1,4 +1,4 @@
-import { createProjectBodySchema } from "@shadow/schemas";
+import { createProjectBodySchema, traceStatusSchema } from "@shadow/schemas";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { createProject, listAgents, listProjects } from "../../services/projects.js";
@@ -15,6 +15,10 @@ const usageQuerySchema = agentStatsQuerySchema.extend({
   agent: z.string().max(64).optional(),
   /** Only traces in the collection with this name. */
   collection: z.string().max(64).optional(),
+  /** Only traces in this state. */
+  status: traceStatusSchema.optional(),
+  /** Only traces that ended with this outcome kind; `none` for traces without an outcome. */
+  outcome: z.string().min(1).max(64).optional(),
 });
 const agentTrendQuerySchema = agentStatsQuerySchema.extend({
   bucket: z.enum(["hour", "day"]).default("day"),

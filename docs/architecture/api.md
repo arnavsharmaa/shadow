@@ -198,7 +198,10 @@ blocked, errorRate, avgDurationMs, p95DurationMs, estimatedCost, lastUsedAt }] }
 first. `blocked` counts the errors a guard policy raised (`policy_blocked`), a subset of
 `errors`; a call still waiting for its result is not counted. Both usage views take
 `collection=<name>` to cover only the traces of that collection, so two experiments' tool
-and model usage can be compared. CLI: `shadow tools [--project] [--agent] [--collection]
+and model usage can be compared. They also take `status=` and `outcome=` (an outcome kind, or
+`none` for traces without one) to cover only traces in that state or with that ending:
+`/stats/tools?outcome=policy_violation` shows which tools the violating runs called and which
+calls were blocked. CLI: `shadow tools [--project] [--agent] [--collection]
 [--from] [--to]`; the Overview page lists the tools of its window, each linking to
 the explorer filtered by that tool, and each error count to the traces in which it failed; the
 Agents page lists an agent's tools under its trend.

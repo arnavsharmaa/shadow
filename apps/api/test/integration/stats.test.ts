@@ -125,6 +125,85 @@ describe("GET /stats/tools", () => {
   });
 });
 
+describe("usage by trace status and outcome", () => {
+  const tools = async (query: string) =>
+    json<{ items: ToolStats[] }>(await t.app.inject({ url: `/api/v1/stats/tools${query}` })).items;
+  const models = async (query: string) =>
+    json<{ items: ModelStats[] }>(await t.app.inject({ url: `/api/v1/stats/models${query}` }))
+      .items;
+  const listed = async (query: string) =>
+    json<{ items: { id: string; status: string; outcome: { kind: string } | null }[] }>(
+      await t.app.inject({ url: `/api/v1/traces?limit=200${query}` }),
+    ).items;
+
+  it("splits tool and model usage by the state of the traces", async () => {
+    const allTools = await tools("");
+    const allModels = await models("");
+    const byStatus = {
+      completed: await tools("?status=completed"),
+      failed: await tools("?status=failed"),
+      running: await tools("?status=running"),
+    };
+    // Every call belongs to a trace in exactly one state, so the three add up to the whole.
+    for (const tool of allTools) {
+      const calls = Object.values(byStatus).reduce(
+        (sum, items) => sum + (items.find((i) => i.tool === tool.tool)?.calls ?? 0),
+        0,
+      );
+      expect(calls, tool.tool).toBe(tool.calls);
+    }
+    const tokens = async (query: string) =>
+      (await models(query)).reduce((sum, m) => sum + m.totalTokens, 0);
+    expect(
+      (await tokens("?status=completed")) +
+        (await tokens("?status=failed")) +
+        (await tokens("?status=running")),
+    ).toBe(allModels.reduce((sum, m) => sum + m.totalTokens, 0));
+    // A tool is counted in no more traces than are in that state.
+    const failedTraces = await listed("&status=failed");
+    expect(failedTraces.length).toBeGreaterThan(0);
+    expect(byStatus.failed.length).toBeGreaterThan(0);
+    for (const tool of byStatus.failed) {
+      expect(tool.traces).toBeLessThanOrEqual(failedTraces.length);
+    }
+  });
+
+  it("narrows tool and model usage to the traces that ended a given way", async () => {
+    const violating = await listed("&outcome=policy_violation");
+    expect(violating.length).toBeGreaterThan(0);
+    const inViolations = await tools("?outcome=policy_violation");
+    // The guard policy blocks refund_order in exactly those runs.
+    const refund = inViolations.find((i) => i.tool === "refund_order");
+    expect(refund?.blocked).toBeGreaterThan(0);
+    expect(refund?.blocked).toBeLessThanOrEqual(
+      (await tools("")).find((i) => i.tool === "refund_order")?.blocked ?? 0,
+    );
+    for (const tool of inViolations) expect(tool.traces).toBeLessThanOrEqual(violating.length);
+    const violatingModels = await models("?outcome=policy_violation");
+    expect(violatingModels.length).toBeGreaterThan(0);
+    for (const model of violatingModels) {
+      expect(model.traces).toBeLessThanOrEqual(violating.length);
+    }
+
+    // The outcome kinds partition the traces as well, `none` standing for no outcome.
+    const kinds = [...new Set((await listed("")).map((i) => i.outcome?.kind ?? "none"))];
+    let calls = 0;
+    for (const kind of kinds) {
+      calls += (await tools(`?outcome=${encodeURIComponent(kind)}`)).reduce(
+        (sum, i) => sum + i.calls,
+        0,
+      );
+    }
+    expect(calls).toBe((await tools("")).reduce((sum, i) => sum + i.calls, 0));
+
+    // The filters combine with each other; unknown values match nothing or are refused.
+    expect(await tools("?outcome=policy_violation&status=running")).toEqual([]);
+    expect(await models("?outcome=no_such_kind")).toEqual([]);
+    const bad = await t.app.inject({ url: "/api/v1/stats/tools?status=exploded" });
+    expect(bad.statusCode).toBe(400);
+  });
+});
+
 describe("GET /stats/agents", () => {
   it("aggregates the seeded traces per agent", async () => {
     const response = await t.app.inject({ method: "GET", url: "/api/v1/stats/agents" });
