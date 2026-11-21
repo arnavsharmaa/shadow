@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow batch --outcome <kind>` runs the what-if over the traces that ended with that
+  outcome kind (`none` for traces without one), in the foreground or as a background job.
 - `POST /batch/counterfactuals` takes `outcome` next to `status` and `tag`, so a what-if can
   run over exactly the traces that ended a given way, such as every policy violation.
 - `shadow traces tag` takes `--meta <key=value>`, and `shadow collections add` takes `--meta`

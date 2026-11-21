@@ -3593,6 +3593,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--policy <policy=json...>", "override a policy's configuration")
     .option("--name <branchName>", "branch name for every fork (default: fork-N)")
     .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "only traces that ended with this outcome kind, e.g. policy_violation (none: no outcome)",
+    )
     .option("--tag <tag>", "only traces carrying this tag")
     .option("--from <cutoff>", "traces started at or after", cutoff)
     .option("--to <cutoff>", "traces started at or before", cutoff)
@@ -3625,6 +3629,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         policy?: string[];
         name?: string;
         status?: string;
+        outcome?: string;
         tag?: string;
         from?: string;
         to?: string;
@@ -3667,6 +3672,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           overrides,
           branchName: opts.name,
           status: opts.status,
+          outcome: opts.outcome,
           tag: opts.tag,
           from: opts.from,
           to: opts.to,

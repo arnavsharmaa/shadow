@@ -231,6 +231,7 @@ shadow matrix trc_demo_refund_violation --at <eventId> --vary refundLimit=50,100
 shadow matrix trc_demo_refund_violation --at <eventId> --vary-policy 'refund.autonomous_limit={"limit":100}' --vary-policy 'refund.autonomous_limit={"limit":1000}'
 shadow batch --agent refund-agent --at refund_order --set refundLimit=100
 shadow batch --agent refund-agent --at refund_order --set refundLimit=100 --limit 300 --wait
+shadow batch --agent refund-agent --at refund_order --set refundLimit=100 --outcome policy_violation
 shadow jobs list
 shadow trend refund-agent --metric failed --from 14d
 shadow alerts add "refund failures" --metric failure_rate --threshold 0.5 --agent refund-agent --window 6h --keep-firing 30m

@@ -582,7 +582,8 @@ where each result is `ok` (with the branch, replay, `comparisonId`, outcome pair
 divergence and deltas), `skipped` (no matching event) or `failed` (for example a branch-name
 conflict) with a `reason`; one trace's failure never aborts the batch. `422
 agent_not_replayable` when the agent has no registered program. CLI: `shadow batch --agent
-refund-agent --at refund_order --set refundLimit=100`.
+refund-agent --at refund_order --set refundLimit=100`, with `--status`, `--outcome`, `--tag`,
+`--from` and `--to` to pick the traces.
 
 With `"background": true` the batch runs as a job instead: `limit` may go up to 500, and the
 response is `202` with a `Location` header and the `BatchJob`

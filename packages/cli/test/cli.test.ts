@@ -2877,6 +2877,49 @@ describe("shadow cli", () => {
     });
   });
 
+  it("runs a what-if over the traces that ended with an outcome", async () => {
+    const api = fakeApi({
+      "POST /api/v1/batch/counterfactuals": (body) =>
+        (body as { background?: boolean }).background
+          ? { status: 202, body: { id: "job_7", status: "queued" } }
+          : {
+              status: 201,
+              body: {
+                matched: 0,
+                summary: { changed: 0, unchanged: 0, skipped: 0, failed: 0 },
+                results: [],
+              },
+            },
+    });
+    const batch = [
+      "batch",
+      "--agent",
+      "refund-agent",
+      "--at",
+      "refund_order",
+      "--set",
+      "refundLimit=100",
+    ];
+    expect(await runWith(api, [...batch, "--outcome", "policy_violation"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      agent: "refund-agent",
+      at: { eventType: "tool.request", name: "refund_order" },
+      overrides: [{ kind: "context", op: "set", key: "refundLimit", value: 100 }],
+      outcome: "policy_violation",
+      limit: 20,
+    });
+
+    // A background job carries the same selection.
+    api.captured.out.length = 0;
+    expect(await runWith(api, [...batch, "--outcome", "none", "--background"])).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toMatchObject({ outcome: "none", background: true });
+    expect(api.captured.out.join("\n")).toContain("queued job_7");
+
+    // Without the flag the field is not sent.
+    expect(await runWith(api, batch)).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).not.toHaveProperty("outcome");
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {
