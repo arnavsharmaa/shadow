@@ -46,7 +46,7 @@
   "dependencies": {
     "@shadow/core": "workspace:*",
     "@shadow/schemas": "workspace:*",
-    "commander": "15.0.0"
+    "commander": "15.1.0"
   },
   "devDependencies": {
     "@shadow/config": "workspace:*",
