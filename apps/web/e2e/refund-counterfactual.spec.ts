@@ -1138,6 +1138,19 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       "href",
       /summary\?status=failed&groupBy=status&format=csv$/,
     );
+    // By tag, a trace counts under each tag it carries; a tag's name sets the Tag filter.
+    await page.getByTestId("totals-group-by").selectOption("tag");
+    await expect(breakdown.locator("thead th").first()).toHaveText("Tag");
+    await expect(breakdown.getByTestId("breakdown-note")).toContainText("can overlap");
+    const tagRow = breakdown.locator('[data-testid="breakdown-row"]').first();
+    await expect(tagRow).toContainText("100.0%");
+    const tagName = (await tagRow.getAttribute("data-group")) ?? "";
+    expect(tagName).not.toBe("");
+    await tagRow.getByRole("button").click();
+    await expect(page.locator("#filter-tag")).toHaveValue(tagName);
+    await expect(page.locator('[data-testid="trace-row"]')).toHaveCount(1);
+    await page.locator("#filter-tag").selectOption("");
+    await expect(page.locator("#filter-tag")).toHaveValue("");
     await page.getByTestId("totals-group-by").selectOption("");
     await expect(breakdown).toHaveCount(0);
     // The strip's policy violations narrow the list to that outcome; the Outcome menu follows.

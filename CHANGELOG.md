@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer's "Break down by" menu offers Tag: one row per tag among the matching traces,
+  with a note that a trace counts under every tag it carries; a tag's name sets the Tag
+  filter.
 - `GET /traces/summary?groupBy=tag` breaks the totals down by tag: one group per tag in use,
   a trace counting under each tag it carries, so deployments or experiments marked with tags
   can be read side by side (also as CSV).

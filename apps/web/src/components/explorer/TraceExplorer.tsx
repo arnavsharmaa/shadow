@@ -61,6 +61,7 @@ const GROUP_BYS: { value: TraceGroupBy; label: string }[] = [
   { value: "project", label: "Project" },
   { value: "status", label: "Status" },
   { value: "outcome", label: "Outcome" },
+  { value: "tag", label: "Tag" },
   { value: "day", label: "Day (UTC)" },
 ];
 
@@ -722,6 +723,11 @@ function TotalsBreakdown({
       className="max-h-56 overflow-auto border-b border-border bg-panel px-3 py-1 text-[11px]"
       data-testid="trace-breakdown"
     >
+      {groupBy === "tag" && (
+        <p className="pb-1 text-fg-faint" data-testid="breakdown-note">
+          A trace counts under every tag it carries, so these rows can overlap.
+        </p>
+      )}
       <table className="w-full max-w-4xl border-collapse">
         <caption className="sr-only">
           Totals per {heading.toLowerCase()} for the traces matching the filters
