@@ -315,14 +315,19 @@ const GROUP_KEYS: Record<TraceGroupBy, SQL<string>> = {
   project: sql<string>`${projects.slug}`,
   status: sql<string>`${traces.status}`,
   outcome: OUTCOME_KIND,
+  tag: sql<string>`trace_tag.value`,
   day: sql<string>`to_char(${traces.startedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
 };
+
+/** One row per tag of a trace, joined in when grouping by tag; untagged traces drop out. */
+const TRACE_TAGS = sql`jsonb_array_elements_text(${traces.tags}) as trace_tag(value)`;
 
 /**
  * What the traces a selection matches add up to: counts by status, cost, tokens, calls and
  * latency. One aggregate query over the same filters as the list, so the two always agree.
  * With `groupBy`, a second query answers the same totals per agent, project, status, outcome
- * kind or day.
+ * kind, tag or day. Tags are the one dimension that does not partition the traces: a trace
+ * counts under every tag it carries.
  */
 export async function summarizeTraces(
   ctx: ServiceContext,
@@ -341,15 +346,24 @@ export async function summarizeTraces(
   if (!groupBy) return totals;
 
   const key = GROUP_KEYS[groupBy];
-  const rows = await ctx.handle.db
+  const order = groupBy === "day" ? [desc(key)] : [desc(sql`count(*)`), asc(key)];
+  const grouped = ctx.handle.db
     .select({ key, ...totalsColumns() })
     .from(traces)
     .innerJoin(projects, eq(projects.id, traces.projectId))
-    .innerJoin(agents, eq(agents.id, traces.agentId))
-    .where(where)
-    .groupBy(key)
-    .orderBy(...(groupBy === "day" ? [desc(key)] : [desc(sql`count(*)`), asc(key)]))
-    .limit(TOTALS_GROUP_LIMIT);
+    .innerJoin(agents, eq(agents.id, traces.agentId));
+  const rows = await (groupBy === "tag"
+    ? grouped
+        .innerJoin(TRACE_TAGS, sql`true`)
+        .where(where)
+        .groupBy(key)
+        .orderBy(...order)
+        .limit(TOTALS_GROUP_LIMIT)
+    : grouped
+        .where(where)
+        .groupBy(key)
+        .orderBy(...order)
+        .limit(TOTALS_GROUP_LIMIT));
   const groups = rows.map((group) => ({ key: String(group.key), ...toTotals(group) }));
   // Days read oldest first, like the x axis of a chart; everything else largest first.
   if (groupBy === "day") groups.reverse();

@@ -287,11 +287,13 @@ over the same conditions as the list, so "what did last week's failed refund run
 one request instead of a page-through. A project-pinned key gets its own project's totals.
 CLI: `shadow traces summary [--agent … --status … --from 7d …]`, with `--json` for scripts.
 
-With `groupBy=agent|project|status|outcome|day` the answer also carries `groups`: the same
+With `groupBy=agent|project|status|outcome|tag|day` the answer also carries `groups`: the same
 totals for each agent slug, project slug, status, outcome kind (`none` for traces without an
 outcome) or UTC day the traces started on, each under its `key` and inside the same filters. Groups come largest first, days oldest first, and stop at 200
 (for days, the most recent 200). "Which agent's failures cost the most last week" is
 `?status=failed&from=…&groupBy=agent`. Without `groupBy` there is no `groups` field.
+`groupBy=tag` answers one group per tag in use: a trace counts under every tag it carries and
+an untagged trace under none, so these groups can overlap and need not add up to the totals.
 CLI: `shadow traces summary --by agent|project|status|outcome|day` prints the groups as a
 table under the totals.
 

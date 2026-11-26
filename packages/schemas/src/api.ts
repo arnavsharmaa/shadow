@@ -379,13 +379,14 @@ export type TraceTotals = z.infer<typeof traceTotalsSchema>;
 
 /**
  * What `GET /traces/summary` can break its totals down by: `outcome` is the outcome kind
- * (`none` without one) and `day` the UTC day a trace started.
+ * (`none` without one), `tag` each tag a trace carries (so a trace can count in several
+ * groups, or in none) and `day` the UTC day a trace started.
  */
-export const TRACE_GROUP_BYS = ["agent", "project", "status", "outcome", "day"] as const;
+export const TRACE_GROUP_BYS = ["agent", "project", "status", "outcome", "tag", "day"] as const;
 export type TraceGroupBy = (typeof TRACE_GROUP_BYS)[number];
 
 export const traceSummaryQuerySchema = traceSelectionSchema.extend({
-  /** Also answer the totals of each agent, project, status, outcome or day among the matches. */
+  /** Also answer the totals per agent, project, status, outcome, tag or day among the matches. */
   groupBy: z.enum(TRACE_GROUP_BYS).optional(),
   /** `csv` answers one row per group (or one for the whole selection) for spreadsheets. */
   format: z.enum(["json", "csv"]).optional(),

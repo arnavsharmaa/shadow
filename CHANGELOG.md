@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `GET /traces/summary?groupBy=tag` breaks the totals down by tag: one group per tag in use,
+  a trace counting under each tag it carries, so deployments or experiments marked with tags
+  can be read side by side (also as CSV).
 - `shadow tools` and `shadow models` take `--status` and `--outcome`, for the usage of failed
   runs only or of the runs that ended with a given outcome kind.
 - `GET /stats/tools` and `GET /stats/models` take `status` and `outcome`, so usage can be

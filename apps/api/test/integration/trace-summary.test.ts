@@ -113,6 +113,43 @@ describe("trace totals", () => {
     }
   });
 
+  it("breaks the totals down by tag, a trace counting under each tag it carries", async () => {
+    const everything = await list("");
+    const tags = [...new Set(everything.flatMap((trace) => trace.tags))];
+    expect(tags.length).toBeGreaterThan(1);
+    const answer = await breakdown("groupBy=tag");
+    const groups = answer.groups ?? [];
+    // One group per tag in use, largest first, each what filtering by that tag adds up to.
+    expect(groups.map((group) => group.key).sort()).toEqual([...tags].sort());
+    const sizes = groups.map((group) => group.traces);
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
+    for (const group of groups) {
+      expectSameTotals(group, await totals(`tag=${encodeURIComponent(group.key)}`));
+    }
+    // The groups overlap, so they add up to the tags carried, not to the traces; the overall
+    // totals still count every trace once.
+    expectSameTotals(answer, await totals(""));
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBe(
+      everything.reduce((sum, trace) => sum + trace.tags.length, 0),
+    );
+
+    // Inside a filter the groups are the tags of the matching traces, the filter's own included.
+    const tag = groups[0]?.key ?? "";
+    const within = (await breakdown(`tag=${encodeURIComponent(tag)}&groupBy=tag`)).groups ?? [];
+    const matching = everything.filter((trace) => trace.tags.includes(tag));
+    expect(within.find((group) => group.key === tag)?.traces).toBe(matching.length);
+    expect(within.map((group) => group.key).sort()).toEqual(
+      [...new Set(matching.flatMap((trace) => trace.tags))].sort(),
+    );
+    for (const group of within) expect(group.traces).toBeLessThanOrEqual(matching.length);
+
+    // As CSV the first column is named `tag`.
+    const csv = await t.app.inject({ url: "/api/v1/traces/summary?groupBy=tag&format=csv" });
+    const lines = csv.body.split("\r\n").filter((line) => line.length > 0);
+    expect(lines[0]?.startsWith("tag,traces,")).toBe(true);
+    expect(lines.slice(1).map((line) => line.split(",")[0])).toEqual(groups.map((g) => g.key));
+  });
+
   it("breaks the totals down by UTC day, oldest first, within the other filters", async () => {
     const all = await totals("");
     const days = (await breakdown("groupBy=day")).groups ?? [];
@@ -138,7 +175,7 @@ describe("trace totals", () => {
 
     // Nothing matching is an empty breakdown; an unknown dimension is refused.
     expect((await breakdown("agent=no-such-agent&groupBy=status")).groups).toEqual([]);
-    const bad = await t.app.inject({ url: "/api/v1/traces/summary?groupBy=tag" });
+    const bad = await t.app.inject({ url: "/api/v1/traces/summary?groupBy=tool" });
     expect(bad.statusCode).toBe(400);
   });
 
