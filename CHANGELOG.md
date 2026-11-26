@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces summary --by tag` prints the totals per tag, with a line saying that a trace
+  counts under every tag it carries.
 - The Settings page's webhook line names the outcome kinds `SHADOW_WEBHOOK_OUTCOMES`
   restricts notifications to, next to the project, tag and cost restrictions.
 - The agents page's "What if" dialog can narrow the batch to the traces that ended with one

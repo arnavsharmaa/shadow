@@ -2736,11 +2736,56 @@ describe("shadow cli", () => {
 
     // An unknown dimension is a usage error before any request.
     const bad = fakeApi({});
-    expect(await runWith(bad, ["traces", "summary", "--by", "tag"])).toBe(2);
+    expect(await runWith(bad, ["traces", "summary", "--by", "tool"])).toBe(2);
     expect(bad.captured.calls).toHaveLength(0);
     expect(bad.captured.err.join("\n")).toContain(
-      "expected one of agent, project, status, outcome, day",
+      "expected one of agent, project, status, outcome, tag, day",
     );
+  });
+
+  it("breaks a summary down by tag and says the rows can overlap", async () => {
+    const totals = {
+      traces: 3,
+      running: 0,
+      completed: 2,
+      failed: 1,
+      policyViolations: 1,
+      failureRate: 1 / 3,
+      totalEstimatedCost: 0.3,
+      avgEstimatedCost: 0.1,
+      totalTokens: 3000,
+      modelCalls: 6,
+      toolCalls: 9,
+      toolErrors: 1,
+      avgDurationMs: 1000,
+      p95DurationMs: 2000,
+      firstStartedAt: "2026-11-01T00:00:00.000Z",
+      lastStartedAt: "2026-11-03T00:00:00.000Z",
+    };
+    const groups = [
+      { ...totals, key: "prod" },
+      { ...totals, key: "canary", traces: 2, completed: 1, failureRate: 0.5 },
+    ];
+    const api = fakeApi({
+      "GET /api/v1/traces/summary": () => ({ body: { ...totals, groups } }),
+    });
+    expect(await runWith(api, ["traces", "summary", "--by", "tag"])).toBe(0);
+    expect(new URL(api.captured.calls[0]?.url ?? "").searchParams.get("groupBy")).toBe("tag");
+    const lines = api.captured.out.join("\n").split("\n");
+    // The note sits between the totals and the table, whose first column is named TAG.
+    const note = lines.indexOf(
+      "by tag: a trace counts under every tag it carries, so the rows can overlap",
+    );
+    const header = lines.findIndex((line) => line.startsWith("TAG"));
+    expect(note).toBeGreaterThan(0);
+    expect(header).toBeGreaterThan(note);
+    expect(lines[header + 2]?.split(/\s{2,}/).slice(0, 4)).toEqual(["prod", "3", "1", "33.3%"]);
+    expect(lines[header + 3]?.split(/\s{2,}/).slice(0, 4)).toEqual(["canary", "2", "1", "50.0%"]);
+
+    // Other dimensions partition the traces and carry no such note.
+    api.captured.out.length = 0;
+    expect(await runWith(api, ["traces", "summary", "--by", "agent"])).toBe(0);
+    expect(api.captured.out.join("\n")).not.toContain("can overlap");
   });
 
   it("filters by outcome wherever the trace filters are taken", async () => {

@@ -1032,7 +1032,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     )
     .option(
       "--by <dimension>",
-      "also break the totals down by agent, project, status, outcome or day (UTC)",
+      "also break the totals down by agent, project, status, outcome, tag or day (UTC)",
       groupDimension,
     )
     .option(
@@ -1229,6 +1229,10 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           ].join("\n"),
         );
         if (!opts.by || !totals.groups) return;
+        if (opts.by === "tag") {
+          out("");
+          out("by tag: a trace counts under every tag it carries, so the rows can overlap");
+        }
         // One row per group: the server sends the largest first, days oldest first.
         out("");
         out(
@@ -4199,7 +4203,7 @@ function nonNegative(value: string): number {
   return n;
 }
 
-const GROUP_DIMENSIONS = ["agent", "project", "status", "outcome", "day"];
+const GROUP_DIMENSIONS = ["agent", "project", "status", "outcome", "tag", "day"];
 
 /** Commander parser for `--by`: what a summary can be broken down by. */
 function groupDimension(value: string): string {

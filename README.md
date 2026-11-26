@@ -200,6 +200,7 @@ shadow tools --from 7d
 shadow tools --outcome policy_violation --from 7d   # what the violating runs called
 shadow traces summary --agent refund-agent --status failed --from 7d   # what they add up to
 shadow traces summary --status failed --from 7d --by agent             # ...and per agent
+shadow traces summary --from 7d --by tag                               # ...or per tag
 shadow traces list --outcome policy_violation --from 7d                # by declared outcome
 shadow traces summary --agent refund-agent --from 7d --compare         # this week against last
 shadow traces summary --from 30d --by day --out daily.csv              # the breakdown as CSV

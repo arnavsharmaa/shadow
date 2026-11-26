@@ -294,8 +294,8 @@ outcome) or UTC day the traces started on, each under its `key` and inside the s
 `?status=failed&from=…&groupBy=agent`. Without `groupBy` there is no `groups` field.
 `groupBy=tag` answers one group per tag in use: a trace counts under every tag it carries and
 an untagged trace under none, so these groups can overlap and need not add up to the totals.
-CLI: `shadow traces summary --by agent|project|status|outcome|day` prints the groups as a
-table under the totals.
+CLI: `shadow traces summary --by agent|project|status|outcome|tag|day` prints the groups as
+a table under the totals.
 
 `format=csv` answers the same numbers as a CSV document (`shadow-trace-summary.csv`): one row
 per group with the dimension's name heading the first column, or without `groupBy` a single
