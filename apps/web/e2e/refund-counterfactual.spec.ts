@@ -833,7 +833,8 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     await expect(bars).toHaveCount(49);
   });
 
-  test("a what-if runs across an agent's recorded traces", async ({ page }) => {
+  test("a what-if runs across an agent's recorded traces", async ({ page, request }) => {
+    const apiUrl = `http://127.0.0.1:${process.env.SHADOW_E2E_API_PORT ?? 4100}`;
     await page.goto("/agents");
     const refund = page.locator('[data-testid="agent-row"][data-agent-slug="refund-agent"]');
     await expect(refund).toBeVisible();
@@ -855,6 +856,19 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
     const rows = dialog.locator('[data-testid="batch-row"]');
     expect(await rows.count()).toBeGreaterThanOrEqual(2);
     await expect(dialog.getByTestId("batch-results")).toContainText("Approval");
+    // The batch can be narrowed to the runs that ended a given way: here the policy violations.
+    const violations = (await (
+      await request.get(`${apiUrl}/api/v1/traces?agent=refund-agent&outcome=policy_violation`)
+    ).json()) as { total: number };
+    expect(violations.total).toBeGreaterThan(0);
+    await dialog.getByTestId("batch-outcome").selectOption("policy_violation");
+    await dialog.getByTestId("run-batch").click();
+    await expect(dialog.getByTestId("batch-summary")).toContainText(
+      `(${violations.total} matching)`,
+      { timeout: 60_000 },
+    );
+    await expect(rows).toHaveCount(Math.min(violations.total, 10));
+    await expect(rows.filter({ hasText: "Policy violation" }).first()).toBeVisible();
     await rows
       .filter({ hasText: "changed" })
       .first()

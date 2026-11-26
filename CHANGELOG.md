@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The agents page's "What if" dialog can narrow the batch to the traces that ended with one
+  outcome kind (or with none), so a changed limit is tried on exactly the runs that ended in
+  a policy violation.
 - The explorer's "Break down by" menu offers Tag: one row per tag among the matching traces,
   with a note that a trace counts under every tag it carries; a tag's name sets the Tag
   filter.

@@ -320,6 +320,8 @@ export interface BatchRequest {
   at: { eventType?: string; name: string };
   overrides: Override[];
   branchName?: string;
+  /** Only traces that ended with this outcome kind; `none` for traces without an outcome. */
+  outcome?: string;
   limit?: number;
   budget?: { maxEvents?: number; maxCostUsd?: number; maxDurationMs?: number };
 }

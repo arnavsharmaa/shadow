@@ -13,6 +13,8 @@ interface Props {
   agent: AgentStatsRow;
   /** Tool names recorded anywhere, offered as suggestions for the fork point. */
   tools: string[];
+  /** Outcome kinds in use, offered to narrow the batch to the runs that ended a given way. */
+  outcomes: string[];
 }
 
 function parseValue(text: string): JsonValue {
@@ -28,11 +30,13 @@ const BACKGROUND_LIMIT = 500;
 const POLL_MS = 750;
 
 /** "What if" across an agent's recorded traces: one context override, many runs. */
-export function BatchDialog({ open, onClose, agent, tools }: Props) {
+export function BatchDialog({ open, onClose, agent, tools, outcomes }: Props) {
   const [tool, setTool] = useState("");
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const [limit, setLimit] = useState(10);
+  /** An outcome kind, `none`, or empty for whatever the traces ended with. */
+  const [outcome, setOutcome] = useState("");
   const [maxEvents, setMaxEvents] = useState("");
   const [maxCost, setMaxCost] = useState("");
   const [running, setRunning] = useState(false);
@@ -69,6 +73,7 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
         { kind: "context" as const, op: "set" as const, key: key.trim(), value: parseValue(value) },
       ],
       limit: Math.min(limit, maxLimit),
+      ...(outcome ? { outcome } : {}),
       ...(budget ? { budget } : {}),
     };
     try {
@@ -193,7 +198,24 @@ export function BatchDialog({ open, onClose, agent, tools }: Props) {
               data-testid="batch-max-cost"
             />
           </label>
-          <span className="col-span-2 self-end text-[11px] text-fg-faint">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-fg-muted">Only traces that ended with</span>
+            <select
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value)}
+              className="h-7 rounded border border-border bg-bg px-1"
+              data-testid="batch-outcome"
+            >
+              <option value="">Any outcome</option>
+              {outcomes.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind.replace(/[_-]+/g, " ")}
+                </option>
+              ))}
+              <option value="none">No outcome</option>
+            </select>
+          </label>
+          <span className="self-end text-[11px] text-fg-faint">
             A replay over budget is reported as failed; the others continue.
           </span>
         </div>

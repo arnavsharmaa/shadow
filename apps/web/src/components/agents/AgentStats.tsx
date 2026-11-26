@@ -175,6 +175,7 @@ export function AgentStats() {
           }}
           agent={batchAgent}
           tools={facets.data?.tools ?? []}
+          outcomes={(facets.data?.outcomes ?? []).filter((kind) => kind !== "none")}
         />
       )}
     </div>
