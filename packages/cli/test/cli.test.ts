@@ -161,6 +161,58 @@ describe("shadow cli", () => {
     expect(text).toContain("compare");
   });
 
+  it("says what narrows the webhook in the status line", async () => {
+    const health = (webhook: Record<string, unknown>) =>
+      fakeApi({
+        "GET /health": () => ({
+          body: {
+            status: "ok",
+            version: "0.1.0",
+            uptimeSeconds: 5,
+            database: { kind: "pglite", location: "pglite:/tmp/data", healthy: true },
+            agents: { replayable: [] },
+            features: {
+              auth: false,
+              retention: { enabled: false },
+              otlp: { path: "/api/v1/otlp/v1/traces", defaultProject: "otel" },
+              webhook,
+            },
+          },
+        }),
+        "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),
+        "GET /api/v1/traces/facets": () => ({
+          body: { projects: [], agents: [], tags: [], tools: [] },
+        }),
+      });
+
+    const narrowed = health({
+      enabled: true,
+      events: "all",
+      format: "json",
+      projects: ["support", "prod"],
+      tags: ["canary"],
+      outcomes: ["policy_violation", "escalated"],
+      minCost: 0.5,
+    });
+    expect(await runWith(narrowed, ["status"])).toBe(0);
+    expect(narrowed.captured.out.join("\n")).toContain(
+      "webhook on (all, json; only projects support, prod; tags canary; outcomes policy_violation, escalated; cost from $0.5)",
+    );
+
+    // One restriction on its own, and none at all.
+    const outcomes = health({ enabled: true, outcomes: ["escalated"] });
+    expect(await runWith(outcomes, ["status"])).toBe(0);
+    expect(outcomes.captured.out.join("\n")).toContain(
+      "webhook on (failures, json; outcomes escalated)",
+    );
+    const open = health({ enabled: true, events: "failures", format: "slack" });
+    expect(await runWith(open, ["status"])).toBe(0);
+    expect(open.captured.out.join("\n")).toContain("webhook on (failures, slack)");
+    const off = health({ enabled: false });
+    expect(await runWith(off, ["status"])).toBe(0);
+    expect(off.captured.out.join("\n")).toContain("webhook off");
+  });
+
   it("sends a bearer token when configured and explains 401s", async () => {
     const api = fakeApi({
       "GET /api/v1/traces": () => ({ body: { items: [], nextCursor: null, total: 0 } }),

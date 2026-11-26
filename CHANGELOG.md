@@ -11,6 +11,8 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow status` says what narrows the webhook (projects, tags, outcome kinds, cost floor)
+  next to its events and format, instead of only that it is on.
 - `shadow traces summary --by tag` prints the totals per tag, with a line saying that a trace
   counts under every tag it carries.
 - The Settings page's webhook line names the outcome kinds `SHADOW_WEBHOOK_OUTCOMES`

@@ -189,7 +189,15 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             defaultProject: string;
             export?: { enabled: boolean; encoding?: string };
           };
-          webhook?: { enabled: boolean; events?: string; format?: string };
+          webhook?: {
+            enabled: boolean;
+            events?: string;
+            format?: string;
+            projects?: string[];
+            tags?: string[];
+            outcomes?: string[];
+            minCost?: number;
+          };
           fileExport?: { enabled: boolean; dir?: string };
         };
       }>("/health");
@@ -231,8 +239,16 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           const retention = summary.features.retention.enabled
             ? `retention ${summary.features.retention.days}d${summary.features.retention.failedDays !== undefined ? ` (failed ${summary.features.retention.failedDays}d)` : ""} every ${summary.features.retention.intervalMinutes}m`
             : "retention off";
-          const webhook = summary.features.webhook?.enabled
-            ? `webhook on (${summary.features.webhook.events ?? "failures"}, ${summary.features.webhook.format ?? "json"})`
+          // What is sent and in what shape, then whatever narrows it, as the API applies it.
+          const hook = summary.features.webhook;
+          const narrowed = [
+            hook?.projects ? `only projects ${hook.projects.join(", ")}` : "",
+            hook?.tags ? `tags ${hook.tags.join(", ")}` : "",
+            hook?.outcomes ? `outcomes ${hook.outcomes.join(", ")}` : "",
+            hook?.minCost !== undefined ? `cost from $${hook.minCost}` : "",
+          ].filter((part) => part !== "");
+          const webhook = hook?.enabled
+            ? `webhook on (${[`${hook.events ?? "failures"}, ${hook.format ?? "json"}`, ...narrowed].join("; ")})`
             : "webhook off";
           const fileExport = summary.features.fileExport?.enabled
             ? `; file export to ${summary.features.fileExport.dir ?? "?"}`
