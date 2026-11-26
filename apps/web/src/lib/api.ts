@@ -291,6 +291,8 @@ export interface HealthFeatures {
     format?: string;
     projects?: string[];
     tags?: string[];
+    /** Outcome kinds a finished trace must end with to notify, when restricted. */
+    outcomes?: string[];
     minCost?: number;
   };
   fileExport?: { enabled: boolean; dir?: string };
