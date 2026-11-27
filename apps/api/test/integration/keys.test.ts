@@ -46,6 +46,14 @@ describe("scopeAllows", () => {
     expect(scopeAllows("admin", "DELETE", "/api/v1/traces/trc_1")).toBe(true);
     expect(scopeAllows("read", "GET", "/api/v1/traces?limit=5")).toBe(true);
     expect(scopeAllows("read", "POST", "/api/v1/traces")).toBe(false);
+    // The bulk export is a POST that only reads; nothing else a read key may POST.
+    expect(scopeAllows("read", "POST", "/api/v1/traces/export")).toBe(true);
+    expect(scopeAllows("read", "POST", "/api/v1/traces/export?x=1")).toBe(true);
+    expect(scopeAllows("read", "POST", "/api/v1/traces/export/extra")).toBe(false);
+    expect(scopeAllows("read", "POST", "/api/v1/traces/tags")).toBe(false);
+    expect(scopeAllows("read", "POST", "/api/v1/traces/prune")).toBe(false);
+    expect(scopeAllows("read", "DELETE", "/api/v1/traces/export")).toBe(false);
+    expect(scopeAllows("ingest", "POST", "/api/v1/traces/export")).toBe(false);
     expect(scopeAllows("ingest", "POST", "/api/v1/traces")).toBe(true);
     expect(scopeAllows("ingest", "POST", "/api/v1/traces/trc_1/events")).toBe(true);
     expect(scopeAllows("ingest", "PATCH", "/api/v1/traces/trc_1")).toBe(true);
@@ -398,6 +406,25 @@ describe("API keys", () => {
     const unscoped = await get("/api/v1/comparisons");
     expect(unscoped.statusCode).toBe(403);
     expect(json<ErrorEnvelope>(unscoped).error.message).toContain("traceId");
+
+    // The bulk export only reads, so a read key may call it although it is a POST. The pin
+    // holds there too, and the key still cannot change anything.
+    const post = (url: string, payload: Record<string, unknown>) =>
+      t.app.inject({ method: "POST", url, headers: h, payload });
+    const bulk = await post("/api/v1/traces/export", { traceIds: [scenario.traceId] });
+    expect(bulk.statusCode, bulk.body).toBe(200);
+    expect(bulk.headers["x-shadow-trace-count"]).toBe("1");
+    expect(bulk.body).toContain(scenario.traceId);
+    const foreignBulk = await post("/api/v1/traces/export", {
+      traceIds: [scenario.traceId, foreign.id],
+    });
+    expect(foreignBulk.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(foreignBulk).error.message).toContain(
+      "pinned to project 'support-agent'",
+    );
+    const tagging = await post("/api/v1/traces/tags", { traceIds: [scenario.traceId], add: ["x"] });
+    expect(tagging.statusCode).toBe(403);
+    expect(json<ErrorEnvelope>(tagging).error.message).toContain("scope 'read'");
 
     // What is not scoped to a project is refused; the price table is harmless.
     const auditLog = await get("/api/v1/audit");

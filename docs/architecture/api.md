@@ -339,7 +339,8 @@ Body `{ traceIds }` (1 to 500). Returns the traces as newline-delimited JSON, on
 bundle per line in the order given (duplicates once), as `application/x-ndjson` named
 `shadow-traces.shadow.ndjson`; `x-shadow-trace-count` carries the number of lines and
 `x-shadow-missing` lists ids that do not exist instead of failing the call. A key pinned to a
-project is refused (`403`) when any of the traces belongs to another project. CLI: `shadow
+project is refused (`403`) when any of the traces belongs to another project. The call only
+reads, so a `read` key may make it although it is a `POST`. CLI: `shadow
 traces export <id> <id>… [--out <dir> | --out <file>.ndjson]` writes one `<traceId>.json` per
 trace or the stream; the explorer's bulk bar exports the ticked traces. `shadow traces import`
 loads either form.
@@ -1302,7 +1303,7 @@ stays readable. CLI: `shadow keys rotate <nameOrId>`; the Settings page has a Ro
 | Scope    | Allowed requests                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ingest` | `POST /traces`, `POST /traces/:id/events`, `POST /traces/:id/artifacts`, `PATCH /traces/:id`, `POST /traces/import`, `POST /otlp/v1/traces`, `POST /import/*` |
-| `read`   | every `GET` (a pinned `read` key: only its project, see below)                                                                                                |
+| `read`   | every `GET`, and `POST /traces/export`, which only reads (a pinned `read` key: only its project, see below)                                                   |
 | `admin`  | everything, like the token                                                                                                                                    |
 
 An `ingest` key may be pinned to a project (`project`): it then records only into that project.

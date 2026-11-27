@@ -637,6 +637,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Fixed
 
+- A `read` API key can export several traces at once. `POST /traces/export` only reads, and
+  already kept a pinned key inside its project, but read keys were refused every `POST`, so
+  `shadow traces export <id> <id>` failed with `403` for exactly the keys meant for reading.
 - A saved view can carry the "Failed tool" filter (`toolError`). The filter was listed among
   the ones a view may hold, but `POST /views` refused any query containing it, so a view could
   not be shared while that filter was set. The accepted filters are now derived from that one

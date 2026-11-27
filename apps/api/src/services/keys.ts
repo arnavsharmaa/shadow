@@ -196,10 +196,19 @@ const INGEST_ROUTES: { method: string; pattern: RegExp }[] = [
   { method: "POST", pattern: /^\/api\/v1\/import\/[^/]+$/ },
 ];
 
+/**
+ * POST routes that only read. A `read` key may call them although it may not POST otherwise:
+ * the bulk export takes its trace ids in a body, which is the only reason it is not a GET.
+ */
+const READ_POST_ROUTES: RegExp[] = [/^\/api\/v1\/traces\/export$/];
+
 /** Whether a key's scope permits this request. */
 export function scopeAllows(scope: ApiKeyScope, method: string, url: string): boolean {
   if (scope === "admin") return true;
   const path = url.split("?")[0] ?? url;
-  if (scope === "read") return method === "GET" || method === "HEAD";
+  if (scope === "read") {
+    if (method === "GET" || method === "HEAD") return true;
+    return method === "POST" && READ_POST_ROUTES.some((pattern) => pattern.test(path));
+  }
   return INGEST_ROUTES.some((r) => r.method === method && r.pattern.test(path));
 }
