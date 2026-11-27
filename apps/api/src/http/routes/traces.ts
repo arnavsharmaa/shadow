@@ -43,6 +43,7 @@ import {
   listTraces,
   pruneTraces,
   tagTraces,
+  selectTraceIds,
   summarizeTraces,
   traceFacets,
   updateTrace,
@@ -65,6 +66,8 @@ const exportQuerySchema = z.object({
 const eventParams = z.object({ traceId: idSchema, eventId: idSchema });
 /** Rows an events CSV may hold; larger branches are cut and flagged with `x-shadow-truncated`. */
 const MAX_EVENT_CSV_ROWS = 100_000;
+/** Traces a selection adds to one export, newest first; bundles are whole traces, so few. */
+const EXPORT_SELECTION_LIMIT = 500;
 /** Rows a trace listing CSV holds at most; `x-shadow-truncated: true` says the cap was hit. */
 const MAX_TRACE_CSV_ROWS = 10_000;
 const TRACE_CSV_COLUMNS = [
@@ -235,13 +238,25 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  /** Several traces as newline-delimited bundles; a pinned key only gets its own project's. */
+  /**
+   * Several traces as newline-delimited bundles: the ones named, then the ones the trace list's
+   * filters match (the newest 500). A pinned key only gets its own project's.
+   */
   app.post(
     "/traces/export",
     { schema: { tags: ["transfer"], body: exportTracesBodySchema } },
     async (request, reply) => {
-      const { bundles, missing } = await exportTraces(app.services, request.body.traceIds);
       const pinned = projectOf(request);
+      const { traceIds, query } = request.body;
+      // A pinned key's selection is its own project's unless it names one, which is then checked.
+      const selected = query
+        ? await selectTraceIds(
+            app.services,
+            pinned && !query.project ? { ...query, project: pinned } : query,
+            EXPORT_SELECTION_LIMIT,
+          )
+        : [];
+      const { bundles, missing } = await exportTraces(app.services, [...traceIds, ...selected]);
       const foreign = pinned ? bundles.filter((b) => b.project.slug !== pinned) : [];
       if (foreign.length > 0) {
         throw new ApiError(
@@ -254,6 +269,7 @@ export const traceRoutes: FastifyPluginAsyncZod = async (app) => {
       reply.header("content-type", "application/x-ndjson; charset=utf-8");
       reply.header("content-disposition", 'attachment; filename="shadow-traces.shadow.ndjson"');
       reply.header("x-shadow-trace-count", String(bundles.length));
+      if (query) reply.header("x-shadow-matched", String(selected.length));
       if (missing.length > 0) reply.header("x-shadow-missing", missing.join(","));
       return reply.send(bundles.map((bundle) => `${JSON.stringify(bundle)}\n`).join(""));
     },

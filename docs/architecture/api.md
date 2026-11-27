@@ -335,12 +335,19 @@ Project and agent are slugs and are created on first use. Returns `201 Trace` wi
 
 ### `POST /api/v1/traces/export`
 
-Body `{ traceIds }` (1 to 500). Returns the traces as newline-delimited JSON, one `shadow.trace`
-bundle per line in the order given (duplicates once), as `application/x-ndjson` named
-`shadow-traces.shadow.ndjson`; `x-shadow-trace-count` carries the number of lines and
-`x-shadow-missing` lists ids that do not exist instead of failing the call. A key pinned to a
-project is refused (`403`) when any of the traces belongs to another project. The call only
-reads, so a `read` key may make it although it is a `POST`. CLI: `shadow
+Body `{ traceIds?, query? }`, at least one of them. `traceIds` (up to 500) names traces;
+`query` takes the trace list's filters (`project`, `agent`, `status`, `outcome`, `tag`, `tool`,
+`toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `meta`, `collection`, without
+paging or sorting) and adds the newest 500 traces they match, so "every run that ended in a
+policy violation last week" leaves as one file for an evaluation set or a bug report. Returns
+the traces as newline-delimited JSON, one `shadow.trace` bundle per line: the named ones in
+the order given, then the matched ones newest first, each trace once. The document is
+`application/x-ndjson` named `shadow-traces.shadow.ndjson`; `x-shadow-trace-count` carries the
+number of lines, `x-shadow-matched` how many traces the selection found, and
+`x-shadow-missing` lists ids that do not exist instead of failing the call. A selection that
+matches nothing answers an empty document. A key pinned to a project is refused (`403`) when
+any of the traces belongs to another project, and its selection covers its own project. The
+call only reads, so a `read` key may make it although it is a `POST`. CLI: `shadow
 traces export <id> <id>… [--out <dir> | --out <file>.ndjson]` writes one `<traceId>.json` per
 trace or the stream; the explorer's bulk bar exports the ticked traces. `shadow traces import`
 loads either form.

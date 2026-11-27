@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `POST /traces/export` takes `query` next to `traceIds`: the trace list's filters, whose
+  newest 500 matches are exported as bundles after the traces named, so the runs that ended
+  a given way or failed in a window leave as one newline-delimited file. `x-shadow-matched`
+  says how many traces the selection found.
 - `shadow status` says what narrows the webhook (projects, tags, outcome kinds, cost floor)
   next to its events and format, instead of only that it is on.
 - `shadow traces summary --by tag` prints the totals per tag, with a line saying that a trace

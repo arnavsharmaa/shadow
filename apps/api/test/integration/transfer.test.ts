@@ -148,6 +148,64 @@ describe("export and import", () => {
     await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${other.traceId}` });
   });
 
+  it("exports the traces a selection matches, after the ones named", async () => {
+    const a = await ingestRefundScenario(t, "trc_sel_export_a", {
+      seed: "sel-a",
+      startAt: "2026-10-10T09:00:00.000Z",
+    });
+    const b = await ingestRefundScenario(t, "trc_sel_export_b", {
+      seed: "sel-b",
+      startAt: "2026-10-11T09:00:00.000Z",
+    });
+    const window = { from: "2026-10-10T00:00:00.000Z", to: "2026-10-11T23:59:59.000Z" };
+    const post = (payload: Record<string, unknown>) =>
+      t.app.inject({ method: "POST", url: "/api/v1/traces/export", payload });
+    const ids = (body: string) =>
+      body
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => traceExportSchema.parse(JSON.parse(l)).trace.id);
+
+    // The selection is the trace list's: the same traces in the same order, newest first.
+    const selected = await post({ query: window });
+    expect(selected.statusCode, selected.body).toBe(200);
+    expect(selected.headers["content-type"]).toContain("application/x-ndjson");
+    expect(ids(selected.body)).toEqual([b.traceId, a.traceId]);
+    expect(selected.headers["x-shadow-trace-count"]).toBe("2");
+    expect(selected.headers["x-shadow-matched"]).toBe("2");
+    const listed = json<{ items: { id: string }[] }>(
+      await t.app.inject({
+        url: `/api/v1/traces?from=${encodeURIComponent(window.from)}&to=${encodeURIComponent(window.to)}`,
+      }),
+    ).items.map((item) => item.id);
+    expect(ids(selected.body)).toEqual(listed);
+    const violations = await post({ query: { ...window, outcome: "policy_violation" } });
+    expect(ids(violations.body).sort()).toEqual([a.traceId, b.traceId].sort());
+
+    // Named traces come first, a trace both named and matched once, unknown ids reported.
+    const both = await post({ traceIds: [a.traceId, "trc_nope"], query: window });
+    expect(ids(both.body)).toEqual([a.traceId, b.traceId]);
+    expect(both.headers["x-shadow-matched"]).toBe("2");
+    expect(both.headers["x-shadow-missing"]).toBe("trc_nope");
+
+    // A selection that matches nothing is an empty document, not an error; ids alone carry
+    // no matched header.
+    const none = await post({ query: { agent: "no-such-agent" } });
+    expect(none.statusCode).toBe(200);
+    expect(none.body).toBe("");
+    expect(none.headers["x-shadow-trace-count"]).toBe("0");
+    expect(none.headers["x-shadow-matched"]).toBe("0");
+    expect((await post({ traceIds: [a.traceId] })).headers["x-shadow-matched"]).toBeUndefined();
+
+    // Neither ids nor a selection, or a filter the list would refuse, is a 400.
+    expect((await post({})).statusCode).toBe(400);
+    expect((await post({ traceIds: [] })).statusCode).toBe(400);
+    expect((await post({ query: { status: "exploded" } })).statusCode).toBe(400);
+    for (const id of [a.traceId, b.traceId]) {
+      await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${id}` });
+    }
+  });
+
   it("refuses to import a bundle whose ids already exist when keeping ids", async () => {
     const response = await importBundle(bundle, "keep");
     expect(response.statusCode).toBe(409);

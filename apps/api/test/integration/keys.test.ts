@@ -382,6 +382,23 @@ describe("API keys", () => {
     );
     expect(allTotals.traces).toBeGreaterThan(pinnedTotals.traces);
     expect(await status("/api/v1/traces/summary?project=billing")).toBe(403);
+    // An export by selection covers the pinned project only; another project's is refused.
+    const exported = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/export",
+      headers: h,
+      payload: { query: {} },
+    });
+    expect(exported.statusCode, exported.body).toBe(200);
+    expect(exported.headers["x-shadow-trace-count"]).toBe(String(pinnedTotals.traces));
+    expect(exported.body).not.toContain(foreign.id);
+    const foreignExport = await t.app.inject({
+      method: "POST",
+      url: "/api/v1/traces/export",
+      headers: h,
+      payload: { query: { project: "billing" } },
+    });
+    expect(foreignExport.statusCode).toBe(403);
     const projects = json<{ items: { id: string; slug: string }[] }>(await get("/api/v1/projects"));
     expect(projects.items.map((p) => p.slug)).toEqual(["support-agent"]);
     const agentList = json<{ items: { projectId: string }[] }>(await get("/api/v1/agents"));

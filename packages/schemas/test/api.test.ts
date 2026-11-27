@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   batchCounterfactualBodySchema,
+  collectionTracesBodySchema,
   createAlertRuleBodySchema,
   createCollectionBodySchema,
   createShareBodySchema,
   eventListQuerySchema,
+  exportTracesBodySchema,
   importAnthropicBodySchema,
   pageSchema,
+  tagTracesBodySchema,
   updateAlertRuleBodySchema,
   updateCollectionBodySchema,
   updateTraceBodySchema,
@@ -90,6 +93,70 @@ describe("collection bodies", () => {
     expect(updateCollectionBodySchema.safeParse({}).success).toBe(false);
     expect(updateCollectionBodySchema.parse({ description: null })).toEqual({ description: null });
     expect(updateCollectionBodySchema.parse({ name: "renamed" })).toEqual({ name: "renamed" });
+  });
+});
+
+describe("bodies that pick traces by id, by a selection, or both", () => {
+  const bodies = [
+    ["export", exportTracesBodySchema, {}],
+    ["collect", collectionTracesBodySchema, {}],
+    ["tag", tagTracesBodySchema, { add: ["triage"] }],
+  ] as const;
+
+  it("take ids, the trace list's filters, or both", () => {
+    for (const [name, schema, extra] of bodies) {
+      expect(schema.parse({ ...extra, traceIds: ["trc_1"] }), name).toMatchObject({
+        traceIds: ["trc_1"],
+      });
+      // Filters alone: the ids default to none, and query-string spellings are understood.
+      const selected = schema.parse({
+        ...extra,
+        query: { agent: "refund-agent", outcome: "policy_violation", minCost: "0.5" },
+      });
+      expect(selected.traceIds, name).toEqual([]);
+      expect(selected.query, name).toEqual({
+        agent: "refund-agent",
+        outcome: "policy_violation",
+        minCost: 0.5,
+      });
+      // An empty selection is a selection: every trace, up to the route's cap.
+      expect(schema.safeParse({ ...extra, query: {} }).success, name).toBe(true);
+      expect(
+        schema.safeParse({ ...extra, traceIds: ["trc_1"], query: { status: "failed" } }).success,
+        name,
+      ).toBe(true);
+    }
+  });
+
+  it("need one of the two, and refuse what the list would refuse", () => {
+    for (const [name, schema, extra] of bodies) {
+      const neither = schema.safeParse({ ...extra });
+      expect(neither.success, name).toBe(false);
+      expect(neither.error?.issues[0]?.message, name).toBe("traceIds or query is required");
+      expect(schema.safeParse({ ...extra, traceIds: [] }).success, name).toBe(false);
+      expect(schema.safeParse({ ...extra, query: { status: "exploded" } }).success, name).toBe(
+        false,
+      );
+      // Paging and sorting are not part of a selection.
+      expect(schema.parse({ ...extra, query: { limit: 5, sort: "name" } }).query, name).toEqual({});
+      expect(
+        schema.safeParse({
+          ...extra,
+          traceIds: Array.from({ length: 501 }, (_, i) => `trc_${i}`),
+        }).success,
+        name,
+      ).toBe(false);
+    }
+  });
+
+  it("tagging also needs something to add or remove", () => {
+    const idle = tagTracesBodySchema.safeParse({ traceIds: ["trc_1"] });
+    expect(idle.success).toBe(false);
+    expect(idle.error?.issues[0]?.message).toBe("add or remove is required");
+    expect(tagTracesBodySchema.parse({ traceIds: ["trc_1"], remove: ["stale"] })).toMatchObject({
+      add: [],
+      remove: ["stale"],
+    });
   });
 });
 

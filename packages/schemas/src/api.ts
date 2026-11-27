@@ -737,8 +737,14 @@ export const importTraceBodySchema = z.object({
   idStrategy: z.enum(["keep", "regenerate"]).default("keep"),
 });
 
-/** Several traces at once, as newline-delimited bundles. */
-export const exportTracesBodySchema = z.object({
-  traceIds: z.array(idSchema).min(1).max(500),
-});
+/** Several traces at once, as newline-delimited bundles: by id, by a selection, or both. */
+export const exportTracesBodySchema = z
+  .object({
+    traceIds: z.array(idSchema).max(500).default([]),
+    /** Also export every trace matching these filters (the newest 500), as the explorer lists them. */
+    query: traceSelectionSchema.optional(),
+  })
+  .refine((body) => body.traceIds.length > 0 || body.query !== undefined, {
+    message: "traceIds or query is required",
+  });
 export type ExportTracesBody = z.infer<typeof exportTracesBodySchema>;
