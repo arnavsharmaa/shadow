@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces export` takes the filters of `traces list` (`--agent`, `--status`,
+  `--outcome`, `--tag`, `--from`, …) in place of, or next to, trace ids, and writes the
+  matching traces as bundles: `shadow traces export --outcome policy_violation --from 7d
+  --out violations.ndjson`.
 - `POST /traces/export` takes `query` next to `traceIds`: the trace list's filters, whose
   newest 500 matches are exported as bundles after the traces named, so the runs that ended
   a given way or failed in a window leave as one newline-delimited file. `x-shadow-matched`

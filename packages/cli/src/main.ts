@@ -653,9 +653,29 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
   traces
     .command("export")
     .description(
-      "export a trace (all branches) as a portable JSON bundle or a Markdown report; several traces as one bundle per line or one file each",
+      "export a trace (all branches) as a portable JSON bundle or a Markdown report; several traces, named or picked by the same filters as `traces list` (the newest 500 matches), as one bundle per line or one file each",
     )
-    .argument("<traceId...>", "trace id, or several")
+    .argument("[traceId...]", "trace id, or several")
+    .option("--project <slug>", "traces in this project")
+    .option("--agent <slug>", "traces of this agent")
+    .option("--status <status>", "running | completed | failed")
+    .option(
+      "--outcome <kind>",
+      "outcome kind such as policy_violation; none for traces without an outcome",
+    )
+    .option("--tag <tag>", "traces carrying this tag")
+    .option("--tool <name>", "traces that called a tool")
+    .option("--tool-error <name>", "traces in which a tool raised an error")
+    .option("-q, --query <text>", "free-text search")
+    .option("--from <cutoff>", "started at or after (ISO timestamp or age such as 7d)", cutoff)
+    .option("--to <cutoff>", "started at or before (ISO timestamp or age such as 1h)", cutoff)
+    .option("--min-cost <amount>", "estimated cost at least this much", nonNegative)
+    .option("--min-duration <ms>", "duration at least this many milliseconds", nonNegative)
+    .option("--collection <name>", "traces in this collection")
+    .option(
+      "--meta <key=value>",
+      "metadata entry to match exactly; a bare key matches its presence",
+    )
     .option(
       "-o, --out <path>",
       "write to a file instead of stdout; with several traces, a directory for one <traceId>.json each, or a .ndjson file",
@@ -663,8 +683,51 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
     .option("--markdown", "a human-readable report instead of the JSON bundle (one trace)")
     .option("--max-events <n>", "events listed per branch in the report", positiveInt, 60)
     .action(
-      async (traceIds: string[], opts: { out?: string; markdown?: boolean; maxEvents: number }) => {
-        if (traceIds.length > 1) {
+      async (
+        traceIds: string[],
+        opts: {
+          out?: string;
+          markdown?: boolean;
+          maxEvents: number;
+          project?: string;
+          agent?: string;
+          status?: string;
+          outcome?: string;
+          tag?: string;
+          tool?: string;
+          toolError?: string;
+          query?: string;
+          from?: string;
+          to?: string;
+          minCost?: number;
+          minDuration?: number;
+          collection?: string;
+          meta?: string;
+        },
+      ) => {
+        const selection: Record<string, string | number> = {};
+        if (opts.project) selection.project = opts.project;
+        if (opts.agent) selection.agent = opts.agent;
+        if (opts.status) selection.status = opts.status;
+        if (opts.outcome) selection.outcome = opts.outcome;
+        if (opts.tag) selection.tag = opts.tag;
+        if (opts.tool) selection.tool = opts.tool;
+        if (opts.toolError) selection.toolError = opts.toolError;
+        if (opts.query) selection.q = opts.query;
+        if (opts.from) selection.from = opts.from;
+        if (opts.to) selection.to = opts.to;
+        if (opts.minCost !== undefined) selection.minCost = opts.minCost;
+        if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
+        if (opts.collection) selection.collection = opts.collection;
+        if (opts.meta) selection.meta = opts.meta;
+        const hasSelection = Object.keys(selection).length > 0;
+        if (traceIds.length === 0 && !hasSelection) {
+          throw new CliError(
+            "say which traces: trace ids, filters such as --agent or --outcome, or both",
+            EXIT.usage,
+          );
+        }
+        if (traceIds.length > 1 || hasSelection) {
           if (opts.markdown) {
             throw new CliError("--markdown reports one trace at a time", EXIT.usage);
           }
@@ -674,11 +737,14 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
             "application/x-ndjson",
             {
               traceIds,
+              ...(hasSelection ? { query: selection } : {}),
             },
           );
           const text = new TextDecoder().decode(bytes);
           const lines = text.split("\n").filter((l) => l.length > 0);
-          const missing = traceIds.length - lines.length;
+          // With filters the API decides how many traces there are; only named ids can be missed.
+          if (hasSelection && lines.length === 0) return out("no traces match");
+          const missing = hasSelection ? 0 : traceIds.length - lines.length;
           const note = missing > 0 ? ` (${missing} not found)` : "";
           if (!opts.out) return out(text.replace(/\n$/, ""));
           if (opts.out.endsWith(".ndjson")) {

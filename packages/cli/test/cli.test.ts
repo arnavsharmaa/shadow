@@ -3041,6 +3041,74 @@ describe("shadow cli", () => {
     expect(params()).toEqual({});
   });
 
+  it("exports the traces a set of filters matches", async () => {
+    const bundleOf = (id: string) => ({ format: "shadow.trace", trace: { id }, events: [] });
+    const api = fakeApi({
+      "POST /api/v1/traces/export": () => ({
+        raw: true,
+        contentType: "application/x-ndjson; charset=utf-8",
+        body: `${JSON.stringify(bundleOf("trc_9"))}\n${JSON.stringify(bundleOf("trc_8"))}\n`,
+      }),
+    });
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-export-"));
+
+    // Filters alone: the selection goes in the body and every bundle is written.
+    const file = path.join(dir, "violations.ndjson");
+    expect(
+      await runWith(api, [
+        "traces",
+        "export",
+        "--agent",
+        "refund-agent",
+        "--outcome",
+        "policy_violation",
+        "--min-cost",
+        "0.01",
+        "--out",
+        file,
+      ]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { agent: "refund-agent", outcome: "policy_violation", minCost: 0.01 },
+    });
+    expect((await readFile(file, "utf8")).split("\n").filter((l) => l.length > 0)).toHaveLength(2);
+    expect(api.captured.out.at(-1)).toBe(`wrote 2 bundle(s) to ${file}`);
+
+    // One file per trace into a directory, and ids together with filters.
+    const outDir = path.join(dir, "bundles");
+    expect(
+      await runWith(api, ["traces", "export", "trc_1", "--status", "failed", "--out", outDir]),
+    ).toBe(0);
+    expect(api.captured.calls.at(-1)?.body).toEqual({
+      traceIds: ["trc_1"],
+      query: { status: "failed" },
+    });
+    expect(JSON.parse(await readFile(path.join(outDir, "trc_8.json"), "utf8"))).toMatchObject({
+      trace: { id: "trc_8" },
+    });
+    expect(api.captured.out.at(-1)).toBe(`wrote 2 bundle(s) to ${outDir}`);
+
+    // Nothing matched is said, not written; a report still takes one trace; no selection at all
+    // is a usage error before any request.
+    const empty = fakeApi({
+      "POST /api/v1/traces/export": () => ({
+        raw: true,
+        contentType: "application/x-ndjson; charset=utf-8",
+        body: "",
+      }),
+    });
+    const nothing = path.join(dir, "nothing.ndjson");
+    expect(await runWith(empty, ["traces", "export", "--tag", "nope", "--out", nothing])).toBe(0);
+    expect(empty.captured.out.at(-1)).toBe("no traces match");
+    await expect(readFile(nothing, "utf8")).rejects.toThrow();
+    const calls = api.captured.calls.length;
+    expect(await runWith(api, ["traces", "export", "--status", "failed", "--markdown"])).toBe(2);
+    expect(await runWith(api, ["traces", "export"])).toBe(2);
+    expect(api.captured.calls).toHaveLength(calls);
+    expect(api.captured.err.join("\n")).toContain("say which traces");
+  });
+
   it("tags traces by filter and collects them by filter", async () => {
     const api = fakeApi({
       "POST /api/v1/traces/tags": (body) => {
