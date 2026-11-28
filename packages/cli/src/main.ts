@@ -677,6 +677,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
       "metadata entry to match exactly; a bare key matches its presence",
     )
     .option(
+      "--limit <n>",
+      "export at most this many of the traces the filters match, newest first (1-500); on its own, the newest n traces",
+      positiveInt,
+    )
+    .option(
       "-o, --out <path>",
       "write to a file instead of stdout; with several traces, a directory for one <traceId>.json each, or a .ndjson file",
     )
@@ -703,6 +708,7 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           minDuration?: number;
           collection?: string;
           meta?: string;
+          limit?: number;
         },
       ) => {
         const selection: Record<string, string | number> = {};
@@ -720,7 +726,11 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
         if (opts.minDuration !== undefined) selection.minDurationMs = opts.minDuration;
         if (opts.collection) selection.collection = opts.collection;
         if (opts.meta) selection.meta = opts.meta;
-        const hasSelection = Object.keys(selection).length > 0;
+        if (opts.limit !== undefined && opts.limit > EXPORT_LIMIT) {
+          throw new CliError(`--limit: at most ${EXPORT_LIMIT} traces per export`, EXIT.usage);
+        }
+        // A limit on its own is a selection too: the newest traces, whatever they are.
+        const hasSelection = Object.keys(selection).length > 0 || opts.limit !== undefined;
         if (traceIds.length === 0 && !hasSelection) {
           throw new CliError(
             "say which traces: trace ids, filters such as --agent or --outcome, or both",
@@ -731,20 +741,35 @@ export async function run(argv: string[], options: RunOptions = {}): Promise<num
           if (opts.markdown) {
             throw new CliError("--markdown reports one trace at a time", EXIT.usage);
           }
-          const { bytes } = await client().download(
+          const { bytes, headers } = await client().download(
             "/api/v1/traces/export",
             {},
             "application/x-ndjson",
             {
               traceIds,
               ...(hasSelection ? { query: selection } : {}),
+              ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
             },
           );
           const text = new TextDecoder().decode(bytes);
           const lines = text.split("\n").filter((l) => l.length > 0);
-          // With filters the API decides how many traces there are; only named ids can be missed.
           if (hasSelection && lines.length === 0) return out("no traces match");
-          const missing = hasSelection ? 0 : traceIds.length - lines.length;
+          // On stderr, so a piped export stays one bundle per line.
+          if (headers.get("x-shadow-truncated") === "true") {
+            const cap = opts.limit ?? EXPORT_LIMIT;
+            err(
+              `more traces match than the ${cap} exported (the newest); narrow the filters${cap < EXPORT_LIMIT ? ` or raise --limit (up to ${EXPORT_LIMIT})` : ""}`,
+            );
+          }
+          // The API names the ids it could not find. Without that header only an export by id
+          // alone can be counted: with filters the API decides how many traces there are.
+          const unknown = headers.get("x-shadow-missing");
+          const missing =
+            unknown !== null
+              ? unknown.split(",").filter((id) => id !== "").length
+              : hasSelection
+                ? 0
+                : traceIds.length - lines.length;
           const note = missing > 0 ? ` (${missing} not found)` : "";
           if (!opts.out) return out(text.replace(/\n$/, ""));
           if (opts.out.endsWith(".ndjson")) {
@@ -4285,6 +4310,8 @@ function nonNegative(value: string): number {
   return n;
 }
 
+/** Traces one export takes from a selection at most, as the API caps it. */
+const EXPORT_LIMIT = 500;
 const GROUP_DIMENSIONS = ["agent", "project", "status", "outcome", "tag", "day"];
 
 /** Commander parser for `--by`: what a summary can be broken down by. */

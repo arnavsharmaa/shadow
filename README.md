@@ -228,6 +228,7 @@ shadow traces import ./exports            # every bundle under a directory (such
 shadow collections export incident-42 --out ./incident-42   # one bundle per trace, ready to import elsewhere
 shadow traces export trc_a trc_b --out ./handover             # several traces at once, the same way
 shadow traces export --outcome policy_violation --from 7d --out violations.ndjson   # ...or by filter
+shadow traces export --status failed --limit 20 --out ./latest-failures        # ...the newest 20 of them
 shadow fork trc_demo_refund_violation --at <eventId> --set refundLimit=100 --replay
 shadow replay <branchId>
 shadow matrix trc_demo_refund_violation --at <eventId> --vary refundLimit=50,100,500

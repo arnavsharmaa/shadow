@@ -11,6 +11,10 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- `shadow traces export --limit <n>` exports the newest `n` of the traces the filters match
+  (on its own, the newest `n` traces), and the command says on stderr when more traces
+  matched than were exported instead of quietly writing the first 500. Named ids that do
+  not exist are counted next to filters too.
 - `POST /traces/export` takes `limit` (1 to 500) to export only the newest few of the traces
   a `query` matches, and answers `x-shadow-truncated: true` when more traces matched than
   were exported, so a client can tell a complete export from the first 500 of many.

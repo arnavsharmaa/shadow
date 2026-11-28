@@ -14,7 +14,13 @@ interface Captured {
 function fakeApi(
   routes: Record<
     string,
-    (body: unknown) => { status?: number; body: unknown; raw?: boolean; contentType?: string }
+    (body: unknown) => {
+      status?: number;
+      body: unknown;
+      raw?: boolean;
+      contentType?: string;
+      headers?: Record<string, string>;
+    }
   >,
 ): {
   fetch: typeof fetch;
@@ -47,7 +53,7 @@ function fakeApi(
     // `raw` answers with the body text as is (CSV, Markdown); otherwise JSON.
     return new Response(result.raw ? String(result.body) : JSON.stringify(result.body), {
       status: result.status ?? 200,
-      headers: { "content-type": result.contentType ?? "application/json" },
+      headers: { "content-type": result.contentType ?? "application/json", ...result.headers },
     });
   }) as unknown as typeof fetch;
   return { fetch: fetchImpl, captured };
@@ -3107,6 +3113,78 @@ describe("shadow cli", () => {
     expect(await runWith(api, ["traces", "export"])).toBe(2);
     expect(api.captured.calls).toHaveLength(calls);
     expect(api.captured.err.join("\n")).toContain("say which traces");
+  });
+
+  it("caps an export by filter and says when more traces matched", async () => {
+    const bundleOf = (id: string) => ({ format: "shadow.trace", trace: { id }, events: [] });
+    const exporting = (headers: Record<string, string>) =>
+      fakeApi({
+        "POST /api/v1/traces/export": () => ({
+          raw: true,
+          contentType: "application/x-ndjson; charset=utf-8",
+          headers,
+          body: `${JSON.stringify(bundleOf("trc_9"))}\n${JSON.stringify(bundleOf("trc_8"))}\n`,
+        }),
+      });
+    const dir = await mkdtemp(path.join(tmpdir(), "shadow-cli-export-limit-"));
+    const file = path.join(dir, "failed.ndjson");
+
+    // The limit travels next to the selection; a cut is said on stderr, the file is still written.
+    const cut = exporting({ "x-shadow-matched": "2", "x-shadow-truncated": "true" });
+    expect(
+      await runWith(cut, ["traces", "export", "--status", "failed", "--limit", "2", "--out", file]),
+    ).toBe(0);
+    expect(cut.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { status: "failed" },
+      limit: 2,
+    });
+    expect(cut.captured.err).toEqual([
+      "more traces match than the 2 exported (the newest); narrow the filters or raise --limit (up to 500)",
+    ]);
+    expect(cut.captured.out.at(-1)).toBe(`wrote 2 bundle(s) to ${file}`);
+
+    // Without --limit the API's own cap was hit, and raising it is not on offer. The bundles
+    // on stdout stay free of the note.
+    const capped = exporting({ "x-shadow-truncated": "true" });
+    expect(await runWith(capped, ["traces", "export", "--status", "failed"])).toBe(0);
+    expect(capped.captured.calls.at(-1)?.body).toEqual({
+      traceIds: [],
+      query: { status: "failed" },
+    });
+    expect(capped.captured.err).toEqual([
+      "more traces match than the 500 exported (the newest); narrow the filters",
+    ]);
+    expect(capped.captured.out.join("\n")).not.toContain("more traces match");
+
+    // A limit alone exports the newest traces; a complete export says nothing.
+    const whole = exporting({ "x-shadow-matched": "2", "x-shadow-truncated": "false" });
+    expect(await runWith(whole, ["traces", "export", "--limit", "3", "--out", file])).toBe(0);
+    expect(whole.captured.calls.at(-1)?.body).toEqual({ traceIds: [], query: {}, limit: 3 });
+    expect(whole.captured.err).toEqual([]);
+
+    // Named ids the API could not find are counted next to a selection too.
+    const gaps = exporting({ "x-shadow-missing": "trc_nope,trc_gone" });
+    expect(
+      await runWith(gaps, [
+        "traces",
+        "export",
+        "trc_nope",
+        "trc_gone",
+        "--tag",
+        "x",
+        "--out",
+        file,
+      ]),
+    ).toBe(0);
+    expect(gaps.captured.out.at(-1)).toBe(`wrote 2 bundle(s) to ${file} (2 not found)`);
+
+    // More than the API takes, or nothing, is refused before any request.
+    const refused = exporting({});
+    expect(await runWith(refused, ["traces", "export", "--limit", "501"])).toBe(2);
+    expect(refused.captured.err.join("\n")).toContain("--limit: at most 500 traces per export");
+    expect(await runWith(refused, ["traces", "export", "--limit", "0"])).toBe(2);
+    expect(refused.captured.calls).toHaveLength(0);
   });
 
   it("tags traces by filter and collects them by filter", async () => {

@@ -354,7 +354,8 @@ any of the traces belongs to another project, and its selection covers its own p
 call only reads, so a `read` key may make it although it is a `POST`. CLI: `shadow
 traces export <id> <id>… [--out <dir> | --out <file>.ndjson]` writes one `<traceId>.json` per
 trace or the stream, and takes the list's filters (`--agent`, `--outcome`, `--from`, …) in
-place of or next to ids; the explorer's bulk bar exports the ticked traces. `shadow traces import`
+place of or next to ids, with `--limit <n>` for the newest few of the matches (a note on
+stderr says when more traces matched than were exported); the explorer's bulk bar exports the ticked traces. `shadow traces import`
 loads either form.
 
 ### `POST /api/v1/traces/import`

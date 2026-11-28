@@ -71,7 +71,7 @@ export class ApiClient {
     query: Record<string, string | number | undefined>,
     accept: string,
     body?: unknown,
-  ): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string }> {
+  ): Promise<{ bytes: Uint8Array<ArrayBuffer>; contentType: string; headers: Headers }> {
     const url = new URL(`${this.endpoint}${path}`);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
@@ -112,6 +112,7 @@ export class ApiClient {
     return {
       bytes: new Uint8Array(await response.arrayBuffer()),
       contentType: response.headers.get("content-type") ?? "application/octet-stream",
+      headers: response.headers,
     };
   }
 
