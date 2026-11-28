@@ -741,8 +741,10 @@ export const importTraceBodySchema = z.object({
 export const exportTracesBodySchema = z
   .object({
     traceIds: z.array(idSchema).max(500).default([]),
-    /** Also export every trace matching these filters (the newest 500), as the explorer lists them. */
+    /** Also export the traces matching these filters, newest first, as the explorer lists them. */
     query: traceSelectionSchema.optional(),
+    /** How many of the traces `query` matches to export at most. */
+    limit: z.number().int().min(1).max(500).default(500),
   })
   .refine((body) => body.traceIds.length > 0 || body.query !== undefined, {
     message: "traceIds or query is required",

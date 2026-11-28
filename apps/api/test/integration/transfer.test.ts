@@ -206,6 +206,66 @@ describe("export and import", () => {
     }
   });
 
+  it("caps a selection export at the limit and says when more traces matched", async () => {
+    const a = await ingestRefundScenario(t, "trc_cap_export_a", {
+      seed: "cap-a",
+      startAt: "2026-10-14T09:00:00.000Z",
+    });
+    const b = await ingestRefundScenario(t, "trc_cap_export_b", {
+      seed: "cap-b",
+      startAt: "2026-10-15T09:00:00.000Z",
+    });
+    const c = await ingestRefundScenario(t, "trc_cap_export_c", {
+      seed: "cap-c",
+      startAt: "2026-10-16T09:00:00.000Z",
+    });
+    const window = { from: "2026-10-14T00:00:00.000Z", to: "2026-10-16T23:59:59.000Z" };
+    const post = (payload: Record<string, unknown>) =>
+      t.app.inject({ method: "POST", url: "/api/v1/traces/export", payload });
+    const ids = (body: string) =>
+      body
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => traceExportSchema.parse(JSON.parse(l)).trace.id);
+
+    // Fewer than match: the newest ones, and the cut is said.
+    const two = await post({ query: window, limit: 2 });
+    expect(two.statusCode, two.body).toBe(200);
+    expect(ids(two.body)).toEqual([c.traceId, b.traceId]);
+    expect(two.headers["x-shadow-matched"]).toBe("2");
+    expect(two.headers["x-shadow-truncated"]).toBe("true");
+
+    // A limit the selection just fits, a larger one, and the default are not cuts.
+    for (const payload of [
+      { query: window, limit: 3 },
+      { query: window, limit: 4 },
+      { query: window },
+    ]) {
+      const all = await post(payload);
+      expect(ids(all.body)).toEqual([c.traceId, b.traceId, a.traceId]);
+      expect(all.headers["x-shadow-matched"]).toBe("3");
+      expect(all.headers["x-shadow-truncated"]).toBe("false");
+    }
+
+    // The limit caps what the selection adds, not the traces named next to it.
+    const named = await post({ traceIds: [a.traceId], query: window, limit: 1 });
+    expect(ids(named.body)).toEqual([a.traceId, c.traceId]);
+    expect(named.headers["x-shadow-trace-count"]).toBe("2");
+    expect(named.headers["x-shadow-matched"]).toBe("1");
+    expect(named.headers["x-shadow-truncated"]).toBe("true");
+
+    // Ids alone are never cut, so nothing is said about it; a limit outside 1-500 is a 400.
+    const byId = await post({ traceIds: [a.traceId, b.traceId], limit: 1 });
+    expect(ids(byId.body)).toEqual([a.traceId, b.traceId]);
+    expect(byId.headers["x-shadow-truncated"]).toBeUndefined();
+    for (const limit of [0, 501, 1.5, "2"]) {
+      expect((await post({ query: window, limit })).statusCode, String(limit)).toBe(400);
+    }
+    for (const id of [a.traceId, b.traceId, c.traceId]) {
+      await t.app.inject({ method: "DELETE", url: `/api/v1/traces/${id}` });
+    }
+  });
+
   it("refuses to import a bundle whose ids already exist when keeping ids", async () => {
     const response = await importBundle(bundle, "keep");
     expect(response.statusCode).toBe(409);

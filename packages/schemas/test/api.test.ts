@@ -96,6 +96,19 @@ describe("collection bodies", () => {
   });
 });
 
+describe("the bulk export's limit", () => {
+  it("defaults to 500 and stays between 1 and 500", () => {
+    expect(exportTracesBodySchema.parse({ query: {} }).limit).toBe(500);
+    expect(exportTracesBodySchema.parse({ query: {}, limit: 20 }).limit).toBe(20);
+    expect(exportTracesBodySchema.parse({ traceIds: ["trc_1"], limit: 1 }).limit).toBe(1);
+    for (const limit of [0, 501, 2.5, "20", null]) {
+      expect(exportTracesBodySchema.safeParse({ query: {}, limit }).success, String(limit)).toBe(
+        false,
+      );
+    }
+  });
+});
+
 describe("bodies that pick traces by id, by a selection, or both", () => {
   const bodies = [
     ["export", exportTracesBodySchema, {}],

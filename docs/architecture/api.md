@@ -335,15 +335,19 @@ Project and agent are slugs and are created on first use. Returns `201 Trace` wi
 
 ### `POST /api/v1/traces/export`
 
-Body `{ traceIds?, query? }`, at least one of them. `traceIds` (up to 500) names traces;
-`query` takes the trace list's filters (`project`, `agent`, `status`, `outcome`, `tag`, `tool`,
-`toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `meta`, `collection`, without
-paging or sorting) and adds the newest 500 traces they match, so "every run that ended in a
-policy violation last week" leaves as one file for an evaluation set or a bug report. Returns
+Body `{ traceIds?, query?, limit? }`, at least one of the first two. `traceIds` (up to 500)
+names traces; `query` takes the trace list's filters (`project`, `agent`, `status`, `outcome`,
+`tag`, `tool`, `toolError`, `q`, `from`, `to`, `minCost`, `minDurationMs`, `meta`,
+`collection`, without paging or sorting) and adds the newest traces they match, so "every run
+that ended in a policy violation last week" leaves as one file for an evaluation set or a bug
+report. `limit` (1 to 500, default 500) is how many of the matches are exported at most; it
+does not cap the traces named. Returns
 the traces as newline-delimited JSON, one `shadow.trace` bundle per line: the named ones in
 the order given, then the matched ones newest first, each trace once. The document is
 `application/x-ndjson` named `shadow-traces.shadow.ndjson`; `x-shadow-trace-count` carries the
-number of lines, `x-shadow-matched` how many traces the selection found, and
+number of lines, `x-shadow-matched` how many traces the selection added,
+`x-shadow-truncated` whether more traces matched than `limit` let through (`true` or `false`,
+only with a `query`), and
 `x-shadow-missing` lists ids that do not exist instead of failing the call. A selection that
 matches nothing answers an empty document. A key pinned to a project is refused (`403`) when
 any of the traces belongs to another project, and its selection covers its own project. The
