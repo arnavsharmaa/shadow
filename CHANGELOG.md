@@ -11,6 +11,9 @@ migration (see `docs/concepts/schema-versioning.md`).
 
 ### Added
 
+- The explorer's "Export bundles" button downloads every trace the current filters match
+  (the newest 500) as one newline-delimited file of bundles, without ticking rows page by
+  page, and says when the filters match more than it exported.
 - `shadow traces export --limit <n>` exports the newest `n` of the traces the filters match
   (on its own, the newest `n` traces), and the command says on stderr when more traces
   matched than were exported instead of quietly writing the first 500. Named ids that do

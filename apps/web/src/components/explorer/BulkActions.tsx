@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
+import { countBundles, EXPORT_FILENAME, saveText } from "@/lib/export";
 import type { TraceSelection, TraceSummary } from "@shadow/schemas";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -39,15 +40,9 @@ export function BulkActions({
     setBusy(true);
     setMessage(null);
     try {
-      const text = await api.exportTracesNdjson(traces.map((t) => t.id));
-      const blob = new Blob([text], { type: "application/x-ndjson" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "shadow-traces.shadow.ndjson";
-      anchor.click();
-      URL.revokeObjectURL(url);
-      const count = text.split("\n").filter((l) => l.length > 0).length;
+      const text = await api.exportTracesNdjson({ traceIds: traces.map((t) => t.id) });
+      saveText(text, EXPORT_FILENAME, "application/x-ndjson");
+      const count = countBundles(text);
       setMessage({ text: `Exported ${count} trace${count === 1 ? "" : "s"}`, error: false });
     } catch (e) {
       setMessage({ text: e instanceof Error ? e.message : String(e), error: true });

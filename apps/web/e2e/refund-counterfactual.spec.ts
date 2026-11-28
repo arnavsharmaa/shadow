@@ -912,6 +912,19 @@ test.describe("Refund agent: rewind, fork, replay, compare", () => {
       await page.goto("/?project=e2e-bulk");
       const rows = page.locator('[data-testid="trace-row"]');
       await expect(rows).toHaveCount(3);
+      // Everything the filters match leaves as bundles in one file, with nothing ticked.
+      const [matching] = await Promise.all([
+        page.waitForEvent("download"),
+        page.getByTestId("traces-export-matching").click(),
+      ]);
+      expect(matching.suggestedFilename()).toBe("shadow-traces.shadow.ndjson");
+      const matched = (await readFile(await matching.path(), "utf8"))
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => JSON.parse(l) as { format: string; trace: { id: string } });
+      expect(matched.map((b) => b.trace.id).sort()).toEqual([...ids].sort());
+      expect(matched.every((b) => b.format === "shadow.trace")).toBe(true);
+      await expect(page.getByTestId("traces-export-message")).toHaveText("Exported 3 traces");
       for (const i of [0, 1, 2]) await rows.nth(i).getByTestId("trace-select").check();
       await expect(page.getByTestId("picked-count")).toContainText("3 selected");
       await expect(page.getByTestId("compare-selected")).toBeDisabled();

@@ -355,7 +355,8 @@ call only reads, so a `read` key may make it although it is a `POST`. CLI: `shad
 traces export <id> <id>… [--out <dir> | --out <file>.ndjson]` writes one `<traceId>.json` per
 trace or the stream, and takes the list's filters (`--agent`, `--outcome`, `--from`, …) in
 place of or next to ids, with `--limit <n>` for the newest few of the matches (a note on
-stderr says when more traces matched than were exported); the explorer's bulk bar exports the ticked traces. `shadow traces import`
+stderr says when more traces matched than were exported); the explorer's bulk bar exports the ticked traces and its "Export bundles" button every
+trace the current filters match. `shadow traces import`
 loads either form.
 
 ### `POST /api/v1/traces/import`

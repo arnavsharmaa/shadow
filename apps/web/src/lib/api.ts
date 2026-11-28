@@ -599,8 +599,15 @@ export const api = {
       "DELETE",
       `/api/v1/traces/${encodeURIComponent(traceId)}/shares/${encodeURIComponent(shareId)}`,
     ),
-  /** Several traces as newline-delimited `shadow.trace` bundles (one request, one document). */
-  exportTracesNdjson: async (traceIds: string[]): Promise<string> => {
+  /**
+   * Several traces as newline-delimited `shadow.trace` bundles (one request, one document):
+   * the ones named, the newest ones a selection matches, or both.
+   */
+  exportTracesNdjson: async (body: {
+    traceIds?: string[];
+    query?: TraceSelection;
+    limit?: number;
+  }): Promise<string> => {
     const response = await fetch(`${apiBaseUrl()}/api/v1/traces/export`, {
       method: "POST",
       headers: {
@@ -608,7 +615,7 @@ export const api = {
         accept: "application/x-ndjson",
         ...(apiToken() ? { authorization: `Bearer ${apiToken()}` } : {}),
       },
-      body: JSON.stringify({ traceIds }),
+      body: JSON.stringify(body),
       cache: "no-store",
     });
     if (!response.ok) throw new Error(`export failed with status ${response.status}`);

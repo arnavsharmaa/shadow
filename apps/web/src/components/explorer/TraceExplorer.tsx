@@ -23,6 +23,7 @@ import {
 } from "../ui/primitives";
 import { BulkActions } from "./BulkActions";
 import { CollectionAdder } from "./CollectionAdder";
+import { ExportMatching } from "./ExportMatching";
 import { SavedViews } from "./SavedViews";
 
 function readFilters(params: URLSearchParams): TraceFilters {
@@ -298,6 +299,7 @@ export function TraceExplorer() {
         >
           Download CSV
         </a>
+        {traces.data && <ExportMatching query={toSelection(filters)} total={traces.data.total} />}
         <span className="ml-auto text-[11px] text-fg-muted" aria-live="polite">
           {traces.data
             ? `${traces.data.total.toLocaleString()} trace${traces.data.total === 1 ? "" : "s"}`
